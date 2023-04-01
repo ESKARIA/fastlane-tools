@@ -33,7 +33,7 @@ api_key = app_store_connect_api_key(key_id: APPSTORE_KEY_ID,
                                     is_key_content_base64: true)
 
 CACHE_DIR = Dir.mktmpdir('fastlane_tools_cache').freeze
-Dir.glob(File.join(CACHE_DIR, '*Fastfile')).each { |fastfile| import fastfile }
+Dir.glob(File.join(CACHE_DIR, '../*Fastfile')).each { |fastfile| import fastfile }
 
 before_all do
     # update_fastlane
