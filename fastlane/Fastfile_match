@@ -13,11 +13,11 @@ lane :match_install do |options|
           include_all_certificates: options[:update],
           force_for_new_certificates: options[:update],
           readonly: options[:update] ? false : true,
-        #   readonly: false,
           force: true,
           platform: 'ios',
           verbose: true,
-          generate_apple_certs: false
+          generate_apple_certs: false,
+          git_branch: "development"
           )
 
 end
@@ -37,11 +37,11 @@ lane :match_sign do |options|
           include_all_certificates: options[:update],
           force_for_new_certificates: options[:update],
           readonly: options[:update] ? false : true,
-        #   readonly: false,
           force: options[:update],
           platform: 'ios',
           verbose: true,
-          generate_apple_certs: false
+          generate_apple_certs: false,
+          git_branch: "distribution"
           )
 
 end
