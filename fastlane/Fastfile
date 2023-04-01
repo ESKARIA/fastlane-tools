@@ -32,10 +32,20 @@ api_key = app_store_connect_api_key(key_id: APPSTORE_KEY_ID,
                                     in_house: false,
                                     is_key_content_base64: true)
 
-CACHE_DIR = Dir.mktmpdir('fastlane_tools_cache').freeze
-Dir.glob(File.join(CACHE_DIR, '../*Fastfile')).each { |fastfile| import fastfile }
+import_from_git(
+    url: 'git@github.com:ESKARIA/fastlane-tools.git',
+    branch: 'main',
+    path: 'fastlane/Fastfile_match', # use any another Fastfile besides fastlane/Fastfile for fix recursive import
+    dependencies: [
+      'fastlane/Fastfile_beta',
+      'fastlane/Fastfile_match',
+      'fastlane/Fastfile_tests'
+    ],
+    cache_path: './output/cache'
+)
 
 before_all do
+
     # update_fastlane
     clear_keychain
     if ENV['CI']
