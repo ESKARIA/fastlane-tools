@@ -21,7 +21,7 @@ lane :beta do |options|
 
     UI.message("App version: #{version_number} build #{build_number}")
     setup_ci
-    match_sign(options)
+    match_prod(options)
 
     build_app(
         scheme: MAIN_TARGET, 
