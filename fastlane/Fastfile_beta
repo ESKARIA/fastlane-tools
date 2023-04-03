@@ -96,3 +96,10 @@ def tag_commit(version_number, build_number)
     end
 
 end
+
+desc "Set tag version"
+lane :tagging do |options|
+                                       
+    tag_commit("1.0.0", 11)
+
+end
