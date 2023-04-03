@@ -31,7 +31,7 @@ lane :beta do |options|
         build_path: DERIVED_PATH.to_s
     )
 
-    tag_commit(version_number, build_number)
+    tag_commit(version_number, build_number, options)
 
     upload_ipa(options)
     upload_dsyms(options)
@@ -84,7 +84,7 @@ lane :upload_dsyms do |options|
 end
 
 # Напиши новый лейн для fastlane, установки тега на коммит
-def tag_commit(version_number, build_number)
+def tag_commit(version_number, build_number, options)
     needTags = options[:tags] ? true : false
     if needTags
         tag_name = "v#{version_number}-build-#{build_number}"
@@ -94,12 +94,5 @@ def tag_commit(version_number, build_number)
             add_git_tag(tag: tag_name)
         end
     end
-
-end
-
-desc "Set tag version"
-lane :tagging do |options|
-                                       
-    tag_commit("1.0.0", 11)
 
 end
