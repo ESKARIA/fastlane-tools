@@ -21,8 +21,6 @@ APPSTORE_KEY_ID             = ENV['APPSTORE_KEY_ID']
 APPSTORE_ISSUER_ID          = ENV['APPSTORE_ISSUER_ID']
 APPSTORE_KEY_CONTENT        = ENV['APPSTORE_KEY_CONTENT']
 
-CI_PROJECT_DIR              = ENV['CI_PROJECT_DIR']
-
 BUILD_NUMBER                = ENV['BUILD_NUMBER']
 APPMETRICA_KEY              = ENV['APPMETRICA_KEY']
 
@@ -38,7 +36,6 @@ import_from_git(
     path: 'fastlane/Fastfile_match', # use any another Fastfile besides fastlane/Fastfile for fix recursive import
     dependencies: [
       'fastlane/Fastfile_beta',
-    #   'fastlane/Fastfile_match',
       'fastlane/Fastfile_tests'
     ],
     cache_path: './output/cache'

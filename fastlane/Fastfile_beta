@@ -31,8 +31,9 @@ lane :beta do |options|
         build_path: DERIVED_PATH.to_s
     )
 
-    upload_ipa(options)
+    tag_commit(version_number, build_number)
 
+    upload_ipa(options)
     upload_dsyms(options)
 end
 
@@ -70,12 +71,28 @@ lane :upload_dsyms do |options|
                                        
     upload_symbols_to_appmetrica(post_api_key: APPMETRICA_KEY, binary_path: "./helper")
 
-    if options[:firebase]
+    
+    firebase = options[:firebase] ? true : false
+    if firebase
         dsym_path = "./" + MAIN_TARGET.to_s + ".app.dSYM.zip"
         upload_symbols_to_crashlytics(binary_path: CRASHLYTICS_PATH, dsym_path: dsym_path)
     end
 
     # Delete the local dSYM files
     clean_build_artifacts 
+
+end
+
+# Напиши новый лейн для fastlane, установки тега на коммит
+def tag_commit(version_number, build_number)
+    needTags = options[:tags] ? true : false
+    if needTags
+        tag_name = "v#{version_number}-build-#{build_number}"
+        if git_tag_exists(tag: tag_name, remote: true)
+            UI.message("#{tag_name} already exist!")
+        else
+            add_git_tag(tag: tag_name)
+        end
+    end
 
 end
