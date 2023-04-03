@@ -45,10 +45,10 @@ lane :upload_ipa do |options|
         pretty: "[%an] - %s",
         merge_commit_filtering: "exclude_merges"
     )
-
-    if options[:public]
+    needsExternal = options[:public]
+    if (needsExternal == true)
         changelog = "Fixes bugs, improvements UI, new features"
-        toExternal = options[:public]
+        toExternal = needsExternal
     end
     
     api_key = app_store_connect_api_key(key_id: APPSTORE_KEY_ID,
