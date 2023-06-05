@@ -30,8 +30,6 @@ lane :beta do |options|
         clean: true,
         build_path: DERIVED_PATH.to_s
     )
-    DSYM_PATH = lane_context[SharedValues::DSYM_OUTPUT_PATH]
-    UI.message(DSYM_PATH.to_s)
     
     tag_commit(version_number, build_number, options)
 
@@ -82,10 +80,10 @@ lane :upload_dsyms do |options|
                                        
     upload_symbols_to_appmetrica(post_api_key: APPMETRICA_KEY, binary_path: "./helper")
 
-    
     firebase = options[:firebase] ? true : false
     if firebase
-        upload_symbols_to_crashlytics(binary_path: CRASHLYTICS_PATH, dsym_path: DSYM_PATH.to_s)
+        dsym_path = lane_context[SharedValues::DSYM_OUTPUT_PATH].to_s
+        upload_symbols_to_crashlytics(binary_path: CRASHLYTICS_PATH, dsym_path: dsym_path.to_s)
     end
 
     # Delete the local dSYM files
