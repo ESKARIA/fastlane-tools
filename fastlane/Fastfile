@@ -19,6 +19,7 @@ APPMETRICA_KEY              = ENV['APPMETRICA_KEY']
 
 DERIVED_PATH                = "build"
 CRASHLYTICS_PATH            = "./SourcePackages/checkouts/firebase-ios-sdk/Crashlytics/upload-symbols"
+DSYM_PATH                   = "./"
 
 ### metadata ###
 DATA_META_PATH              = "./fastlane/metadata"
