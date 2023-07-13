@@ -1,6 +1,6 @@
 lane :match_dev do |options|
     
-    widget = options[:widget]
+    widget = ENV['APP_IDENTIFIER_WIDGET'] if widget.nil? || widget.empty? # options[:widget]
 
     api_key = app_store_connect_api_key(key_id: APPSTORE_KEY_ID,
                             issuer_id: APPSTORE_ISSUER_ID,
@@ -22,7 +22,7 @@ lane :match_dev do |options|
           git_branch: "development"
           )
 
-    if (widget == true)
+    if (widget == false)
         match(type: 'development',
             app_identifier: ENV['APP_IDENTIFIER_WIDGET'],
             api_key: api_key,
@@ -64,7 +64,7 @@ lane :match_prod do |options|
           git_branch: "distribution"
           )
 
-    if (widget == true)
+    if (widget == false)
         match(type: 'appstore',
             app_identifier: ENV['APP_IDENTIFIER_WIDGET'],
             api_key: api_key,
