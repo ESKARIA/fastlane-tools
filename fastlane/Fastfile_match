@@ -1,4 +1,6 @@
 lane :match_dev do |options|
+    
+    widget = options[:widget]
 
     api_key = app_store_connect_api_key(key_id: APPSTORE_KEY_ID,
                             issuer_id: APPSTORE_ISSUER_ID,
@@ -20,9 +22,27 @@ lane :match_dev do |options|
           git_branch: "development"
           )
 
+    if (widget == true)
+        match(type: 'development',
+            app_identifier: ENV['APP_IDENTIFIER_WIDGET'],
+            api_key: api_key,
+            force_for_new_devices: true,
+            include_all_certificates: true,
+            force_for_new_certificates: true,
+            readonly: false,
+            force: options[:update],
+            platform: 'ios',
+            verbose: true,
+            generate_apple_certs: options[:update],
+            git_branch: "development"
+            )  
+    end
+    
 end
 
 lane :match_prod do |options|
+
+    widget = options[:widget]
 
     api_key = app_store_connect_api_key(key_id: APPSTORE_KEY_ID,
                             issuer_id: APPSTORE_ISSUER_ID,
@@ -43,5 +63,21 @@ lane :match_prod do |options|
           generate_apple_certs: options[:update],
           git_branch: "distribution"
           )
+
+    if (widget == true)
+        match(type: 'appstore',
+            app_identifier: ENV['APP_IDENTIFIER_WIDGET'],
+            api_key: api_key,
+            force_for_new_devices: true,
+            include_all_certificates: true,
+            force_for_new_certificates: true,
+            readonly: false,
+            force: options[:update],
+            platform: 'ios',
+            verbose: true,
+            generate_apple_certs: options[:update],
+            git_branch: "distribution"
+            )
+    end
 
 end
