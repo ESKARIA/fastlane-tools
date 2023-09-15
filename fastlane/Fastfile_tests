@@ -4,8 +4,8 @@ lane :tests do |options|
 
     test_target_schame = options["scheme"]
     test_device_target = options["device"]
-    run_tests(devices: [test_device_target],
-              scheme: test_target_schame,
+    run_tests(devices: [test_device_target.to_s],
+              scheme: test_target_schame.to_s,
               code_coverage: true, 
               derived_data_path: DERIVED_PATH)
 
