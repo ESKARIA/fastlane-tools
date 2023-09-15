@@ -3,6 +3,9 @@ desc "Build and run unit tests"
 lane :tests do |options|
 
     test_target_schame = MAIN_TARGET + 'Tests'
-    run_tests(devices: ["iPhone 13 Pro Max"], scheme: test_target_schame, code_coverage: true, derived_data_path: DERIVED_PATH)
+    run_tests(devices: ["iPhone 15 Pro"],
+        scheme: test_target_schame,
+         code_coverage: true, 
+         derived_data_path: DERIVED_PATH)
 
 end
