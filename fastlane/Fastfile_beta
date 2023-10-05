@@ -28,6 +28,7 @@ lane :beta do |options|
         export_xcargs: "-allowProvisioningUpdates", 
         cloned_source_packages_path: "SourcePackages",
         clean: true,
+        output_name: "application.ipa",
         build_path: DERIVED_PATH.to_s
     )
     
