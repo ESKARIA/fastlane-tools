@@ -78,8 +78,13 @@ end
 
 desc "Upload symbols"
 lane :upload_dsyms do |options|
-                                       
-    upload_symbols_to_appmetrica(post_api_key: APPMETRICA_KEY, binary_path: "./helper")
+
+    helper_path = ENV['APPMETRICA_HELPER_PATH'] if helper_path.nil? || helper_path.empty?
+
+    isMetrica = (helper_path.nil? || helper_path.empty?)
+    if isMetrica                                   
+        upload_symbols_to_appmetrica(post_api_key: APPMETRICA_KEY, binary_path: APPMETRICA_HELPER_PATH)
+    end
 
     firebase = options[:firebase] ? true : false
     if firebase

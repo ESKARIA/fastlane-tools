@@ -16,6 +16,7 @@ APPSTORE_KEY_CONTENT        = ENV['APPSTORE_KEY_CONTENT']
 
 BUILD_NUMBER                = ENV['BUILD_NUMBER']
 APPMETRICA_KEY              = ENV['APPMETRICA_KEY']
+APPMETRICA_HELPER_PATH      = ENV['APPMETRICA_HELPER_PATH'] # "./helper"
 
 DERIVED_PATH                = "build"
 CRASHLYTICS_PATH            = "./SourcePackages/checkouts/firebase-ios-sdk/Crashlytics/upload-symbols"
