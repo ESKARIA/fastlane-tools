@@ -28,6 +28,7 @@ lane :beta do |options|
         export_xcargs: "-allowProvisioningUpdates", 
         cloned_source_packages_path: "SourcePackages",
         clean: true,
+        output_directory: ARTIFACTS_PATH.to_s,
         output_name: IPA_FILE_NAME.to_s,
         build_path: DERIVED_PATH.to_s
     )
@@ -74,29 +75,9 @@ lane :upload_ipa do |options|
             expire_previous_builds: false,
             ipa: IPA_FILE_PATH.to_s)
     end
+    mv_command = "mv -f " + DSYM_PATH.to_s + " " + ARTIFACTS_PATH.to_s
+    sh(mv_command.to_s)
     UI.message("[DEBUG]: Complete deploy")
-
-end
-
-desc "Upload symbols"
-lane :upload_dsyms do |options|
-
-    helper_path = ENV['APPMETRICA_HELPER_PATH'] if helper_path.nil? || helper_path.empty?
-
-    isMetrica = (helper_path.nil? || helper_path.empty?)
-    if isMetrica 
-        UI.message("[DEBUG]: Deploy DSYMS to AppMetrica...")                                 
-        upload_symbols_to_appmetrica(post_api_key: APPMETRICA_KEY, binary_path: APPMETRICA_HELPER_PATH.to_s, files: DSYM_PATH.to_s)
-    end
-
-    firebase = options[:firebase] ? true : false
-    if firebase
-        UI.message("[DEBUG]: Deploy DSYMS to Firebase...")
-        upload_symbols_to_crashlytics(binary_path: CRASHLYTICS_PATH, dsym_path: DSYM_PATH.to_s)
-    end
-
-    # Delete the local dSYM files
-    # clean_build_artifacts 
 
 end
 

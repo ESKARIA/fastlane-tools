@@ -24,10 +24,12 @@ CRASHLYTICS_PATH            = "./SourcePackages/checkouts/firebase-ios-sdk/Crash
 ### metadata ###
 DATA_META_PATH              = "./fastlane/metadata"
 DATA_SCREEN_PATH            = "./fastlane/screenshots"
-FILE_NAME                   = "application"
+
+FILE_NAME                   = "app_" + APP_IDENTIFIER.to_s + "_b_" BUILD_NUMBER.to_s
+ARTIFACTS_PATH              = "~/.cache/apps/" + MAIN_TARGET.to_s + "/"
 IPA_FILE_NAME               = FILE_NAME.to_s + ".ipa"
-IPA_FILE_PATH               = "./" + FILE_NAME.to_s + ".ipa"
-DSYM_PATH                   = "./" + FILE_NAME.to_s + ".app.dSYM.zip"
+IPA_FILE_PATH               = ARTIFACTS_PATH.to_s + FILE_NAME.to_s + ".ipa"
+DSYM_PATH                   = ARTIFACTS_PATH.to_s + FILE_NAME.to_s + ".app.dSYM.zip"
 
 api_key = app_store_connect_api_key(key_id: APPSTORE_KEY_ID,
                                     issuer_id: APPSTORE_ISSUER_ID,
@@ -42,7 +44,8 @@ import_from_git(
     version: [">= 1.0.0"],
     dependencies: [
       'fastlane/Fastfile_beta',
-      'fastlane/Fastfile_tests'
+      'fastlane/Fastfile_tests',
+      'fastlane/Fastfile_dsyms'
     ],
     cache_path: "~/.cache/fastlane/imported/"
 )
