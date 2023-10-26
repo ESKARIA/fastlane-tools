@@ -77,8 +77,9 @@ lane :upload_ipa do |options|
     end
 
     sh("mkdir -p " + ARTIFACTS_PATH.to_s)
-    sh("cp *.zip" + " " + ARTIFACTS_PATH.to_s)
-    sh("cp *.ipa" + " " + ARTIFACTS_PATH.to_s)
+    sh("cp " + IPA_FILE_NAME.to_s + " " + ARTIFACTS_PATH.to_s)
+    sh("cp " + DSYM_FILE_NAME.to_s + " " + ARTIFACTS_PATH.to_s)
+
     UI.message("[DEBUG]: Complete deploy")
 
 end
