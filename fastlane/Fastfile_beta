@@ -76,8 +76,8 @@ lane :upload_ipa do |options|
             ipa: IPA_FILE_PATH.to_s)
     end
 
-    sh("mv -f *.zip" + " " + ARTIFACTS_PATH.to_s)
-    sh("mv -f *.ipa" + " " + ARTIFACTS_PATH.to_s)
+    sh("mv -b *.zip" + " " + ARTIFACTS_PATH.to_s)
+    sh("mv -b *.ipa" + " " + ARTIFACTS_PATH.to_s)
     UI.message("[DEBUG]: Complete deploy")
 
 end
