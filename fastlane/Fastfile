@@ -47,7 +47,7 @@ import_from_git(
       'fastlane/Fastfile_tests',
       'fastlane/Fastfile_dsyms'
     ],
-    cache_path: "~/.cache/fastlane/imported/"
+    # cache_path: "~/.cache/fastlane/imported/"
 )
 
 before_all do
