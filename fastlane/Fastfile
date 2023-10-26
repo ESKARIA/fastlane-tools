@@ -41,12 +41,12 @@ api_key = app_store_connect_api_key(key_id: APPSTORE_KEY_ID,
 import_from_git(
     url: 'git@github.com:ESKARIA/fastlane-tools.git',
     # branch: 'main',
-    path: 'fastlane/actions/Fastfile_match', # use any another Fastfile besides fastlane/Fastfile for fix recursive import
+    path: 'fastlane/Fastfile_match', # use any another Fastfile besides fastlane/Fastfile for fix recursive import
     # version: [">= 1.0.0"],
     dependencies: [
-      'fastlane/actions/Fastfile_beta',
-      'fastlane/actions/Fastfile_tests',
-      'fastlane/actions/Fastfile_dsyms'
+      'fastlane/Fastfile_beta',
+      'fastlane/Fastfile_tests',
+      'fastlane/Fastfile_dsyms'
     ],
     # cache_path: "~/.cache/fastlane/imported/"
 )
