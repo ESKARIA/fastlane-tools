@@ -7,7 +7,7 @@ end
 
 desc "Build and upload to testflight"
 lane :beta do |options|
-
+    sh("mkdir -p " + ARTIFACTS_PATH.to_s)
     version(options)
 
     api_key = app_store_connect_api_key(key_id: APPSTORE_KEY_ID,
@@ -76,9 +76,8 @@ lane :upload_ipa do |options|
             ipa: IPA_FILE_PATH.to_s)
     end
 
-    sh("mkdir -p " + ARTIFACTS_PATH.to_s)
-    sh("cp " + IPA_FILE_NAME.to_s + " " + ARTIFACTS_PATH.to_s)
-    sh("cp " + DSYM_FILE_NAME.to_s + " " + ARTIFACTS_PATH.to_s)
+    # sh("cp " + IPA_FILE_NAME.to_s + " " + ARTIFACTS_PATH.to_s)
+    # sh("cp " + DSYM_FILE_NAME.to_s + " " + ARTIFACTS_PATH.to_s)
 
     UI.message("[DEBUG]: Complete deploy")
 
