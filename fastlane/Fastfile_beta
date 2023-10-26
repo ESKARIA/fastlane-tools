@@ -28,14 +28,14 @@ lane :beta do |options|
         export_xcargs: "-allowProvisioningUpdates", 
         cloned_source_packages_path: "SourcePackages",
         clean: true,
-        output_name: "application.ipa",
+        output_name: IPA_FILE_NAME.to_s,
         build_path: DERIVED_PATH.to_s
     )
-    
-    tag_commit(version_number, build_number, options)
-
     upload_ipa(options)
-    upload_dsyms(options)
+
+    tag_commit(version_number, build_number, options)
+    
+    # upload_dsyms(options)
 end
 
 desc "Upload ipa to AppStore Connect"
@@ -63,14 +63,16 @@ lane :upload_ipa do |options|
             distribute_external: true, 
             groups: "External Public Beta",
             skip_waiting_for_build_processing: false, 
-            expire_previous_builds: false)
+            expire_previous_builds: false,
+            ipa: IPA_FILE_PATH.to_s)
     else
         UI.message("[DEBUG]: NO deploy to External Public Beta")
         testflight(api_key: api_key, 
             changelog: changelog.to_s, 
             distribute_external: false, 
             skip_waiting_for_build_processing: false, 
-            expire_previous_builds: false)
+            expire_previous_builds: false,
+            ipa: IPA_FILE_PATH.to_s)
     end
     UI.message("[DEBUG]: Complete deploy")
 
@@ -84,17 +86,17 @@ lane :upload_dsyms do |options|
     isMetrica = (helper_path.nil? || helper_path.empty?)
     if isMetrica 
         UI.message("[DEBUG]: Deploy DSYMS to AppMetrica...")                                 
-        upload_symbols_to_appmetrica(post_api_key: APPMETRICA_KEY, binary_path: APPMETRICA_HELPER_PATH.to_s)
+        upload_symbols_to_appmetrica(post_api_key: APPMETRICA_KEY, binary_path: APPMETRICA_HELPER_PATH.to_s, files: DSYM_PATH.to_s)
     end
 
     firebase = options[:firebase] ? true : false
     if firebase
-        dsym_path = lane_context[SharedValues::DSYM_OUTPUT_PATH].to_s
-        upload_symbols_to_crashlytics(binary_path: CRASHLYTICS_PATH, dsym_path: dsym_path.to_s)
+        UI.message("[DEBUG]: Deploy DSYMS to Firebase...")
+        upload_symbols_to_crashlytics(binary_path: CRASHLYTICS_PATH, dsym_path: DSYM_PATH.to_s)
     end
 
     # Delete the local dSYM files
-    clean_build_artifacts 
+    # clean_build_artifacts 
 
 end
 
