@@ -75,10 +75,6 @@ lane :upload_ipa do |options|
             expire_previous_builds: false,
             ipa: IPA_FILE_PATH.to_s)
     end
-
-    # sh("cp " + IPA_FILE_NAME.to_s + " " + ARTIFACTS_PATH.to_s)
-    # sh("cp " + DSYM_FILE_NAME.to_s + " " + ARTIFACTS_PATH.to_s)
-
     UI.message("[DEBUG]: Complete deploy")
 
 end
