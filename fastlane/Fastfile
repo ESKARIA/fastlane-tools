@@ -38,11 +38,12 @@ import_from_git(
     url: 'git@github.com:ESKARIA/fastlane-tools.git',
     branch: 'main',
     path: 'fastlane/Fastfile_match', # use any another Fastfile besides fastlane/Fastfile for fix recursive import
+    version: [">= 1.0.0", "< 1.1.0"],
     dependencies: [
       'fastlane/Fastfile_beta',
       'fastlane/Fastfile_tests'
     ],
-    cache_path: './output/cache'
+    cache_path: "~/.cache/fastlane/imported/" + ENV["APP_IDENTIFIER"].to_s
 )
 
 before_all do
