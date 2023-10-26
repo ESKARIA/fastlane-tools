@@ -25,7 +25,7 @@ CRASHLYTICS_PATH            = "./SourcePackages/checkouts/firebase-ios-sdk/Crash
 DATA_META_PATH              = "./fastlane/metadata"
 DATA_SCREEN_PATH            = "./fastlane/screenshots"
 
-FILE_NAME                   = "app_" + APP_IDENTIFIER.to_s + "_b_" BUILD_NUMBER.to_s
+FILE_NAME                   = "app_" + APP_IDENTIFIER.to_s + "_b_"  + BUILD_NUMBER.to_s
 ARTIFACTS_PATH              = "~/.cache/apps/" + MAIN_TARGET.to_s + "/"
 IPA_FILE_NAME               = FILE_NAME.to_s + ".ipa"
 IPA_FILE_PATH               = ARTIFACTS_PATH.to_s + FILE_NAME.to_s + ".ipa"
