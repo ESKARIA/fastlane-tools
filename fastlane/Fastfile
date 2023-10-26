@@ -24,9 +24,10 @@ CRASHLYTICS_PATH            = "./SourcePackages/checkouts/firebase-ios-sdk/Crash
 ### metadata ###
 DATA_META_PATH              = "./fastlane/metadata"
 DATA_SCREEN_PATH            = "./fastlane/screenshots"
-IPA_FILE_NAME               = "application.ipa"
-IPA_FILE_PATH               = "./" + ENV['IPA_FILE_NAME']
-DSYM_PATH                   = "./application.app.dSYM.zip"
+FILE_NAME                   = "application"
+IPA_FILE_NAME               = FILE_NAME.to_s + ".ipa"
+IPA_FILE_PATH               = "./" + FILE_NAME.to_s + ".ipa"
+DSYM_PATH                   = "./" + FILE_NAME.to_s + ".app.dSYM.zip"
 
 api_key = app_store_connect_api_key(key_id: APPSTORE_KEY_ID,
                                     issuer_id: APPSTORE_ISSUER_ID,
