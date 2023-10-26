@@ -75,8 +75,9 @@ lane :upload_ipa do |options|
             expire_previous_builds: false,
             ipa: IPA_FILE_PATH.to_s)
     end
-    mv_command = "mv -f " + "./" + FILE_NAME.to_s + ".app.dSYM.zip" + " " + ARTIFACTS_PATH.to_s
-    sh(mv_command.to_s)
+
+    sh("mv -f *.zip" + " " + ARTIFACTS_PATH.to_s)
+    sh("mv -f *.ipa" + " " + ARTIFACTS_PATH.to_s)
     UI.message("[DEBUG]: Complete deploy")
 
 end
