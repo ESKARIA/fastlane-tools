@@ -48,7 +48,8 @@ import_from_git(
     dependencies: [
       'fastlane/Fastfile_beta',
       'fastlane/Fastfile_tests',
-      'fastlane/Fastfile_dsyms'
+      'fastlane/Fastfile_dsyms',
+      'fastlane/Fastfile_upload'
     ],
     # cache_path: "~/.cache/fastlane/imported/"
 )
