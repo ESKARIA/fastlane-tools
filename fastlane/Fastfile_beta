@@ -5,8 +5,8 @@ lane :version do |options|
     increment_version_number_in_xcodeproj(version_number: version_number.to_s)
 end
 
-desc "Build and upload to testflight"
-lane :beta do |options|
+desc "Build project"
+lane :build do |options|
     sh("mkdir -p " + ARTIFACTS_PATH.to_s)
     version(options)
 
