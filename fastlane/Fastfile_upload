@@ -13,12 +13,14 @@ lane :upload_testflight do |options|
         pretty: "[%an] - %s",
         merge_commit_filtering: "exclude_merges"
     )
+    app_identifier = ENV["APP_IDENTIFIER"].split(',').first
 
     UI.message("[DEBUG]: Start deploy")
     if (toExternal == true)
         changelog = "Fixes bugs, improvements UI, new features"
         UI.message("[DEBUG]: External Public Beta")
         testflight(api_key: api_key, 
+            app_identifier: app_identifier,
             changelog: changelog.to_s, 
             distribute_external: true, 
             groups: "External Public Beta",
@@ -28,6 +30,7 @@ lane :upload_testflight do |options|
     else
         UI.message("[DEBUG]: NO deploy to External Public Beta")
         testflight(api_key: api_key, 
+            app_identifier: app_identifier,
             changelog: changelog.to_s, 
             distribute_external: false, 
             skip_waiting_for_build_processing: false, 
