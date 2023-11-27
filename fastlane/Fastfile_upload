@@ -8,9 +8,16 @@ lane :upload_testflight do |options|
         in_house: false,
         is_key_content_base64: true)
 
+    # Получение последнего тега
+    last_tag = sh("git describe --tags --abbrev=0").strip
+
+    # Получение хэша коммита этого тега
+    commit_of_last_tag = sh("git rev-list -n 1 #{last_tag}").strip
+
     changelog = changelog_from_git_commits(
-        commits_count: 10,
-        pretty: "[%an] - %s",
+        between: [commit_of_last_tag.to_s, "HEAD"],
+        commits_count: 100,
+        pretty: " - %s",
         merge_commit_filtering: "exclude_merges"
     )
     app_identifier = ENV["APP_IDENTIFIER"].split(',').first
