@@ -16,7 +16,6 @@ lane :upload_testflight do |options|
 
     changelog = changelog_from_git_commits(
         between: [commit_of_last_tag.to_s, "HEAD"],
-        commits_count: 100,
         pretty: " - %s",
         merge_commit_filtering: "exclude_merges"
     )
