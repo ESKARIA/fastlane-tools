@@ -19,6 +19,9 @@ lane :upload_testflight do |options|
         pretty: " - %s",
         merge_commit_filtering: "exclude_merges"
     )
+    UI.message("[DEBUG]: Changelog")
+    UI.message(changelog.to_s)
+    
     app_identifier = ENV["APP_IDENTIFIER"].split(',').first
 
     UI.message("[DEBUG]: Start deploy")
