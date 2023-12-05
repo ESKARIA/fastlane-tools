@@ -33,19 +33,4 @@ lane :build do |options|
         build_path: DERIVED_PATH.to_s
     )
     
-    tag_commit(version_number, build_number, options)
-    
-end
-
-def tag_commit(version_number, build_number, options)
-    needTags = options[:tags] ? true : false
-    if needTags
-        tag_name = "v#{version_number}-build-#{build_number}"
-        if git_tag_exists(tag: tag_name, remote: true)
-            UI.message("#{tag_name} already exist!")
-        else
-            add_git_tag(tag: tag_name)
-        end
-    end
-
 end

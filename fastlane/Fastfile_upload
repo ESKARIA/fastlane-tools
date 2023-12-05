@@ -21,7 +21,7 @@ lane :upload_testflight do |options|
     )
     UI.message("[DEBUG]: Changelog")
     UI.message(changelog.to_s)
-    
+
     app_identifier = ENV["APP_IDENTIFIER"].split(',').first
 
     UI.message("[DEBUG]: Start deploy")
@@ -47,5 +47,22 @@ lane :upload_testflight do |options|
             ipa: IPA_FILE_PATH.to_s)
     end
     UI.message("[DEBUG]: Complete deploy")
+
+    build_number = increment_build_number(build_number: options[:build] ? options[:build].to_i : BUILD_NUMBER.to_i)
+    version_number = get_version_number(xcodeproj: MAIN_PROJECT_FILE, target: MAIN_TARGET)
+    
+    tag_commit(version_number, build_number, options)
+end
+
+def tag_commit(version_number, build_number, options)
+    needTags = options[:tags] ? true : false
+    if needTags
+        tag_name = "v#{version_number}-build-#{build_number}"
+        if git_tag_exists(tag: tag_name, remote: true)
+            UI.message("#{tag_name} already exist!")
+        else
+            add_git_tag(tag: tag_name)
+        end
+    end
 
 end
