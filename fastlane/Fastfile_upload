@@ -48,9 +48,9 @@ lane :upload_testflight do |options|
     end
     UI.message("[DEBUG]: Complete deploy")
 
-    build_number = increment_build_number(build_number: options[:build] ? options[:build].to_i : BUILD_NUMBER.to_i)
-    version_number = get_version_number(xcodeproj: MAIN_PROJECT_FILE, target: MAIN_TARGET)
-    
+    build_number = options[:build] ? options[:build].to_i : BUILD_NUMBER.to_i
+    version_number = options[:ver].to_s
+
     tag_commit(version_number, build_number, options)
 end
 
