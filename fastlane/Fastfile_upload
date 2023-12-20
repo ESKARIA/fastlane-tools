@@ -26,7 +26,7 @@ lane :upload_testflight do |options|
 
     UI.message("[DEBUG]: Start deploy")
     if (toExternal == true)
-        changelog = "Fixes bugs, improvements UI, new features"
+        # changelog = "Fixes bugs, improvements UI, new features"
         UI.message("[DEBUG]: External Public Beta")
         testflight(api_key: api_key, 
             app_identifier: app_identifier,
