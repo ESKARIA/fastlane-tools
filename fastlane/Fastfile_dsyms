@@ -23,7 +23,9 @@ lane :upload_dsyms do |options|
         UI.message("[DEBUG]: Deploy DSYMS to AppMetrica...")                                 
         upload_symbols_to_appmetrica(post_api_key: APPMETRICA_KEY, 
                                     binary_path: APPMETRICA_HELPER_PATH.to_s, 
-                                    files: dsym_paths)
+                                    files: dsym_paths,
+                                    verbose: true,
+                                    package_output_path: "./")
     end
 
     firebase = options[:firebase] ? true : false
