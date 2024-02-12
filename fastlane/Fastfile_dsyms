@@ -74,16 +74,17 @@ lane :unzip_and_upload do |options|
           # Создаем папку для распаковки, если она еще не существует
           destination_folder = File.join(File.dirname(zip_file), File.basename(zip_file, ".zip"))
           FileUtils.mkdir_p(destination_folder) unless File.exist?(destination_folder)
-      
-          # Распаковываем файл
-          system("unzip", "-o", zip_file, "-d", destination_folder)
-          sh("ls")
-          dsym_path = ""
-          Find.find('.') do |path|
-            dsym_path << path if path.end_with?('.dSYM')
-            UI.message("[DEBUG]: Start upload #{dsym_path}")
-            sh("ruby #{helper_path} -k #{APPMETRICA_KEY} -p #{dsym_path}")
-          end
+          sh("ruby #{helper_path} -k #{APPMETRICA_KEY} -p #{zip_file}")
+
+        #   # Распаковываем файл
+        #   system("unzip", "-o", zip_file, "-d", destination_folder)
+        #   sh("ls")
+        #   dsym_path = ""
+        #   Find.find('.') do |path|
+        #     dsym_path << path if path.end_with?('.dSYM')
+        #     UI.message("[DEBUG]: Start upload #{dsym_path}")
+        #     sh("ruby #{helper_path} -k #{APPMETRICA_KEY} -p #{dsym_path}")
+        #   end
         else
           puts "Файл не найден: #{zip_file}"
         end
