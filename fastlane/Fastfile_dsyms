@@ -78,8 +78,10 @@ lane :unzip_and_upload do |options|
           # Распаковываем файл
           system("unzip", "-o", zip_file, "-d", destination_folder)
           sh("ls")
+          dsym_path = ""
           Find.find('.') do |path|
             dsym_path << path if path.end_with?('.dSYM')
+            UI.message("[DEBUG]: Start upload #{dsym_path}")
             sh("ruby #{helper_path} -k #{APPMETRICA_KEY} -p #{dsym_path}")
           end
         else
