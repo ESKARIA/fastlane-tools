@@ -71,11 +71,14 @@ lane :unzip_and_upload do |options|
     dsym_paths.each do |zip_file|
         # Проверяем, существует ли файл
         if File.exist?(zip_file)
-          # Создаем папку для распаковки, если она еще не существует
-          destination_folder = File.join(File.dirname(zip_file), File.basename(zip_file, ".zip"))
-          FileUtils.mkdir_p(destination_folder) unless File.exist?(destination_folder)
-          sh("ruby #{helper_path} -k #{APPMETRICA_KEY} -p #{zip_file}")
-
+        #   # Создаем папку для распаковки, если она еще не существует
+        #   destination_folder = File.join(File.dirname(zip_file), File.basename(zip_file, ".zip"))
+        #   FileUtils.mkdir_p(destination_folder) unless File.exist?(destination_folder)
+            sh("ruby #{helper_path} -k #{APPMETRICA_KEY} -p #{zip_file}")
+            upload_symbols_to_appmetrica(post_api_key: APPMETRICA_KEY, 
+                                        binary_path: helper_path.to_s, 
+                                        files: zip_file,
+                                        verbose: true)
         #   # Распаковываем файл
         #   system("unzip", "-o", zip_file, "-d", destination_folder)
         #   sh("ls")
