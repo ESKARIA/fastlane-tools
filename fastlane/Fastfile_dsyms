@@ -17,12 +17,12 @@ lane :upload_dsyms do |options|
     isMetrica = !helper_path.nil? && !helper_path.empty?
     if isMetrica 
         UI.message("[DEBUG]: Download AppMetrica helper file...")
-        download_file
-        UI.message("[DEBUG]: Deploy DSYMS to AppMetrica...")
         sh("pwd")
         sh("ls")
+        download_file
+        UI.message("[DEBUG]: Deploy DSYMS to AppMetrica...")
         sh("ruby #{helper_path} -k #{APPMETRICA_KEY} -p #{dsym_paths}")
-
+        sh("ls")
         # upload_symbols_to_appmetrica(post_api_key: APPMETRICA_KEY, 
         #                              binary_path: helper_path.to_s, 
         #                              files: dsym_paths,
