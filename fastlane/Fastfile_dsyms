@@ -1,11 +1,7 @@
 desc "Upload symbols"
 lane :upload_dsyms do |options|
 
-    # sh("cp " + IPA_FILE_PATH.to_s + " ./")
     sh("cp " + DSYM_PATH.to_s + " ./")
-
-    sh("pwd")
-    sh("ls")
 
     require 'find'
     dsym_paths = []
@@ -20,24 +16,25 @@ lane :upload_dsyms do |options|
     UI.message(message)
     isMetrica = !helper_path.nil? && !helper_path.empty?
     if isMetrica 
-        UI.message("[DEBUG]: Download AppMetrica helper file...")  
+        UI.message("[DEBUG]: Download AppMetrica helper file...")
         download_file
-        UI.message("[DEBUG]: Deploy DSYMS to AppMetrica...")                                 
-
+        UI.message("[DEBUG]: Deploy DSYMS to AppMetrica...")
+        sh("pwd")
+        sh("ls")
         sh("ruby #{helper_path} -k #{APPMETRICA_KEY} -p #{dsym_paths}")
 
         # upload_symbols_to_appmetrica(post_api_key: APPMETRICA_KEY, 
-        #                             binary_path: helper_path.to_s, 
-        #                             files: dsym_paths,
-        #                             verbose: true,
-        #                             package_output_path: "./")
+        #                              binary_path: helper_path.to_s, 
+        #                              files: dsym_paths,
+        #                              verbose: true,
+        #                              package_output_path: "./")
     end
 
     firebase = options[:firebase] ? true : false
     if firebase
         UI.message("[DEBUG]: Deploy DSYMS to Firebase...")
         upload_symbols_to_crashlytics(binary_path: CRASHLYTICS_PATH, 
-                                    dsym_path: DSYM_PATH.to_s)
+                                      dsym_path: DSYM_PATH.to_s)
     end
 
     # Delete the local dSYM files
@@ -52,7 +49,7 @@ lane :FIND_DSYMS do
   
   lane :download_file do
     require 'open-uri'
-    url = 'https://github.com/ESKARIA/fastlane-tools/blame/f469ecfb40026378df418145b6551ea4d0aa43c1/fastlane/helper' # Замените на вашу ссылку
+    url = 'https://github.com/ESKARIA/fastlane-tools/raw/main/fastlane/helper' # Замените на вашу ссылку
     File.open('helper', 'wb') do |file|
       file.write(open(url).read)
     end
