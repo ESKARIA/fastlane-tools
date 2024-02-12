@@ -1,13 +1,19 @@
 desc "Upload symbols"
 lane :upload_dsyms do |options|
 
-    sh("cp " + IPA_FILE_PATH.to_s + " ../")
-    sh("cp " + DSYM_PATH.to_s + " ../")
+    # sh("cp " + IPA_FILE_PATH.to_s + " ./")
+    sh("cp " + DSYM_PATH.to_s + " ./")
 
     sh("pwd")
     sh("ls")
-    sh("cd ..")
-    sh("ls")
+
+    require 'find'
+    dsym_paths = []
+    Find.find('.') do |path|
+      dsym_paths << path if path.end_with?('.dSYM.zip')
+    end
+
+    UI.message(dsym_paths)
 
     helper_path = ENV['APPMETRICA_HELPER_PATH'] if helper_path.nil? || helper_path.empty?
     message = "[DEBUG]: Helper path: " + helper_path.to_s
@@ -15,16 +21,25 @@ lane :upload_dsyms do |options|
     isMetrica = !helper_path.nil? && !helper_path.empty?
     if isMetrica 
         UI.message("[DEBUG]: Deploy DSYMS to AppMetrica...")                                 
-        upload_symbols_to_appmetrica(post_api_key: APPMETRICA_KEY, binary_path: APPMETRICA_HELPER_PATH.to_s, files: DSYM_PATH.to_s)
+        upload_symbols_to_appmetrica(post_api_key: APPMETRICA_KEY, 
+                                    binary_path: APPMETRICA_HELPER_PATH.to_s, 
+                                    files: dsym_paths)
     end
 
     firebase = options[:firebase] ? true : false
     if firebase
         UI.message("[DEBUG]: Deploy DSYMS to Firebase...")
-        upload_symbols_to_crashlytics(binary_path: CRASHLYTICS_PATH, dsym_path: DSYM_PATH.to_s)
+        upload_symbols_to_crashlytics(binary_path: CRASHLYTICS_PATH, 
+                                    dsym_path: DSYM_PATH.to_s)
     end
 
     # Delete the local dSYM files
     # clean_build_artifacts 
-
+    
 end
+
+lane :FIND_DSYMS do
+    
+    # Теперь переменная dsym_paths содержит пути ко всем .dsyms.zip файлам
+  end
+  
