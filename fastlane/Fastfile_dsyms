@@ -43,9 +43,13 @@ lane :upload_dsyms do |options|
 end
 
 lane :download_file do
-require 'open-uri'
-url = 'https://github.com/ESKARIA/fastlane-tools/raw/main/fastlane/helper' # Замените на вашу ссылку
-File.open('helper', 'wb') do |file|
-    file.write(open(url).read)
-end
+    require 'open-uri'
+    begin
+        url = 'https://github.com/ESKARIA/fastlane-tools/raw/main/fastlane/helper' # Замените на вашу ссылку
+        File.open('helper', 'wb') do |file|
+            file.write(open(url).read)
+        end
+    rescue OpenURI::HTTPError => e
+        puts "Не удалось загрузить файл: #{e.message}"
+    end
 end
