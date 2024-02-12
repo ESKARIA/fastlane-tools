@@ -20,6 +20,8 @@ lane :upload_dsyms do |options|
     UI.message(message)
     isMetrica = !helper_path.nil? && !helper_path.empty?
     if isMetrica 
+        UI.message("[DEBUG]: Download AppMetrica helper file...")  
+        download_file
         UI.message("[DEBUG]: Deploy DSYMS to AppMetrica...")                                 
 
         sh("ruby #{helper_path} -k #{APPMETRICA_KEY} -p #{dsym_paths}")
@@ -48,3 +50,10 @@ lane :FIND_DSYMS do
     # Теперь переменная dsym_paths содержит пути ко всем .dsyms.zip файлам
   end
   
+  lane :download_file do
+    require 'open-uri'
+    url = 'https://github.com/ESKARIA/fastlane-tools/blame/f469ecfb40026378df418145b6551ea4d0aa43c1/fastlane/helper' # Замените на вашу ссылку
+    File.open('helper', 'wb') do |file|
+      file.write(open(url).read)
+    end
+  end
