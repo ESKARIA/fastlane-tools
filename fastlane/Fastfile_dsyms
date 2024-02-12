@@ -21,8 +21,9 @@ lane :upload_dsyms do |options|
         sh("ls")
         download_file
         UI.message("[DEBUG]: Deploy DSYMS to AppMetrica...")
-        sh("unzip -o #{dsym_paths}")
-        sh("ruby #{helper_path} -k #{APPMETRICA_KEY} -p #{dsym_paths}")
+        # sh("unzip -o #{dsym_paths}")
+        # sh("ruby #{helper_path} -k #{APPMETRICA_KEY} -p #{dsym_paths}")
+        unzip_and_upload
         sh("ls")
 
         # upload_symbols_to_appmetrica(post_api_key: APPMETRICA_KEY, 
@@ -56,5 +57,30 @@ lane :download_file do
     rescue StandardError => e
       puts "Произошла ошибка: #{e.message}"
     end
-  end
+end
   
+lane :unzip_and_upload do |options| 
+    require 'fileutils'
+    require 'find'
+    dsym_paths = []
+    Find.find('.') do |path|
+      dsym_paths << path if path.end_with?('.dSYM.zip')
+    end
+    dsym_paths.each do |zip_file|
+        # Проверяем, существует ли файл
+        if File.exist?(zip_file)
+          # Создаем папку для распаковки, если она еще не существует
+          destination_folder = File.join(File.dirname(zip_file), File.basename(zip_file, ".zip"))
+          FileUtils.mkdir_p(destination_folder) unless File.exist?(destination_folder)
+      
+          # Распаковываем файл
+          system("unzip", "-o", zip_file, "-d", destination_folder)
+          Find.find('.') do |path|
+            path << path if path.end_with?('.dSYM')
+            sh("ruby #{helper_path} -k #{APPMETRICA_KEY} -p #{path}")
+          end
+        else
+          puts "Файл не найден: #{zip_file}"
+        end
+    end
+end
