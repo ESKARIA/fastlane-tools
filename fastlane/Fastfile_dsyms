@@ -4,6 +4,9 @@ lane :upload_dsyms do |options|
     sh("cp " + IPA_FILE_PATH.to_s + " ./")
     sh("cp " + DSYM_PATH.to_s + " ./")
 
+    sh("pwd")
+    sh("ls")
+
     helper_path = ENV['APPMETRICA_HELPER_PATH'] if helper_path.nil? || helper_path.empty?
     message = "[DEBUG]: Helper path: " + helper_path.to_s
     UI.message(message)
