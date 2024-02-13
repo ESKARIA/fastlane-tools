@@ -1,17 +1,14 @@
 desc "Set new marketing version"
 lane :version do |options|
-    version_number = options[:ver]
-    increment_version_number_in_plist(version_number: version_number.to_s, target: MAIN_TARGET)
-    increment_version_number_in_xcodeproj(version_number: version_number.to_s)
+    increment_version_number_in_plist(version_number: APP_VERSION.to_s, target: MAIN_TARGET)
+    increment_version_number_in_xcodeproj(version_number: APP_VERSION.to_s)
 end
 
 desc "Build project"
 lane :build do |options|
-    ipa_path = ARTIFACTS_PATH.to_s + "ipa/"
-    dsym_path = ARTIFACTS_PATH.to_s + "dsyms/"
 
-    sh("mkdir -p " + ipa_path.to_s)
-    sh("mkdir -p " + dsym_path.to_s)
+    sh("mkdir -p " + IPA_FOLDER_PATH.to_s)
+    sh("mkdir -p " + DSYM_FOLDER_PATH.to_s)
 
     version(options)
 
@@ -38,5 +35,5 @@ lane :build do |options|
         build_path: DERIVED_PATH.to_s
     )
 
-    copy_artifacts(artifacts: ["*.ipa", "*.dSYM.zip", DSYM_PATH.to_s, IPA_FILE_PATH.to_s])
+    copy_artifacts(target_path: "./", artifacts: ["*.ipa", "*.dSYM.zip", DSYM_FILE_PATH.to_s, IPA_FILE_PATH.to_s])
 end

@@ -1,8 +1,8 @@
 desc "Upload symbols"
 lane :upload_dsyms do |options|
 
-    sh("cp " + DSYM_PATH.to_s + " ./")
-    sh("cp " + DSYM_PATH.to_s + " ~/Yandex.Disk.localized/TAXCOM-Public/artifacts/Filer/dsyms")
+    sh("cp " + DSYM_FILE_PATH.to_s + " ./")
+    sh("cp " + DSYM_FILE_PATH.to_s + " ~/Yandex.Disk.localized/TAXCOM-Public/artifacts/Filer/dsyms")
 
     require 'find'
     dsym_paths = []
@@ -22,23 +22,14 @@ lane :upload_dsyms do |options|
         sh("ls")
         download_file
         UI.message("[DEBUG]: Deploy DSYMS to AppMetrica...")
-        # sh("unzip -o #{dsym_paths}")
-        # sh("ruby #{helper_path} -k #{APPMETRICA_KEY} -p #{dsym_paths}")
         unzip_and_upload
         sh("ls")
-
-        # upload_symbols_to_appmetrica(post_api_key: APPMETRICA_KEY, 
-        #                              binary_path: helper_path.to_s, 
-        #                              files: dsym_paths,
-        #                              verbose: true,
-        #                              package_output_path: "./")
     end
 
     firebase = options[:firebase] ? true : false
     if firebase
         UI.message("[DEBUG]: Deploy DSYMS to Firebase...")
-        upload_symbols_to_crashlytics(binary_path: CRASHLYTICS_PATH, 
-                                      dsym_path: DSYM_PATH.to_s)
+        upload_symbols_to_crashlytics(binary_path: CRASHLYTICS_PATH, dsym_path: DSYM_FILE_PATH.to_s)
     end
 
     # Delete the local dSYM files
@@ -49,7 +40,7 @@ end
 lane :download_file do
     require 'open-uri'
     begin
-      url = 'https://github.com/ESKARIA/fastlane-tools/raw/main/fastlane/helper' # Замените на вашу ссылку
+      url = 'https://github.com/ESKARIA/fastlane-tools/raw/main/fastlane/helper'
       File.open('helper', 'wb') do |file|
         file.write(URI.open(url).read)
       end
