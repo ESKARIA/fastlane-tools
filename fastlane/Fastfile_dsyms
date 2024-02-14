@@ -64,10 +64,10 @@ lane :unzip_and_upload do |options|
         # Проверяем, существует ли файл
         if File.exist?(zip_file)
             sh("ruby #{helper_path} -k #{APPMETRICA_KEY} -p #{zip_file} ‑o ./ ‑‑version")
-            # upload_symbols_to_appmetrica(post_api_key: APPMETRICA_KEY, 
-            #                             binary_path: helper_path.to_s, 
-            #                             files: zip_file,
-            #                             package_output_path: "./")
+            upload_symbols_to_appmetrica(post_api_key: APPMETRICA_KEY, 
+                                        binary_path: helper_path.to_s, 
+                                        files: zip_file,
+                                        package_output_path: "./")
         else
           puts "Файл не найден: #{zip_file}"
         end
