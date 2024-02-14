@@ -13,7 +13,7 @@ lane :upload_dsyms do |options|
 
     sh("cp -f ~/Yandex.Disk.localized/TAXCOM-Public/artifacts/YandexMetrica/helper ./")
 
-    helper_path = "./helper" # ENV['APPMETRICA_HELPER_PATH'] if helper_path.nil? || helper_path.empty?
+    helper_path = './helper' # ENV['APPMETRICA_HELPER_PATH'] if helper_path.nil? || helper_path.empty?
     message = "[DEBUG]: Helper path: " + helper_path.to_s
     UI.message(message)
     isMetrica = !helper_path.nil? && !helper_path.empty?
@@ -35,7 +35,7 @@ lane :upload_dsyms do |options|
 
     # Delete the local dSYM files
     # clean_build_artifacts 
-    
+
 end
 
 lane :download_file do
