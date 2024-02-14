@@ -7,7 +7,6 @@ end
 desc "Build project"
 lane :build do |options|
 
-
     sh("mkdir -p " + IPA_FOLDER_PATH.to_s)
     sh("mkdir -p " + DSYM_FOLDER_PATH.to_s)
 
