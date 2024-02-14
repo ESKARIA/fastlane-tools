@@ -15,7 +15,7 @@ APPSTORE_ISSUER_ID          = ENV['APPSTORE_ISSUER_ID']
 APPSTORE_KEY_CONTENT        = ENV['APPSTORE_KEY_CONTENT']
 
 APP_VERSION                 = ENV['APP_VERSION']
-BUILD_NUMBER                = ENV['BUILD_NUMBER']
+BUILD_NUMBER                = ENV['BUILD_NUMBER'] + ENV['CI_PIPELINE_IID']
 APPMETRICA_KEY              = ENV['APPMETRICA_KEY']
 APPMETRICA_HELPER_PATH      = ENV['APPMETRICA_HELPER_PATH']
 
@@ -26,7 +26,7 @@ CRASHLYTICS_PATH            = "./SourcePackages/checkouts/firebase-ios-sdk/Crash
 DATA_META_PATH              = "./fastlane/metadata"
 DATA_SCREEN_PATH            = "./fastlane/screenshots"
 
-FILE_NAME                   = MAIN_TARGET.to_s + "_v" + APP_VERSION.to_s + "_b"  + BUILD_NUMBER.to_s + ENV['CI_PIPELINE_IID'].to_s
+FILE_NAME                   = MAIN_TARGET.to_s + "_v" + APP_VERSION.to_s + "_b"  + BUILD_NUMBER.to_s
 ARTIFACTS_PATH              = "~/.cache/apps/" + MAIN_TARGET.to_s + "/"
 
 IPA_FILE_NAME               = FILE_NAME.to_s + ".ipa"
