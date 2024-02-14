@@ -7,9 +7,12 @@ end
 desc "Build project"
 lane :build do |options|
 
+    yandexPath = "~/Yandex.Disk.localized/TAXCOM-Public/artifacts/" + MAIN_TARGET.to_s + "/dsyms"
+    sh("mkdir -p " + yandexPath.to_s)
+
     sh("mkdir -p " + IPA_FOLDER_PATH.to_s)
     sh("mkdir -p " + DSYM_FOLDER_PATH.to_s)
-
+    
     version(options)
 
     api_key = app_store_connect_api_key(key_id: APPSTORE_KEY_ID,
@@ -36,5 +39,6 @@ lane :build do |options|
 
     copy_artifacts(target_path: IPA_FOLDER_PATH.to_s, artifacts: ["*.ipa", IPA_FILE_PATH.to_s])
     copy_artifacts(target_path: DSYM_FOLDER_PATH.to_s, artifacts: ["*.dSYM.zip", DSYM_FILE_PATH.to_s])
+    copy_artifacts(target_path: yandexPath.to_s, artifacts: ["*.dSYM.zip", DSYM_FILE_PATH.to_s])
 
 end

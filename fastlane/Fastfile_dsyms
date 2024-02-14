@@ -2,8 +2,6 @@ desc "Upload symbols"
 lane :upload_dsyms do |options|
 
     sh("cp " + DSYM_FILE_PATH.to_s + " ./")
-    sh("mkdir -p ~/Yandex.Disk.localized/TAXCOM-Public/artifacts/" + MAIN_TARGET.to_s + "/dsyms")
-    sh("cp " + DSYM_FILE_PATH.to_s + " ~/Yandex.Disk.localized/TAXCOM-Public/artifacts/" + MAIN_TARGET.to_s + "/dsyms")
 
     require 'find'
     dsym_paths = []
@@ -51,7 +49,7 @@ lane :download_file do
       puts "Произошла ошибка: #{e.message}"
     end
 end
-  
+
 lane :unzip_and_upload do |options| 
     require 'fileutils'
     require 'find'
@@ -64,14 +62,15 @@ lane :unzip_and_upload do |options|
     Find.find('.') do |path|
       dsym_paths << path if path.end_with?('.dSYM.zip')
     end
+    UI.message(dsym_paths)
     dsym_paths.each do |zip_file|
         # Проверяем, существует ли файл
         if File.exist?(zip_file)
-            sh("ruby #{helper_path} -k #{APPMETRICA_KEY} -p #{zip_file}")
-            upload_symbols_to_appmetrica(post_api_key: APPMETRICA_KEY, 
-                                        binary_path: helper_path.to_s, 
-                                        files: zip_file,
-                                        package_output_path: "./")
+          sh("ruby #{helper_path} -k #{APPMETRICA_KEY} -p #{zip_file}")
+          upload_symbols_to_appmetrica(post_api_key: APPMETRICA_KEY, 
+                                      binary_path: helper_path.to_s, 
+                                      files: zip_file,
+                                      package_output_path: "./")
         else
           puts "Файл не найден: #{zip_file}"
         end
