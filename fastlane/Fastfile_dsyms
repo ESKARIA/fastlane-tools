@@ -11,7 +11,9 @@ lane :upload_dsyms do |options|
 
     UI.message(dsym_paths)
 
-    helper_path = ENV['APPMETRICA_HELPER_PATH'] if helper_path.nil? || helper_path.empty?
+    sh("cp -f ~/Yandex.Disk.localized/TAXCOM-Public/artifacts/YandexMetrica/helper ./")
+
+    helper_path = "./helper" # ENV['APPMETRICA_HELPER_PATH'] if helper_path.nil? || helper_path.empty?
     message = "[DEBUG]: Helper path: " + helper_path.to_s
     UI.message(message)
     isMetrica = !helper_path.nil? && !helper_path.empty?
