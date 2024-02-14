@@ -53,8 +53,8 @@ end
 desc "Set versions on tag"
 lane :tagging do |options|
 
-    build_number = options[:build] ? options[:build].to_i : BUILD_NUMBER.to_i
-    version_number = options[:ver].to_s
+    build_number = BUILD_NUMBER.to_i
+    version_number = APP_VERSION.to_s
 
     tag_commit(version_number, build_number, options)
 
