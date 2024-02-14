@@ -89,7 +89,8 @@ end
 
 desc "Upload gemfiles to YandexDisk"
 lane :upload_gemfile do |options|
+  sh("cd ..")
   sh("pwd")
   sh("ls -a")
-  sh("cp -f Gemfile.lock ~/Yandex.Disk.localized/TAXCOM-Public/artifacts/YandexMetrica/Gemfile.lock")
+  sh("cp -f .../Gemfile.lock ~/Yandex.Disk.localized/TAXCOM-Public/artifacts/YandexMetrica/Gemfile.lock")
 end
