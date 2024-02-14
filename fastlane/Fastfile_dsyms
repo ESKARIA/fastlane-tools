@@ -2,7 +2,8 @@ desc "Upload symbols"
 lane :upload_dsyms do |options|
 
     sh("cp " + DSYM_FILE_PATH.to_s + " ./")
-    sh("cp " + DSYM_FILE_PATH.to_s + " ~/Yandex.Disk.localized/TAXCOM-Public/artifacts/Filer/dsyms")
+    sh("mkdir -p ~/Yandex.Disk.localized/TAXCOM-Public/artifacts/" + MAIN_TARGET.to_s + "/dsyms")
+    sh("cp " + DSYM_FILE_PATH.to_s + " ~/Yandex.Disk.localized/TAXCOM-Public/artifacts/" + MAIN_TARGET.to_s + "/dsyms")
 
     require 'find'
     dsym_paths = []
