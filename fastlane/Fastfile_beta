@@ -18,7 +18,7 @@ lane :build do |options|
                                 in_house: false,
                                 is_key_content_base64: true)
 
-    build_number = increment_build_number(build_number: options[:build] ? options[:build].to_i : BUILD_NUMBER.to_i)
+    build_number = increment_build_number(build_number: BUILD_NUMBER.to_i)
     version_number = get_version_number(xcodeproj: MAIN_PROJECT_FILE, target: MAIN_TARGET)
 
     UI.message("App version: #{version_number} build #{build_number}")

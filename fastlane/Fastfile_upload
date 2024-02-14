@@ -27,7 +27,7 @@ lane :upload_testflight do |options|
     UI.message("[DEBUG]: Start deploy")
     if (toExternal == true)
         # changelog = "Fixes bugs, improvements UI, new features"
-        UI.message("[DEBUG]: External Public Beta")
+        UI.message("[DEBUG]: Deploy to External Public Beta Test")
         testflight(api_key: api_key, 
             app_identifier: app_identifier,
             changelog: changelog.to_s, 
@@ -37,7 +37,7 @@ lane :upload_testflight do |options|
             expire_previous_builds: false,
             ipa: IPA_FILE_PATH.to_s)
     else
-        UI.message("[DEBUG]: NO deploy to External Public Beta")
+        UI.message("[DEBUG]: Deploy to Internal Beta Test")
         testflight(api_key: api_key, 
             app_identifier: app_identifier,
             changelog: changelog.to_s, 
@@ -63,10 +63,10 @@ end
 def tag_commit(version_number, build_number, options)
     needTags = options[:tags] ? true : false
     tag_name = "v#{version_number}-build-#{build_number}"
-    UI.message("Tag to set #{tag_name}")
+    UI.message("[DEBUG]: Tag to set #{tag_name}")
     if needTags
         if git_tag_exists(tag: tag_name, remote: true)
-            UI.message("#{tag_name} already exist!")
+            UI.message("[DEBUG]: #{tag_name} already exist!")
         else
             add_git_tag(tag: tag_name)
         end

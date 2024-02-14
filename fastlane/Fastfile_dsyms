@@ -18,9 +18,9 @@ lane :upload_dsyms do |options|
     UI.message(message)
     isMetrica = !helper_path.nil? && !helper_path.empty?
     if isMetrica 
-        UI.message("[DEBUG]: Download AppMetrica helper file...")
-        sh("pwd")
-        sh("ls")
+        # UI.message("[DEBUG]: Download AppMetrica helper file...")
+        # sh("pwd")
+        # sh("ls")
         # download_file
         UI.message("[DEBUG]: Deploy DSYMS to AppMetrica...")
         unzip_and_upload
@@ -55,6 +55,9 @@ end
 lane :unzip_and_upload do |options| 
     require 'fileutils'
     require 'find'
+
+    sh("ls -a")
+
     helper_path = './helper' # ENV['APPMETRICA_HELPER_PATH'] if helper_path.nil? || helper_path.empty?
 
     dsym_paths = []
