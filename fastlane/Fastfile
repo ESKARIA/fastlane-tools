@@ -86,3 +86,10 @@ error do |lane, exception, options|
     UI.message(exception.to_s)
   end
 end
+
+desc "Upload gemfiles to YandexDisk"
+lane :upload_gemfile do |options|
+
+  sh("cp -f Gemfile.lock ~/Yandex.Disk.localized/TAXCOM-Public/artifacts/YandexMetrica/Gemfile.lock")
+
+end
