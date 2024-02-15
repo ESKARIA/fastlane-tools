@@ -68,7 +68,7 @@ lane :unzip_and_upload do |options|
     dsym_paths.each do |zip_file|
         # Проверяем, существует ли файл
         if File.exist?(zip_file)
-          sh("ruby #{helper_path} -k #{APPMETRICA_KEY} -p #{zip_file}")
+          # sh("ruby #{helper_path} -k #{APPMETRICA_KEY} -p #{zip_file}")
           upload_symbols_to_appmetrica(post_api_key: APPMETRICA_KEY, 
                                       binary_path: helper_path.to_s, 
                                       files: zip_file,
