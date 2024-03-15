@@ -37,29 +37,30 @@ lane :unzip_and_upload do |options|
     require 'fileutils'
     require 'find'
 
+    sh("pwd")
     sh("ls -a")
     dsym_paths = []
-    Find.find("../.") do |path|
+    Find.find("..") do |path|
       dsym_paths << path if path.end_with?('.dSYM.zip')
     end
     UI.message(dsym_paths)
-    upload_symbols_to_appmetrica(post_api_key: APPMETRICA_KEY, 
-                                         binary_path: HELPER_PATH.to_s, 
-                                         files: dsym_paths)
-    # dsym_paths.each do |zip_file|
-    #     # Проверяем, существует ли файл
-    #     if File.exist?(zip_file)
-    #       is_git = ENV['GITHUB_ACTIONS'] || false
-    #       if is_git
-    #         sh("ruby #{HELPER_PATH} -k #{APPMETRICA_KEY} -p #{zip_file}")
-    #       else
-    #         upload_symbols_to_appmetrica(post_api_key: APPMETRICA_KEY, 
+    # upload_symbols_to_appmetrica(post_api_key: APPMETRICA_KEY, 
     #                                      binary_path: HELPER_PATH.to_s, 
-    #                                      files: zip_file)
-    #       end
+    #                                      files: dsym_paths)
+    dsym_paths.each do |zip_file|
+        # Проверяем, существует ли файл
+        if File.exist?(zip_file)
+          is_git = ENV['GITHUB_ACTIONS'] || false
+          if is_git
+            sh("#{HELPER_PATH} -k #{APPMETRICA_KEY} -p #{zip_file}")
+          else
+            upload_symbols_to_appmetrica(post_api_key: APPMETRICA_KEY, 
+                                         binary_path: HELPER_PATH.to_s, 
+                                         files: zip_file)
+          end
           
-    #     else
-    #       puts "Файл не найден: #{zip_file}"
-    #     end
-    # end
+        else
+          puts "Файл не найден: #{zip_file}"
+        end
+    end
 end
