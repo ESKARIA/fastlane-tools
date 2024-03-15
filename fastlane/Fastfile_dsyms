@@ -39,6 +39,7 @@ lane :unzip_and_upload do |options|
 
     sh("pwd")
     sh("CDIR=$(pwd)")
+    sh(echo $(pwd))
     sh("ls -a")
     dsym_paths = []
     Find.find(".") do |path|
