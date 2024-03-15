@@ -39,7 +39,7 @@ lane :unzip_and_upload do |options|
 
     sh("ls -a")
     dsym_paths = []
-    Find.find(DSYM_FOLDER_PATH.to_s) do |path|
+    Find.find(".") do |path|
       dsym_paths << path if path.end_with?('.dSYM.zip')
     end
     UI.message(dsym_paths)
