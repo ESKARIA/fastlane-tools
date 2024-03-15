@@ -12,6 +12,7 @@ lane :upload_dsyms do |options|
     UI.message(dsym_paths)
 
     sh("cp -f ~/Yandex.Disk.localized/TAXCOM-Public/artifacts/YandexMetrica/helper ./")
+    sh("chmod +x ./helper")
 
     message = "[DEBUG]: Helper path: " + HELPER_PATH.to_s
     UI.message(message)
