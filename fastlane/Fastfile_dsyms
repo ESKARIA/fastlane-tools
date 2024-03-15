@@ -54,16 +54,15 @@ lane :unzip_and_upload do |options|
     dsym_paths.each do |zip_file|
         # Проверяем, существует ли файл
         if File.exist?(zip_file)
-          sh("ruby #{HELPER_PATH} -k #{APPMETRICA_KEY} -p #{zip_file}")
-
-          # is_git = ENV['GITHUB_ACTIONS'] || false
-          # if is_git
-          #   sh("#{HELPER_PATH} -k #{APPMETRICA_KEY} -p #{zip_file}")
-          # else
-          #   upload_symbols_to_appmetrica(post_api_key: APPMETRICA_KEY, 
-          #                                binary_path: HELPER_PATH.to_s, 
-          #                                files: zip_file)
-          # end
+          is_git = ENV['GITHUB_ACTIONS'] || false
+          if is_git
+            sh("unzip -o #{zip_file}")
+            sh("#{HELPER_PATH} -k #{APPMETRICA_KEY} -v")
+          else
+            upload_symbols_to_appmetrica(post_api_key: APPMETRICA_KEY, 
+                                         binary_path: HELPER_PATH.to_s, 
+                                         files: zip_file)
+          end
           
         else
           puts "Файл не найден: #{zip_file}"
