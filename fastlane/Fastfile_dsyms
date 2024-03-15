@@ -38,10 +38,11 @@ lane :unzip_and_upload do |options|
     require 'find'
 
     sh("pwd")
+    sh("CDIR=$(pwd)")
     sh("ls -a")
     dsym_paths = []
-    Find.find("..") do |path|
-      dsym_paths << path if path.end_with?('.dSYM.zip')
+    Find.find(".") do |path|
+      dsym_paths << ENV('CDIR').to_s + path if path.end_with?('.dSYM.zip')
     end
     UI.message(dsym_paths)
     # upload_symbols_to_appmetrica(post_api_key: APPMETRICA_KEY, 
