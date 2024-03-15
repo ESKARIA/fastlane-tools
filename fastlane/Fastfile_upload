@@ -23,10 +23,9 @@ lane :upload_testflight do |options|
     UI.message(changelog.to_s)
 
     app_identifier = ENV["APP_IDENTIFIER"].split(',').first
-
+    UI.message("=======================================================")
     UI.message("[DEBUG]: Start deploy")
     if (toExternal == true)
-        # changelog = "Fixes bugs, improvements UI, new features"
         UI.message("[DEBUG]: Deploy to External Public Beta Test")
         testflight(api_key: api_key, 
             app_identifier: app_identifier,
@@ -47,7 +46,10 @@ lane :upload_testflight do |options|
             ipa: IPA_FILE_PATH.to_s)
     end
     UI.message("[DEBUG]: Complete deploy")
-
+    UI.message("=======================================================")
+    UI.message("[DEBUG]: Remove ipa file")
+    sh("rm -rf " + IPA_FOLDER_PATH.to_s + "*.ipa")
+    UI.message("=======================================================")
 end
 
 desc "Set versions on tag"
@@ -71,5 +73,4 @@ def tag_commit(version_number, build_number, options)
             add_git_tag(tag: tag_name)
         end
     end
-
 end
