@@ -39,7 +39,7 @@ lane :unzip_and_upload do |options|
     require 'find'
 
     sh("pwd")
-    sh("echo $(HOME)")
+    sh("echo $HOME")
     sh("ls -a")
     dsym_paths = []
     Find.find(".") do |path|
