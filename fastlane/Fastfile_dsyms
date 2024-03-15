@@ -13,10 +13,9 @@ lane :upload_dsyms do |options|
 
     sh("cp -f ~/Yandex.Disk.localized/TAXCOM-Public/artifacts/YandexMetrica/helper ./")
 
-    helper_path = './helper' # ENV['APPMETRICA_HELPER_PATH'] if helper_path.nil? || helper_path.empty?
-    message = "[DEBUG]: Helper path: " + helper_path.to_s
+    message = "[DEBUG]: Helper path: " + HELPER_PATH.to_s
     UI.message(message)
-    isMetrica = !helper_path.nil? && !helper_path.empty?
+    isMetrica = !HELPER_PATH.nil? && !HELPER_PATH.empty?
     if isMetrica 
         UI.message("[DEBUG]: Deploy DSYMS to AppMetrica...")
         unzip_and_upload
@@ -30,7 +29,7 @@ lane :upload_dsyms do |options|
     end
 
     # Delete the local dSYM files
-    # clean_build_artifacts 
+    clean_build_artifacts 
 
 end
 
@@ -39,22 +38,24 @@ lane :unzip_and_upload do |options|
     require 'find'
 
     sh("ls -a")
-
-    helper_path = './helper' # ENV['APPMETRICA_HELPER_PATH'] if helper_path.nil? || helper_path.empty?
-
     dsym_paths = [DSYM_FILE_PATH.to_s]
-    Find.find('../..') do |path|
+    Find.find('..') do |path|
       dsym_paths << path if path.end_with?('.dSYM.zip')
     end
     UI.message(dsym_paths)
     dsym_paths.each do |zip_file|
         # Проверяем, существует ли файл
         if File.exist?(zip_file)
-          # sh("ruby #{helper_path} -k #{APPMETRICA_KEY} -p #{zip_file}")
-          upload_symbols_to_appmetrica(post_api_key: APPMETRICA_KEY, 
-                                       binary_path: helper_path.to_s, 
-                                       files: zip_file,
-                                       package_output_path: "./")
+          is_git = ENV['GITHUB_ACTIONS'] || false
+          if is_git
+            sh("ruby #{HELPER_PATH} -k #{APPMETRICA_KEY} -p #{zip_file}")
+          else
+            upload_symbols_to_appmetrica(post_api_key: APPMETRICA_KEY, 
+                                         binary_path: HELPER_PATH.to_s, 
+                                         files: zip_file,
+                                         package_output_path: "./")
+          end
+          
         else
           puts "Файл не найден: #{zip_file}"
         end
