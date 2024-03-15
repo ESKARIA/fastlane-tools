@@ -54,8 +54,8 @@ lane :unzip_and_upload do |options|
     dsym_paths.each do |zip_file|
         # Проверяем, существует ли файл
         if File.exist?(zip_file)
-          sh("#{HELPER_PATH} -k #{APPMETRICA_KEY} -p #{zip_file}")
-          
+          sh("ruby #{HELPER_PATH} -k #{APPMETRICA_KEY} -p #{zip_file}")
+
           # is_git = ENV['GITHUB_ACTIONS'] || false
           # if is_git
           #   sh("#{HELPER_PATH} -k #{APPMETRICA_KEY} -p #{zip_file}")
