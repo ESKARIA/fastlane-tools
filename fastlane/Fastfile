@@ -52,7 +52,7 @@ import_from_git(
     path: 'fastlane/Fastfile_match', # use any another Fastfile besides fastlane/Fastfile for fix recursive import
     # version: [">= 1.0.0"],
     dependencies: [
-      'fastlane/Fastfile_beta',
+      'fastlane/Fastfile_build',
       'fastlane/Fastfile_tests',
       'fastlane/Fastfile_dsyms',
       'fastlane/Fastfile_upload'
