@@ -47,7 +47,7 @@ lane :unzip_and_upload do |options|
       else
         puts "Файл не найден: #{zip_file}"
       end
-  end
+    end
 
     # dsym_paths.each do |zip_file|
     #     # Проверяем, существует ли файл
