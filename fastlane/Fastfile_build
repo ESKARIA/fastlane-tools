@@ -40,5 +40,6 @@ lane :build do |options|
     copy_artifacts(target_path: IPA_FOLDER_PATH.to_s, artifacts: ["*.ipa", IPA_FILE_PATH.to_s])
     copy_artifacts(target_path: DSYM_FOLDER_PATH.to_s, artifacts: ["*.dSYM.zip", DSYM_FILE_PATH.to_s])
     copy_artifacts(target_path: yandexPath.to_s, artifacts: ["*.dSYM.zip", DSYM_FILE_PATH.to_s])
+    copy_artifacts(target_path: "fastlane/artifacts/", artifacts: ["*.dSYM.zip", "*.ipa"])
 
 end
