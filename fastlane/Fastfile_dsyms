@@ -10,8 +10,8 @@ lane :upload_dsyms do |options|
     isMetrica = !HELPER_PATH.nil? && !HELPER_PATH.empty?
     if isMetrica 
         UI.message("[DEBUG]: Deploy DSYMS to AppMetrica...")
-        unzip_and_upload
-        sh("ls")
+        unzip_and_upload(options)
+        sh("ls -a")
     end
 
     firebase = options[:firebase] ? true : false
@@ -20,9 +20,6 @@ lane :upload_dsyms do |options|
         upload_symbols_to_crashlytics(binary_path: CRASHLYTICS_PATH, dsym_path: DSYM_FILE_PATH.to_s)
     end
 
-    # Delete the local dSYM files
-    # clean_build_artifacts 
-
 end
 
 lane :unzip_and_upload do |options| 
@@ -30,42 +27,23 @@ lane :unzip_and_upload do |options|
     require 'find'
 
     sh("pwd")
-    sh("echo $HOME")
     sh("ls -a")
     dsym_paths = []
+    UI.message("Start find dsyms files!")
     Find.find(".") do |path|
       dsym_paths << path if path.end_with?('.dSYM.zip')
     end
     UI.message(dsym_paths)
 
     dsym_paths.each do |zip_file|
-      # Проверяем, существует ли файл
-      if File.exist?(zip_file)
+      
+      if File.exist?(zip_file) # Проверяем, существует ли файл
         UI.message("Use shell script for upload dsyms")
         sh("unzip -o #{zip_file}")
         sh("#{HELPER_PATH} -k #{APPMETRICA_KEY} -v")
       else
         puts "Файл не найден: #{zip_file}"
       end
-    end
 
-    # dsym_paths.each do |zip_file|
-    #     # Проверяем, существует ли файл
-    #     if File.exist?(zip_file)
-    #       is_git = ENV['GITHUB_ACTIONS'] || false
-    #       if is_git
-    #         UI.message("Use shell script for upload dsyms")
-    #         sh("unzip -o #{zip_file}")
-    #         sh("#{HELPER_PATH} -k #{APPMETRICA_KEY} -v")
-    #       else
-    #         UI.message("Use fastlane plugin for upload dsyms")
-    #         upload_symbols_to_appmetrica(post_api_key: APPMETRICA_KEY, 
-    #                                      binary_path: HELPER_PATH.to_s, 
-    #                                      files: zip_file)
-    #       end
-          
-    #     else
-    #       puts "Файл не найден: #{zip_file}"
-    #     end
-    # end
+    end
 end

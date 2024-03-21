@@ -19,7 +19,7 @@ lane :upload_testflight do |options|
 
     changelog = changelog_from_git_commits(
         between: [commit_of_last_tag.to_s, "HEAD"],
-        pretty: " - %s",
+        pretty: "- %s",
         merge_commit_filtering: "exclude_merges"
     )
     UI.message("[DEBUG]: Changelog")
@@ -28,8 +28,8 @@ lane :upload_testflight do |options|
     app_identifier = ENV["APP_IDENTIFIER"].split(',').first
     UI.message("=======================================================")
     UI.message("[DEBUG]: Start deploy")
+
     sh("pwd")
-    sh("echo $HOME")
     sh("ls -a")
     
     ipa_paths = []
