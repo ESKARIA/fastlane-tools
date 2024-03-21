@@ -33,8 +33,9 @@ lane :upload_testflight do |options|
     sh("ls -a")
     
     ipa_paths = []
-    Find.find(".") do |path|
-        ipa_paths << path if path.end_with?('.ipa')
+    Find.find("artifacts") do |path|
+        newPath = path if path.end_with?('.ipa')
+        ipa_paths << "fastlane" + newPath
     end
     UI.message(ipa_paths)
 
