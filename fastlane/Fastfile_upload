@@ -1,5 +1,8 @@
 desc "Upload ipa to AppStore Connect TestFlight"
 lane :upload_testflight do |options|
+    require 'fileutils'
+    require 'find'
+
     toExternal = options[:public]
 
     api_key = app_store_connect_api_key(key_id: APPSTORE_KEY_ID,
@@ -25,31 +28,44 @@ lane :upload_testflight do |options|
     app_identifier = ENV["APP_IDENTIFIER"].split(',').first
     UI.message("=======================================================")
     UI.message("[DEBUG]: Start deploy")
-    if (toExternal == true)
-        UI.message("[DEBUG]: Deploy to External Public Beta Test")
-        testflight(api_key: api_key, 
-            app_identifier: app_identifier,
-            changelog: changelog.to_s, 
-            distribute_external: true, 
-            groups: "External Public Beta",
-            skip_waiting_for_build_processing: false, 
-            expire_previous_builds: false,
-            ipa: IPA_FILE_PATH.to_s)
-    else
-        UI.message("[DEBUG]: Deploy to Internal Beta Test")
-        testflight(api_key: api_key, 
-            app_identifier: app_identifier,
-            changelog: changelog.to_s, 
-            distribute_external: false, 
-            skip_waiting_for_build_processing: false, 
-            expire_previous_builds: false,
-            ipa: IPA_FILE_PATH.to_s)
+    sh("pwd")
+    sh("echo $HOME")
+    sh("ls -a")
+    
+    ipa_paths = []
+    Find.find(".") do |path|
+        ipa_paths << path if path.end_with?('.ipa')
     end
+    UI.message(ipa_paths)
+
+    ipa_paths.each do |ipa_path|
+        if (toExternal == true)
+            UI.message("[DEBUG]: Deploy to External Public Beta Test")
+            testflight(api_key: api_key, 
+                       app_identifier: app_identifier,
+                       changelog: changelog.to_s, 
+                       distribute_external: true, 
+                       groups: "External Public Beta",
+                       skip_waiting_for_build_processing: false, 
+                       expire_previous_builds: false,
+                       ipa: ipa_path.to_s)
+        else
+            UI.message("[DEBUG]: Deploy to Internal Beta Test")
+            testflight(api_key: api_key, 
+                       app_identifier: app_identifier,
+                       changelog: changelog.to_s, 
+                       distribute_external: false, 
+                       skip_waiting_for_build_processing: false, 
+                       expire_previous_builds: false,
+                       ipa: ipa_path.to_s)
+        end
+    end
+    
     UI.message("[DEBUG]: Complete deploy")
-    UI.message("=======================================================")
-    UI.message("[DEBUG]: Remove ipa file")
-    sh("rm -rf " + IPA_FOLDER_PATH.to_s + "*.ipa")
-    UI.message("=======================================================")
+    # UI.message("=======================================================")
+    # UI.message("[DEBUG]: Remove ipa file")
+    # sh("rm -rf " + IPA_FOLDER_PATH.to_s + "*.ipa")
+    # UI.message("=======================================================")
 end
 
 desc "Set versions on tag"
