@@ -9,20 +9,18 @@ def generate_match(type, options, git_branch)
     )
     app_identifiers.each do |app_identifier|
         UI.message("[DEBUG]: Start match for identifier: " + app_identifier)
-        match(
-            type: type,
-            app_identifier: app_identifier.to_s,
-            api_key: api_key,
-            force_for_new_devices: true,
-            include_all_certificates: true,
-            force_for_new_certificates: true,
-            readonly: false,
-            force: options[:update],
-            platform: 'ios',
-            verbose: true,
-            generate_apple_certs: options[:update],
-            git_branch: git_branch
-        )
+        match(type: type,
+              app_identifier: app_identifier.to_s,
+              api_key: api_key,
+              force_for_new_devices: true,
+              include_all_certificates: true,
+              force_for_new_certificates: true,
+              readonly: false,
+              force: options[:update],
+              platform: 'ios',
+              verbose: true,
+              generate_apple_certs: options[:update],
+              git_branch: git_branch)
     end
 end
 

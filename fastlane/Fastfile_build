@@ -6,6 +6,7 @@ end
 
 desc "Build project"
 lane :build do |options|
+    check_and_set_project_file
 
     yandexPath = "~/Yandex.Disk.localized/TAXCOM-Public/artifacts/" + MAIN_TARGET.to_s + "/dsyms"
     sh("mkdir -p " + yandexPath.to_s)
@@ -22,7 +23,7 @@ lane :build do |options|
                                         is_key_content_base64: true)
 
     build_number = increment_build_number(build_number: BUILD_NUMBER.to_i)
-    version_number = get_version_number(xcodeproj: MAIN_PROJECT_FILE, target: MAIN_TARGET)
+    version_number = get_version_number(xcodeproj: ENV['MAIN_PROJECT_FILE'], target: MAIN_TARGET)
 
     UI.message("App version: #{version_number} build #{build_number}")
     setup_ci

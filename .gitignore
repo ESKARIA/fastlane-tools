@@ -1,2 +1,6 @@
 .DS_Store
 fastlane/.env
+Gemfile*
+Pluginfile
+fastlane/README.md
+fastlane/report.xml

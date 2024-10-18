@@ -1,5 +1,6 @@
 desc "Upload symbols"
 lane :upload_dsyms do |options|
+    check_and_set_project_file
 
     # sh("cp " + DSYM_FILE_PATH.to_s + " ./")
     sh("cp -f ~/Yandex.Disk.localized/TAXCOM-Public/artifacts/YandexMetrica/helper ./")
@@ -25,7 +26,8 @@ end
 lane :unzip_and_upload do |options| 
     require 'fileutils'
     require 'find'
-
+    check_and_set_project_file
+    
     sh("pwd")
     sh("ls -a")
     dsym_paths = []

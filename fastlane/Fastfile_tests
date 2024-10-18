@@ -1,7 +1,7 @@
 
 desc "Build and run unit tests"
 lane :tests do |options|
-
+    check_and_set_project_file
     test_target_schame = options["scheme"]
     test_device_target = options["device"]
     run_tests(devices: [test_device_target.to_s],
