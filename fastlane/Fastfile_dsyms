@@ -18,7 +18,12 @@ lane :upload_dsyms do |options|
     firebase = options[:firebase] ? true : false
     if firebase
         UI.message("[DEBUG]: Deploy DSYMS to Firebase...")
-        upload_symbols_to_crashlytics(dsym_path: DSYM_FILE_PATH.to_s)
+        dsym_paths = []
+        UI.message("Start find dsyms files!")
+        Find.find(".") do |path|
+          dsym_paths << path if path.end_with?('.dSYM.zip')
+        end
+        upload_symbols_to_crashlytics(dsym_paths: dsym_paths)
     end
 
 end
