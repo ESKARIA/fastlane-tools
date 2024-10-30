@@ -31,3 +31,8 @@ end
 lane :match_prod do |options|
     generate_match('appstore', options, 'distribution')
 end
+
+lane :match_all do |options|
+    generate_match('development', options, 'development')
+    generate_match('appstore', options, 'distribution')
+end
