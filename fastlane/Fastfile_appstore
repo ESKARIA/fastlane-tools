@@ -29,6 +29,11 @@ lane :auto_release_branch do |options|
 
 end
 
+lane :git_new do |options|
+  branch_name = git_branch
+  push_to_git_remote(local_branch: branch_name, remote_branch: "release/#{options[:git_app_version].to_s}", force: true)
+end
+
 lane :pass_to_review do |options|
   app_store_connect_api_key(key_id: APPSTORE_KEY_ID,
                             issuer_id: APPSTORE_ISSUER_ID,
