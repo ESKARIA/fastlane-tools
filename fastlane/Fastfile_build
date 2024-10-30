@@ -1,7 +1,7 @@
 desc "Set new marketing version"
 lane :version do |options|
-    increment_version_number_in_plist(version_number: APP_VERSION.to_s, target: MAIN_TARGET)
-    increment_version_number_in_xcodeproj(version_number: APP_VERSION.to_s)
+    increment_version_number_in_plist(version_number: ENV["APP_VERSION"].to_s, target: MAIN_TARGET)
+    increment_version_number_in_xcodeproj(version_number: ENV["APP_VERSION"].to_s)
 end
 
 desc "Build project"

@@ -8,10 +8,10 @@ lane :upload_testflight do |options|
     toExternal = options[:public]
 
     api_key = app_store_connect_api_key(key_id: APPSTORE_KEY_ID,
-        issuer_id: APPSTORE_ISSUER_ID,
-        key_content: APPSTORE_KEY_CONTENT,
-        in_house: false,
-        is_key_content_base64: true)
+                                        issuer_id: APPSTORE_ISSUER_ID,
+                                        key_content: APPSTORE_KEY_CONTENT,
+                                        in_house: false,
+                                        is_key_content_base64: true)
 
     # Получение последнего тега
     last_tag = sh("git describe --tags --abbrev=0").strip
@@ -65,17 +65,14 @@ lane :upload_testflight do |options|
     end
     
     UI.message("[DEBUG]: Complete deploy")
-    # UI.message("=======================================================")
-    # UI.message("[DEBUG]: Remove ipa file")
-    # sh("rm -rf " + IPA_FOLDER_PATH.to_s + "*.ipa")
-    # UI.message("=======================================================")
+
 end
 
 desc "Set versions on tag"
 lane :tagging do |options|
 
     build_number = BUILD_NUMBER.to_i
-    version_number = APP_VERSION.to_s
+    version_number = ENV["APP_VERSION"].to_s
 
     tag_commit(version_number, build_number, options)
 
