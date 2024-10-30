@@ -14,12 +14,12 @@ lane :auto_release_branch do |options|
   # Установка переменной окружения
   # sh("echo APP_VERSION=#{highest_version} >> $GITHUB_ENV")
 
+  increment_version_number(version_number: highest_version.to_s)
+
   # # 4. Действия для релизной версии
   if highest_version == release_version
     # Собираем с повышением патч версии
     increment_version_number(bump_type: "patch")
-  else
-    increment_version_number(version_number: highest_version.to_s)
   end
   
   version_number = get_version_number(xcodeproj: ENV['MAIN_PROJECT_FILE'], target: MAIN_TARGET)
