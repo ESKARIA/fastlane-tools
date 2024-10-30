@@ -18,7 +18,7 @@ lane :upload_dsyms do |options|
     firebase = options[:firebase] ? true : false
     if firebase
         UI.message("[DEBUG]: Deploy DSYMS to Firebase...")
-        upload_symbols_to_crashlytics(binary_path: CRASHLYTICS_PATH, dsym_path: DSYM_FILE_PATH.to_s)
+        upload_symbols_to_crashlytics(dsym_path: DSYM_FILE_PATH.to_s)
     end
 
 end
