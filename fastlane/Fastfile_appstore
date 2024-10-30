@@ -24,15 +24,15 @@ lane :auto_release_branch do |options|
   
   version_number = get_version_number(xcodeproj: ENV['MAIN_PROJECT_FILE'], target: MAIN_TARGET)
 
-  push_to_git_remote(local_branch: branch_name, remote_branch: "release/#{highest_version}", force: true)
-  UI.message("Старшая версия: #{highest_version}")
+  push_to_git_remote(local_branch: branch_name, remote_branch: "release/#{version_number}", force: true)
+  UI.message("Старшая версия: #{version_number}")
 
 end
 
 def get_beta_version_number
   # Используем Fastlane action для получения последнего номера сборки в TestFlight
   app_identifier = ENV["APP_IDENTIFIER"].split(',').first # Замените на идентификатор вашего приложения
-  beta_build_number = latest_testflight_build_number(app_identifier: app_identifier)
+  latest_testflight_build_number(app_identifier: app_identifier)
   
   # Возвращаем номер версии из TestFlight
   beta_version = lane_context[SharedValues::LATEST_TESTFLIGHT_VERSION]
@@ -43,7 +43,7 @@ end
 def get_release_version_number
   # Используем Fastlane action для получения последнего номера сборки из App Store Connect
   app_identifier = ENV["APP_IDENTIFIER"].split(',').first # Замените на идентификатор вашего приложения
-  release_build_number = app_store_build_number(app_identifier: app_identifier)
+  app_store_build_number(app_identifier: app_identifier)
   
   # Возвращаем номер версии из App Store Connect
   release_version = lane_context[SharedValues::LATEST_VERSION]
