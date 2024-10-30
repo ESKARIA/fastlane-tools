@@ -51,7 +51,7 @@ lane :upload_testflight do |options|
                        groups: "External Public Beta",
                        skip_waiting_for_build_processing: false, 
                        expire_previous_builds: false,
-                       reject_previously_submitted_build: true,
+                       reject_build_waiting_for_review: true,
                        ipa: ipaPath.to_s)
         else
             UI.message("[DEBUG]: Deploy to Internal Beta Test")
@@ -61,7 +61,7 @@ lane :upload_testflight do |options|
                        distribute_external: false, 
                        skip_waiting_for_build_processing: false, 
                        expire_previous_builds: false,
-                       reject_previously_submitted_build: true,
+                       reject_build_waiting_for_review: true,
                        ipa: ipaPath.to_s)
         end
     end
