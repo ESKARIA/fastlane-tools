@@ -43,7 +43,7 @@ end
 ### Generate match profiles
 lane :match_generate_dev do |options|
     raise 'Has no APPSTORE_KEY_CONTENT' unless APPSTORE_KEY_CONTENT
-
+    
     generate_match(type: 'development', git_branch: 'development')
 end
 
