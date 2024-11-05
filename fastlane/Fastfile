@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 # Uncomment the line if you want fastlane to automatically update itself
 # update_fastlane
 
@@ -18,106 +20,102 @@ BUILD_NUMBER                = ENV['CI_PIPELINE_IID']
 APPMETRICA_KEY              = ENV['APPMETRICA_KEY']
 APPMETRICA_HELPER_PATH      = ENV['APPMETRICA_HELPER_PATH']
 
-DERIVED_PATH                = "build"
-CRASHLYTICS_PATH            = "./SourcePackages/checkouts/firebase-ios-sdk/Crashlytics/upload-symbols"
+DERIVED_PATH                = 'build'
+CRASHLYTICS_PATH            = './SourcePackages/checkouts/firebase-ios-sdk/Crashlytics/upload-symbols'
 
 ### metadata ###
-DATA_META_PATH              = "./fastlane/metadata"
-DATA_SCREEN_PATH            = "./fastlane/screenshots"
+DATA_META_PATH              = './fastlane/metadata'
+DATA_SCREEN_PATH            = './fastlane/screenshots'
 
-FILE_NAME                   = MAIN_TARGET.to_s + "_v" + ENV["APP_VERSION"].to_s + "_b"  + BUILD_NUMBER.to_s
-ARTIFACTS_PATH              = "~/.cache/apps/" + MAIN_TARGET.to_s + "/"
+FILE_NAME                   = "#{MAIN_TARGET}_v#{ENV['APP_VERSION']}_b#{BUILD_NUMBER}"
+ARTIFACTS_PATH              = "~/.cache/apps/#{MAIN_TARGET}/"
 
-IPA_FILE_NAME               = FILE_NAME.to_s + ".ipa"
-DSYM_FILE_NAME              = FILE_NAME.to_s + ".app.dSYM.zip"
+IPA_FILE_NAME               = "#{FILE_NAME}.ipa"
+DSYM_FILE_NAME              = "#{FILE_NAME}.app.dSYM.zip"
 
-IPA_FOLDER_PATH             = ARTIFACTS_PATH.to_s + "ipa/"
-DSYM_FOLDER_PATH            = ARTIFACTS_PATH.to_s + "dsyms/"
+IPA_FOLDER_PATH             = "#{ARTIFACTS_PATH}ipa/"
+DSYM_FOLDER_PATH            = "#{ARTIFACTS_PATH}dsyms/"
 
 IPA_FILE_PATH               = IPA_FOLDER_PATH.to_s + IPA_FILE_NAME.to_s
 DSYM_FILE_PATH              = DSYM_FOLDER_PATH.to_s + DSYM_FILE_NAME.to_s
 
-HELPER_PATH                 = "./helper"
+HELPER_PATH                 = './helper'
 MATCH_PASSWORD              = ENV['MATCH_PASSWORD']
-
 
 # Проверка и установка значения по умолчанию для MAIN_PROJECT_FILE
 def check_and_set_project_file
   if ENV['MAIN_PROJECT_FILE'].nil? || ENV['MAIN_PROJECT_FILE'].empty?
-    ENV['MAIN_PROJECT_FILE'] = ENV['MAIN_TARGET'] + ".xcodeproj"
+    ENV['MAIN_PROJECT_FILE'] = "#{ENV['MAIN_TARGET']}.xcodeproj"
     UI.message("MAIN_PROJECT_FILE не установлен, используется значение по умолчанию: #{ENV['MAIN_PROJECT_FILE']}")
   else
-    UI.message("MAIN_PROJECT_FILE установлен, используется значение: #{ENV['MAIN_PROJECT_FILE']}")    
+    UI.message("MAIN_PROJECT_FILE установлен, используется значение: #{ENV['MAIN_PROJECT_FILE']}")
   end
 end
 
 import_from_git(
-    url: 'git@github.com:ESKARIA/fastlane-tools.git',
-    # branch: 'main',
-    path: 'fastlane/Fastfile_match', # use any another Fastfile besides fastlane/Fastfile for fix recursive import
-    # version: [">= 1.0.0"],
-    dependencies: [
-      'fastlane/Fastfile_build',
-      'fastlane/Fastfile_tests',
-      'fastlane/Fastfile_dsyms',
-      'fastlane/Fastfile_upload',
-      'fastlane/Fastfile_appstore'
-    ],
-    # cache_path: "~/.cache/fastlane/imported/"
+  url: 'git@github.com:ESKARIA/fastlane-tools.git',
+  # branch: 'main',
+  path: 'fastlane/Fastfile_match', # use any another Fastfile besides fastlane/Fastfile for fix recursive import
+  # version: [">= 1.0.0"],
+  dependencies: [
+    'fastlane/Fastfile_build',
+    'fastlane/Fastfile_tests',
+    'fastlane/Fastfile_dsyms',
+    'fastlane/Fastfile_upload',
+    'fastlane/Fastfile_appstore'
+  ]
+  # cache_path: "~/.cache/fastlane/imported/"
 )
 
 before_all do
-    check_and_set_project_file
-    # update_fastlane
-    clear_keychain
-    if ENV['CI']
-        clear_derived_data
-        UI.message("Run on remote CI machine")
-        clear_derived_data(derived_data_path: DERIVED_PATH)
-    end
-
-end
-
-after_all do 
-    clear_keychain
-end
-
-lane :clear_keychain do 
-    sh("security default-keychain -d user -s ~/Library/Keychains/login.keychain-db || true")
-    sh("security delete-keychain ~/Library/Keychains/fastlane_tmp_keychain-db || true")
-    sh("rm -rf ~/Library/MobileDevice/Provisioning\ Profiles/*.mobileprovision || true")
-end
-
-# error block is executed when a error occurs
-error do |lane, exception, options|
-  if is_ci
-    UI.message(exception.to_s)
+  check_and_set_project_file
+  # update_fastlane
+  clear_keychain
+  if ENV['CI']
+    clear_derived_data
+    UI.message('Run on remote CI machine')
+    clear_derived_data(derived_data_path: DERIVED_PATH)
   end
 end
 
-desc "Upload gemfiles to YandexDisk"
-lane :upload_gemfile do |options|
-  sh("cp -f ../Gemfile.lock ~/Yandex.Disk.localized/TAXCOM-Public/artifacts/YandexMetrica/Gemfile.lock")
+after_all do
+  clear_keychain
 end
 
-desc "Register new device"
-lane :register_new_device do  |options|
-    device_name = prompt(text: "Enter the device name: ")
-    device_udid = prompt(text: "Enter the device UDID: ")
-    device_hash = {}
-    device_hash[device_name] = device_udid
-    
-    api_key = app_store_connect_api_key(
-        key_id: APPSTORE_KEY_ID,
-        issuer_id: APPSTORE_ISSUER_ID,
-        key_content: APPSTORE_KEY_CONTENT,
-        in_house: false,
-        is_key_content_base64: true
-    )
+lane :clear_keychain do
+  sh('security default-keychain -d user -s ~/Library/Keychains/login.keychain-db || true')
+  sh('security delete-keychain ~/Library/Keychains/fastlane_tmp_keychain-db || true')
+  sh("rm -rf ~/Library/MobileDevice/Provisioning\ Profiles/*.mobileprovision || true")
+end
 
-    register_devices(api_key: api_key, devices: device_hash)
+# error block is executed when a error occurs
+error do |_lane, exception, _options|
+  UI.message(exception.to_s) if is_ci
+end
 
-    match_generate_dev(options)
+desc 'Upload gemfiles to YandexDisk'
+lane :upload_gemfile do |_options|
+  sh('cp -f ../Gemfile.lock ~/Yandex.Disk.localized/TAXCOM-Public/artifacts/YandexMetrica/Gemfile.lock')
+end
+
+desc 'Register new device'
+lane :register_new_device do |options|
+  device_name = prompt(text: 'Enter the device name: ')
+  device_udid = prompt(text: 'Enter the device UDID: ')
+  device_hash = {}
+  device_hash[device_name] = device_udid
+
+  api_key = app_store_connect_api_key(
+    key_id: APPSTORE_KEY_ID,
+    issuer_id: APPSTORE_ISSUER_ID,
+    key_content: APPSTORE_KEY_CONTENT,
+    in_house: false,
+    is_key_content_base64: true
+  )
+
+  register_devices(api_key: api_key, devices: device_hash)
+
+  match_generate_dev(options)
 end
 
 # lane :debug do |options|

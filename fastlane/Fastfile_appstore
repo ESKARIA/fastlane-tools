@@ -1,11 +1,13 @@
+# frozen_string_literal: true
+
 lane :auto_release_branch do |options|
   check_and_set_project_file
   branch_name = git_branch
   UI.message("Текущая ветка: #{branch_name}")
 
   # 2. Проверяем сборки в бете и релизе
-  beta_version = get_beta_version_number # Здесь нужно будет добавить функцию для получения версии из беты
-  release_version = get_release_version_number # Функция для получения версии из релиза
+  beta_version = beta_version_number # Здесь нужно будет добавить функцию для получения версии из беты
+  release_version = release_version_number # Функция для получения версии из релиза
 
   # 3. Сравниваем версии
   highest_version = [beta_version, release_version].max
@@ -13,45 +15,40 @@ lane :auto_release_branch do |options|
 
   # Установка переменной окружения
   # sh("echo APP_VERSION=#{highest_version} >> $GITHUB_ENV")
-  
+
   version = highest_version
-  if highest_version == release_version
-    version = increment_patch_version(highest_version)
-  end
+  version = increment_patch_version(highest_version) if highest_version == release_version
 
   # Синхронизируем локальные и удалённые ветки, удаляя несуществующие
-  sh("git fetch --prune origin")
-  
+  sh('git fetch --prune origin')
+
   # Название ветки для проверки
   branch_name = "release/#{version}"
-  
+
   # Проверяем, существует ли ветка
   branch_exists = sh("git branch --list #{branch_name}").strip
-  
+
   # Если ветка не существует, создаем её
-  if branch_exists.empty?
-    sh("git branch #{branch_name}")
-  end
+  sh("git branch #{branch_name}") if branch_exists.empty?
 
   sh("echo \"BUILD_NUMBER=#{BUILD_NUMBER}, TIMESTAMP=$(date '+%Y-%m-%d %H:%M:%S')\" >> last_update.txt")
   update_metadata_year(options)
-  sh("git add ./*.txt")  # Добавляем все файлы .txt в staged
-  git_commit(path: ["./*.txt"], message: "Version Bump")  # Коммитим изменения
-  
+  sh('git add ./*.txt') # Добавляем все файлы .txt в staged
+  git_commit(path: ['./*.txt'], message: 'Version Bump') # Коммитим изменения
+
   increment_version_number(version_number: highest_version.to_s)
 
   # # 4. Действия для релизной версии
   if highest_version == release_version
     # Собираем с повышением патч версии
-    increment_version_number(bump_type: "patch")
+    increment_version_number(bump_type: 'patch')
   end
-  
+
   version_number = get_version_number(xcodeproj: ENV['MAIN_PROJECT_FILE'], target: MAIN_TARGET)
-  
+
   push_to_git_remote(local_branch: branch_name, remote_branch: "release/#{version_number}", force: true)
 
   UI.message("Старшая версия: #{version_number}")
-
 end
 
 def increment_patch_version(version)
@@ -68,10 +65,10 @@ end
 lane :git_new do |options|
   check_and_set_project_file
   branch_name = git_branch
-  push_to_git_remote(local_branch: branch_name, remote_branch: "release/#{options[:git_app_version].to_s}", force: true)
+  push_to_git_remote(local_branch: branch_name, remote_branch: "release/#{options[:git_app_version]}", force: true)
 end
 
-lane :pass_to_review do |options|
+lane :pass_to_review do |_options|
   check_and_set_project_file
   app_store_connect_api_key(key_id: APPSTORE_KEY_ID,
                             issuer_id: APPSTORE_ISSUER_ID,
@@ -79,7 +76,7 @@ lane :pass_to_review do |options|
                             in_house: false,
                             is_key_content_base64: true)
 
-  latest_testflight_build_number(app_identifier: ENV["APP_IDENTIFIER"].split(',').first)
+  latest_testflight_build_number(app_identifier: ENV['APP_IDENTIFIER'].split(',').first)
 
   deliver(app_version: lane_context[SharedValues::LATEST_TESTFLIGHT_VERSION],
           build_number: BUILD_NUMBER,
@@ -92,27 +89,26 @@ lane :pass_to_review do |options|
           skip_binary_upload: true,
           precheck_include_in_app_purchases: false,
           submission_information: {
-                add_id_info_limits_tracking: false,
-                add_id_info_serves_ads: false,
-                add_id_info_tracks_action: false,
-                add_id_info_tracks_install: false,
-                add_id_info_uses_idfa: false,
-                content_rights_has_rights: false,
-                content_rights_contains_third_party_content: false,
-                export_compliance_platform: 'ios',
-                export_compliance_compliance_required: false,
-                export_compliance_encryption_updated: false,
-                export_compliance_app_type: nil,
-                export_compliance_uses_encryption: false,
-                export_compliance_is_exempt: false,
-                export_compliance_contains_third_party_cryptography: false,
-                export_compliance_contains_proprietary_cryptography: false,
-                export_compliance_available_on_french_store: false
-              }
-)
+            add_id_info_limits_tracking: false,
+            add_id_info_serves_ads: false,
+            add_id_info_tracks_action: false,
+            add_id_info_tracks_install: false,
+            add_id_info_uses_idfa: false,
+            content_rights_has_rights: false,
+            content_rights_contains_third_party_content: false,
+            export_compliance_platform: 'ios',
+            export_compliance_compliance_required: false,
+            export_compliance_encryption_updated: false,
+            export_compliance_app_type: nil,
+            export_compliance_uses_encryption: false,
+            export_compliance_is_exempt: false,
+            export_compliance_contains_third_party_cryptography: false,
+            export_compliance_contains_proprietary_cryptography: false,
+            export_compliance_available_on_french_store: false
+          })
 end
 
-lane :update_metadata_year do |options|
+lane :update_metadata_year do |_options|
   # Определяем текущий год и месяц
   sh <<-SHELL
     CURRENT_YEAR=$(date +'%Y')
@@ -152,24 +148,24 @@ lane :update_metadata_year do |options|
   SHELL
 end
 
-def get_beta_version_number
+def beta_version_number
   # Используем Fastlane action для получения последнего номера сборки в TestFlight
-  app_identifier = ENV["APP_IDENTIFIER"].split(',').first # Замените на идентификатор вашего приложения
+  app_identifier = ENV['APP_IDENTIFIER'].split(',').first # Замените на идентификатор вашего приложения
   latest_testflight_build_number(app_identifier: app_identifier)
-  
+
   # Возвращаем номер версии из TestFlight
   beta_version = lane_context[SharedValues::LATEST_TESTFLIGHT_VERSION]
   UI.message("Бета версия: #{beta_version}")
-  return beta_version
+  beta_version
 end
 
-def get_release_version_number
+def release_version_number
   # Используем Fastlane action для получения последнего номера сборки из App Store Connect
-  app_identifier = ENV["APP_IDENTIFIER"].split(',').first # Замените на идентификатор вашего приложения
+  app_identifier = ENV['APP_IDENTIFIER'].split(',').first # Замените на идентификатор вашего приложения
   app_store_build_number(app_identifier: app_identifier)
-  
+
   # Возвращаем номер версии из App Store Connect
   release_version = lane_context[SharedValues::LATEST_VERSION]
   UI.message("Релизная версия: #{release_version}")
-  return release_version
+  release_version
 end
