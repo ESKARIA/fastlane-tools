@@ -1,4 +1,4 @@
-def generate_match(type, options, git_branch)
+def generate_match(type:, options:, git_branch:)
     app_identifiers = ENV['APP_IDENTIFIER'].split(',')
     api_key = app_store_connect_api_key(
         key_id: APPSTORE_KEY_ID,
@@ -7,32 +7,47 @@ def generate_match(type, options, git_branch)
         in_house: false,
         is_key_content_base64: true
     )
-    app_identifiers.each do |app_identifier|
-        UI.message("[DEBUG]: Start match for identifier: " + app_identifier)
-        match(type: type,
-              app_identifier: app_identifier.to_s,
-              api_key: api_key,
-              force_for_new_devices: true,
-              include_all_certificates: true,
-              force_for_new_certificates: true,
-              readonly: false,
-              force: options[:update],
-              platform: 'ios',
-              verbose: true,
-              generate_apple_certs: options[:update],
-              git_branch: git_branch)
-    end
+
+    match(type: type,
+            app_identifier: ENV['APP_IDENTIFIER'],
+            api_key: api_key,
+            force_for_new_devices: true,
+            include_all_certificates: true,
+            force_for_new_certificates: true,
+            readonly: false,
+            force: true,
+            platform: 'ios',
+            verbose: true,
+            generate_apple_certs: true,
+            git_branch: git_branch)
 end
 
-lane :match_dev do |options|
-    generate_match('development', options, 'development')
+def match_install(type: type, options: options, git_branch: git_branch)
+    match(type: type,
+            app_identifier: ENV['APP_IDENTIFIER'],
+            include_all_certificates: true,
+            readonly: true,
+            force: false,
+            platform: 'ios',
+            verbose: true,
+            git_branch: git_branch)
 end
 
-lane :match_prod do |options|
-    generate_match('appstore', options, 'distribution')
+
+### Generate match profiles
+lane :match_generate_dev do |options|
+    generate_match(type: 'development', options: options, git_branch: 'development')
 end
 
-lane :match_all do |options|
-    match_dev(options)
-    match_prod(options)
+lane :match_generate_prod do |options|
+    generate_match(type: 'appstore', options: options, git_branch: 'distribution')
+end
+
+### Install match certificate and profiles
+lane :match_install_dev do |options|
+    match_install(type: 'development', options: options, git_branch: 'development')
+end
+
+lane :match_install_prod do |options|
+    match_install(type: 'appstore', options: options, git_branch: 'distribution')
 end
