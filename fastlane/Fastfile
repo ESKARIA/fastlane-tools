@@ -121,6 +121,8 @@ lane :register_new_device do  |options|
     )
 
     register_devices(api_key: api_key, devices: device_hash)
+
+    match_generate_dev(options)
 end
 
 # lane :debug do |options|

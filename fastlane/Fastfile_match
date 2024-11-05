@@ -1,5 +1,6 @@
 def generate_match(type:, options:, git_branch:)
-    app_identifiers = ENV['APP_IDENTIFIER'].split(',')
+    raise 'Has no APP_IDENTIFIER' unless APP_IDENTIFIER
+
     api_key = app_store_connect_api_key(
         key_id: APPSTORE_KEY_ID,
         issuer_id: APPSTORE_ISSUER_ID,
@@ -9,12 +10,14 @@ def generate_match(type:, options:, git_branch:)
     )
 
     match(type: type,
-            app_identifier: ENV['APP_IDENTIFIER'],
+            app_identifier: APP_IDENTIFIER,
             api_key: api_key,
             force_for_new_devices: true,
             include_all_certificates: true,
             force_for_new_certificates: true,
+            clone_branch_directory: true,
             readonly: false,
+            fail_on_name_taken: true,
             force: true,
             platform: 'ios',
             verbose: true,
@@ -24,8 +27,10 @@ end
 
 def match_install(type:, git_branch:)
     match(type: type,
-            app_identifier: ENV['APP_IDENTIFIER'],
+            app_identifier: APP_IDENTIFIER,
             include_all_certificates: true,
+            clone_branch_directory: true,
+            fail_on_name_taken: true,
             readonly: true,
             force: false,
             platform: 'ios',
