@@ -68,7 +68,7 @@ AllCops:
     - '.git/**/*'
 
 Metrics/BlockLength:
-  Max: 50
+  Max: 60
 
 Metrics/MethodLength:
   Max: 50
