@@ -58,10 +58,10 @@ lane :pass_to_review do |options|
           submission_information: {
                 add_id_info_limits_tracking: false,
                 add_id_info_serves_ads: false,
-                add_id_info_tracks_action: true,
-                add_id_info_tracks_install: true,
-                add_id_info_uses_idfa: true,
-                content_rights_has_rights: true,
+                add_id_info_tracks_action: false,
+                add_id_info_tracks_install: false,
+                add_id_info_uses_idfa: false,
+                content_rights_has_rights: false,
                 content_rights_contains_third_party_content: false,
                 export_compliance_platform: 'ios',
                 export_compliance_compliance_required: false,
@@ -74,6 +74,46 @@ lane :pass_to_review do |options|
                 export_compliance_available_on_french_store: false
               }
 )
+end
+
+lane :update_metadata_year do
+  # Определяем текущий год и месяц
+  sh <<-SHELL
+    CURRENT_YEAR=$(date +'%Y')
+    CURRENT_MONTH=$(date +'%m')
+
+    # Определяем целевой год
+    if [ "$CURRENT_MONTH" -eq "12" ]; then
+      TARGET_YEAR=$((CURRENT_YEAR + 1))
+    else
+      if [ "$CURRENT_MONTH" -eq "11" ]; then
+        TARGET_YEAR=$((CURRENT_YEAR + 1))
+      else
+        TARGET_YEAR=$CURRENT_YEAR
+      fi
+    fi
+
+    # Обновление года в файлах name.txt
+    echo "Updating year in name.txt files..."
+    find ./metadata -type f -name "name.txt" | while read -r file; do
+      sed -i.bak "s/[0-9]\\{4\\}/$TARGET_YEAR/g" "$file"
+      rm "$file.bak"
+    done
+
+    # Обновление года в файлах copyright.txt
+    echo "Updating year in copyright.txt files..."
+    find ./metadata -type f -name "copyright.txt" | while read -r file; do
+      sed -i.bak "s/[0-9]\\{4\\}/$TARGET_YEAR/g" "$file"
+      rm "$file.bak"
+    done
+
+    # Обновление года в файлах keywords.txt
+    echo "Updating year in keywords.txt files..."
+    find ./metadata -type f -name "keywords.txt" | while read -r file; do
+      sed -i.bak "s/[0-9]\\{4\\}/$TARGET_YEAR/g" "$file"
+      rm "$file.bak"
+    done
+  SHELL
 end
 
 def get_beta_version_number
