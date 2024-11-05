@@ -17,7 +17,7 @@ lane :auto_release_branch do |options|
   sh("echo \"BUILD_NUMBER=#{BUILD_NUMBER}, TIMESTAMP=$(date '+%Y-%m-%d %H:%M:%S')\" >> last_update.txt")
   update_metadata_year(options)
 
-  git_commit(path: ["*.txt"], message: "Version Bump")
+  git_commit(path: ["./*.txt"], message: "Version Bump")
 
   increment_version_number(version_number: highest_version.to_s)
 
