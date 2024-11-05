@@ -33,6 +33,6 @@ lane :match_prod do |options|
 end
 
 lane :match_all do |options|
-    generate_match('development', options, 'development')
-    generate_match('appstore', options, 'distribution')
+    match_dev(options)
+    match_prod(options)
 end
