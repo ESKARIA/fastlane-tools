@@ -23,8 +23,13 @@ lane :auto_release_branch do |options|
   end
   
   version_number = get_version_number(xcodeproj: ENV['MAIN_PROJECT_FILE'], target: MAIN_TARGET)
-
+  
+  sh("echo \"BUILD_NUMBER=#{BUILD_NUMBER}, TIMESTAMP=$(date '+%Y-%m-%d %H:%M:%S')\" >> last_update.txt")
+  update_metadata_year(options)
+  
+  git_commit(path: ["./last_update.txt", "./*.txt"], message: "Version Bump")
   push_to_git_remote(local_branch: branch_name, remote_branch: "release/#{version_number}", force: true)
+
   UI.message("Старшая версия: #{version_number}")
 
 end
@@ -76,7 +81,7 @@ lane :pass_to_review do |options|
 )
 end
 
-lane :update_metadata_year do
+lane :update_metadata_year do |options|
   # Определяем текущий год и месяц
   sh <<-SHELL
     CURRENT_YEAR=$(date +'%Y')
