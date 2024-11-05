@@ -1,4 +1,4 @@
-def generate_match(type:, options:, git_branch:)
+def generate_match(type:, git_branch:)
     raise 'Has no APP_IDENTIFIER' unless APP_IDENTIFIER
     raise 'Has no APPSTORE_KEY_CONTENT' unless APPSTORE_KEY_CONTENT
 
