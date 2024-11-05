@@ -19,7 +19,20 @@ lane :auto_release_branch do |options|
     version = increment_patch_version(highest_version)
   end
 
-  sh("git branch release/#{version}")
+  # Синхронизируем локальные и удалённые ветки, удаляя несуществующие
+  sh("git fetch --prune origin")
+  
+  # Название ветки для проверки
+  branch_name = "release/#{version}"
+  
+  # Проверяем, существует ли ветка
+  branch_exists = sh("git branch --list #{branch_name}").strip
+  
+  # Если ветка не существует, создаем её
+  if branch_exists.empty?
+    sh("git branch #{branch_name}")
+  end
+
   sh("echo \"BUILD_NUMBER=#{BUILD_NUMBER}, TIMESTAMP=$(date '+%Y-%m-%d %H:%M:%S')\" >> last_update.txt")
   update_metadata_year(options)
   sh("git add ./*.txt")  # Добавляем все файлы .txt в staged
