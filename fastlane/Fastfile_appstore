@@ -14,6 +14,11 @@ lane :auto_release_branch do |options|
   # Установка переменной окружения
   # sh("echo APP_VERSION=#{highest_version} >> $GITHUB_ENV")
 
+  sh("echo \"BUILD_NUMBER=#{BUILD_NUMBER}, TIMESTAMP=$(date '+%Y-%m-%d %H:%M:%S')\" >> last_update.txt")
+  update_metadata_year(options)
+
+  git_commit(path: ["*.txt"], message: "Version Bump")
+
   increment_version_number(version_number: highest_version.to_s)
 
   # # 4. Действия для релизной версии
@@ -24,10 +29,6 @@ lane :auto_release_branch do |options|
   
   version_number = get_version_number(xcodeproj: ENV['MAIN_PROJECT_FILE'], target: MAIN_TARGET)
   
-  sh("echo \"BUILD_NUMBER=#{BUILD_NUMBER}, TIMESTAMP=$(date '+%Y-%m-%d %H:%M:%S')\" >> last_update.txt")
-  update_metadata_year(options)
-
-  git_commit(path: ["*.txt"], message: "Version Bump")
   push_to_git_remote(local_branch: branch_name, remote_branch: "release/#{version_number}", force: true)
 
   UI.message("Старшая версия: #{version_number}")
