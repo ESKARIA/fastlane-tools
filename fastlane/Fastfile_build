@@ -27,7 +27,7 @@ lane :build do |options|
 
     UI.message("App version: #{version_number} build #{build_number}")
     setup_ci
-    match_prod(options)
+    match_install_appstore(options)
 
     build_app(
         scheme: MAIN_TARGET, 
