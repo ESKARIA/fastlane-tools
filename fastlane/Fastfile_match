@@ -22,7 +22,7 @@ def generate_match(type:, options:, git_branch:)
             git_branch: git_branch)
 end
 
-def match_install(type: type, git_branch: git_branch)
+def match_install(type:, git_branch:)
     match(type: type,
             app_identifier: ENV['APP_IDENTIFIER'],
             include_all_certificates: true,
@@ -37,7 +37,7 @@ end
 ### Generate match profiles
 lane :match_generate_dev do |options|
     raise 'Has no APPSTORE_KEY_CONTENT' unless APPSTORE_KEY_CONTENT
-    
+
     generate_match(type: 'development', git_branch: 'development')
 end
 

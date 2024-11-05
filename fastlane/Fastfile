@@ -58,7 +58,7 @@ end
 
 import_from_git(
     url: 'git@github.com:ESKARIA/fastlane-tools.git',
-    # branch: 'main',
+    branch: 'optimise-match',
     path: 'fastlane/Fastfile_match', # use any another Fastfile besides fastlane/Fastfile for fix recursive import
     # version: [">= 1.0.0"],
     dependencies: [
