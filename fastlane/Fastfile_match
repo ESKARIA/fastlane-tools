@@ -22,7 +22,7 @@ def generate_match(type:, options:, git_branch:)
             git_branch: git_branch)
 end
 
-def match_install(type: type, options: options, git_branch: git_branch)
+def match_install(type: type, git_branch: git_branch)
     match(type: type,
             app_identifier: ENV['APP_IDENTIFIER'],
             include_all_certificates: true,
@@ -36,18 +36,24 @@ end
 
 ### Generate match profiles
 lane :match_generate_dev do |options|
-    generate_match(type: 'development', options: options, git_branch: 'development')
+    raise 'Has no APPSTORE_KEY_CONTENT' unless APPSTORE_KEY_CONTENT
+    
+    generate_match(type: 'development', git_branch: 'development')
 end
 
-lane :match_generate_prod do |options|
-    generate_match(type: 'appstore', options: options, git_branch: 'distribution')
+lane :match_generate_appstore do |options|
+    raise 'Has no APPSTORE_KEY_CONTENT' unless APPSTORE_KEY_CONTENT
+
+    generate_match(type: 'appstore', git_branch: 'distribution')
 end
 
 ### Install match certificate and profiles
 lane :match_install_dev do |options|
-    match_install(type: 'development', options: options, git_branch: 'development')
+    match_install(type: 'development', git_branch: 'development')
 end
 
-lane :match_install_prod do |options|
-    match_install(type: 'appstore', options: options, git_branch: 'distribution')
+lane :match_install_appstore do |options|
+    raise 'Has no APPSTORE_KEY_CONTENT' unless APPSTORE_KEY_CONTENT
+
+    match_install(type: 'appstore', git_branch: 'distribution')
 end
