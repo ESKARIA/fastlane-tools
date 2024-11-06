@@ -11,6 +11,8 @@ lane :auto_release_branch do |options|
 
   check_and_set_project_file
   branch_name = git_branch
+  minimal_version = options[:minimal_version] || '1.0.0'
+
   UI.message("Текущая ветка: #{branch_name}")
 
   # 2. Проверяем сборки в бете и релизе
@@ -21,8 +23,10 @@ lane :auto_release_branch do |options|
   highest_version = [beta_version, release_version].max
   UI.message("Старшая версия: #{highest_version}")
 
-  # Установка переменной окружения
-  # sh("echo APP_VERSION=#{highest_version} >> $GITHUB_ENV")
+  if Gem::Version.new(highest_version) < Gem::Version.new(minimal_version)
+    UI.message("Текущая версия #{highest_version} меньше минимальной версии #{minimal_version}. Устанавливаем версию на минимальную.")
+    highest_version = minimal_version
+  end
 
   version = highest_version
   version = increment_patch_version(highest_version) if highest_version == release_version
