@@ -56,7 +56,7 @@ lane :auto_release_branch do |options|
   version_number = get_version_number(xcodeproj: ENV['MAIN_PROJECT_FILE'], target: MAIN_TARGET)
 
   push_to_git_remote(local_branch: branch_name, remote_branch: branch_name, force: true)
-  push_to_git_remote(local_branch: branch_name, remote_branch: "release/#{version_number}", force: false)
+  push_to_git_remote(local_branch: branch_name, remote_branch: "release/#{version_number}", force: true)
 
   UI.message("Старшая версия: #{version_number}")
 end
