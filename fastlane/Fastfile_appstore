@@ -76,7 +76,7 @@ lane :git_new do |options|
   push_to_git_remote(local_branch: branch_name, remote_branch: "release/#{options[:git_app_version]}", force: true)
 end
 
-lane :pass_to_review do |_options|
+lane :pass_to_review do |_options| # rubocop:disable Lint/UnderscorePrefixedVariableName
   check_and_set_project_file
   app_store_connect_api_key(key_id: APPSTORE_KEY_ID,
                             issuer_id: APPSTORE_ISSUER_ID,
@@ -114,6 +114,8 @@ lane :pass_to_review do |_options|
             export_compliance_contains_proprietary_cryptography: false,
             export_compliance_available_on_french_store: false
           })
+
+  merge_and_delete_release_branch(_options)
 end
 
 lane :update_metadata_year do |_options|
@@ -154,6 +156,32 @@ lane :update_metadata_year do |_options|
       rm "$file.bak"
     done
   SHELL
+end
+
+desc 'Merge and delete an existing release branch'
+lane :merge_and_delete_release_branch do |_options|
+  release_branch = git_branch
+  target_branch = 'main'
+
+  # Переключение на целевую ветку
+  UI.message("Switching to target branch #{target_branch}")
+  sh("git checkout #{target_branch}")
+  sh("git pull origin #{target_branch}") # Обновление целевой ветки до актуального состояния
+
+  # Слияние релизной ветки в целевую ветку
+  UI.message("Merging #{release_branch} into #{target_branch}")
+  sh("git merge --no-ff #{release_branch}")
+
+  # Отправка изменений в удалённый репозиторий
+  UI.message("Pushing merged changes to origin/#{target_branch}")
+  sh("git push origin #{target_branch}")
+
+  # Удаление релизной ветки локально и в удалённом репозитории
+  UI.message("Deleting release branch #{release_branch}")
+  sh("git branch -d #{release_branch}") # Удаление локальной ветки
+  sh("git push origin --delete #{release_branch}") # Удаление ветки в удалённом репозитории
+
+  UI.message("Release branch #{release_branch} has been merged into #{target_branch} and deleted.")
 end
 
 def beta_version_number
