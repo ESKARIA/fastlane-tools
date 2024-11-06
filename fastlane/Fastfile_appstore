@@ -39,9 +39,12 @@ lane :auto_release_branch do |options|
   # Если ветка не существует, создаем её
   sh("git branch #{branch_name}") if branch_exists.empty?
 
-  sh("echo \"BUILD_NUMBER=#{BUILD_NUMBER}, TIMESTAMP=$(date '+%Y-%m-%d %H:%M:%S')\" >> last_update.txt")
+  sh("echo \"VERSION=#{version}, TIMESTAMP=$(date '+%Y-%m-%d %H:%M:%S')\" >> last_update.txt")
+  sh("git add '*.txt'") # Добавляем все файлы .txt в staged
+
   update_metadata_year(options)
-  sh('git add ./*.txt') # Добавляем все файлы .txt в staged
+  sh("git add '**/*.txt'") # Добавляем все файлы .txt в staged
+
   git_commit(path: ['./*.txt'], message: 'Version Bump') # Коммитим изменения
 
   increment_version_number(version_number: highest_version.to_s)
