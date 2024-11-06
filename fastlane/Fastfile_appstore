@@ -31,19 +31,17 @@ lane :auto_release_branch do |options|
   sh('git fetch --prune origin')
 
   # Название ветки для проверки
-  branch_name = "release/#{version}"
+  release_branch_name = "release/#{version}"
 
   # Проверяем, существует ли ветка
-  branch_exists = sh("git branch --list #{branch_name}").strip
+  branch_exists = sh("git branch --list #{release_branch_name}").strip
 
-  # Если ветка не существует, создаем её
-  sh("git branch #{branch_name}") if branch_exists.empty?
+  # # Если ветка не существует, создаем её
+  # sh("git branch #{branch_name}") if branch_exists.empty?
 
   sh("echo \"VERSION=#{version}, TIMESTAMP=$(date '+%Y-%m-%d %H:%M:%S')\" >> last_update.txt")
-  sh("git add '*.txt'") # Добавляем все файлы .txt в staged
-
   update_metadata_year(options)
-  sh("git add '**/*.txt'") # Добавляем все файлы .txt в staged
+  sh("git add '*.txt' && git add '**/*.txt'") # Добавляем все файлы .txt включая вложенные в папках в staged
 
   git_commit(path: ['./*.txt'], message: 'Version Bump') # Коммитим изменения
 
@@ -57,7 +55,8 @@ lane :auto_release_branch do |options|
 
   version_number = get_version_number(xcodeproj: ENV['MAIN_PROJECT_FILE'], target: MAIN_TARGET)
 
-  push_to_git_remote(local_branch: branch_name, remote_branch: "release/#{version_number}", force: true)
+  push_to_git_remote(local_branch: branch_name, remote_branch: branch_name, force: true)
+  push_to_git_remote(local_branch: branch_name, remote_branch: "release/#{version_number}", force: false)
 
   UI.message("Старшая версия: #{version_number}")
 end
