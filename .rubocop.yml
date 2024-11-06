@@ -66,3 +66,9 @@ AllCops:
     - 'tmp/**/*'
     - 'vendor/**/*'
     - '.git/**/*'
+
+Metrics/BlockLength:
+  Max: 60
+
+Metrics/MethodLength:
+  Max: 50

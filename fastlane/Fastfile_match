@@ -1,65 +1,66 @@
+# frozen_string_literal: true
+
 def generate_match(type:, git_branch:)
-    raise 'Has no APP_IDENTIFIER' unless APP_IDENTIFIER
-    raise 'Has no APPSTORE_KEY_CONTENT' unless APPSTORE_KEY_CONTENT
+  raise 'Has no APP_IDENTIFIER' unless APP_IDENTIFIER
+  raise 'Has no APPSTORE_KEY_CONTENT' unless APPSTORE_KEY_CONTENT
 
-    api_key = app_store_connect_api_key(
-        key_id: APPSTORE_KEY_ID,
-        issuer_id: APPSTORE_ISSUER_ID,
-        key_content: APPSTORE_KEY_CONTENT,
-        in_house: false,
-        is_key_content_base64: true
-    )
+  api_key = app_store_connect_api_key(
+    key_id: APPSTORE_KEY_ID,
+    issuer_id: APPSTORE_ISSUER_ID,
+    key_content: APPSTORE_KEY_CONTENT,
+    in_house: false,
+    is_key_content_base64: true
+  )
 
-    match(type: type,
-            app_identifier: APP_IDENTIFIER,
-            api_key: api_key,
-            force_for_new_devices: true,
-            include_all_certificates: true,
-            force_for_new_certificates: true,
-            clone_branch_directly: true,
-            readonly: false,
-            fail_on_name_taken: true,
-            force: true,
-            platform: 'ios',
-            verbose: true,
-            generate_apple_certs: true,
-            git_branch: git_branch)
+  match(type: type,
+        app_identifier: APP_IDENTIFIER,
+        api_key: api_key,
+        force_for_new_devices: true,
+        include_all_certificates: true,
+        force_for_new_certificates: true,
+        clone_branch_directly: true,
+        readonly: false,
+        fail_on_name_taken: true,
+        force: true,
+        platform: 'ios',
+        verbose: true,
+        generate_apple_certs: true,
+        git_branch: git_branch)
 end
 
 def match_install(type:, git_branch:)
-    match(type: type,
-            app_identifier: APP_IDENTIFIER,
-            include_all_certificates: true,
-            clone_branch_directly: true,
-            fail_on_name_taken: true,
-            readonly: true,
-            force: false,
-            platform: 'ios',
-            verbose: true,
-            git_branch: git_branch)
+  match(type: type,
+        app_identifier: APP_IDENTIFIER,
+        include_all_certificates: true,
+        clone_branch_directly: true,
+        fail_on_name_taken: true,
+        readonly: true,
+        force: false,
+        platform: 'ios',
+        verbose: true,
+        git_branch: git_branch)
 end
-
 
 ### Generate match profiles
-lane :match_generate_dev do |options|
-    raise 'Has no APPSTORE_KEY_CONTENT' unless APPSTORE_KEY_CONTENT
-    
-    generate_match(type: 'development', git_branch: 'development')
+lane :match_generate_dev do |_options|
+  raise 'Has no APPSTORE_KEY_CONTENT' unless APPSTORE_KEY_CONTENT
+
+  generate_match(type: 'development', git_branch: 'development')
 end
 
-lane :match_generate_appstore do |options|
-    raise 'Has no APPSTORE_KEY_CONTENT' unless APPSTORE_KEY_CONTENT
+lane :match_generate_appstore do |_options|
+  raise 'Has no APPSTORE_KEY_CONTENT' unless APPSTORE_KEY_CONTENT
 
-    generate_match(type: 'appstore', git_branch: 'distribution')
+  generate_match(type: 'appstore', git_branch: 'distribution')
 end
 
 ### Install match certificate and profiles
-lane :match_install_dev do |options|
-    match_install(type: 'development', git_branch: 'development')
+lane :match_install_dev do |_options|
+  match_install(type: 'development', git_branch: 'development')
 end
 
-lane :match_install_appstore do |options|
-    raise 'Has no APPSTORE_KEY_CONTENT' unless APPSTORE_KEY_CONTENT
+lane :match_install_appstore do |_options|
+  raise 'Has no APPSTORE_KEY_CONTENT' unless APPSTORE_KEY_CONTENT
 
-    match_install(type: 'appstore', git_branch: 'distribution')
+  match_install(type: 'appstore', git_branch: 'distribution')
 end

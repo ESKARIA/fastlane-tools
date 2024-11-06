@@ -1,56 +1,55 @@
-desc "Upload symbols"
+# frozen_string_literal: true
+
+desc 'Upload symbols'
 lane :upload_dsyms do |options|
-    check_and_set_project_file
+  check_and_set_project_file
 
-    # sh("cp " + DSYM_FILE_PATH.to_s + " ./")
-    sh("cp -f ~/Yandex.Disk.localized/TAXCOM-Public/artifacts/YandexMetrica/helper ./")
-    sh("chmod +x ./helper")
+  # sh("cp " + DSYM_FILE_PATH.to_s + " ./")
+  sh('cp -f ~/Yandex.Disk.localized/TAXCOM-Public/artifacts/YandexMetrica/helper ./')
+  sh('chmod +x ./helper')
 
-    message = "[DEBUG]: Helper path: " + HELPER_PATH.to_s
-    UI.message(message)
-    isMetrica = !HELPER_PATH.nil? && !HELPER_PATH.empty?
-    if isMetrica 
-        UI.message("[DEBUG]: Deploy DSYMS to AppMetrica...")
-        unzip_and_upload(options)
-        sh("ls -a")
-    end
+  message = "[DEBUG]: Helper path: #{HELPER_PATH}"
+  UI.message(message)
+  is_metrica = !HELPER_PATH.nil? && !HELPER_PATH.empty?
+  if is_metrica
+    UI.message('[DEBUG]: Deploy DSYMS to AppMetrica...')
+    unzip_and_upload(options)
+    sh('ls -a')
+  end
 
-    firebase = options[:firebase] ? true : false
-    if firebase
-        UI.message("[DEBUG]: Deploy DSYMS to Firebase...")
-        dsym_paths = []
-        UI.message("Start find dsyms files!")
-        Find.find(".") do |path|
-          dsym_paths << path if path.end_with?('.dSYM.zip')
-        end
-        upload_symbols_to_crashlytics(dsym_paths: dsym_paths)
-    end
-
-end
-
-lane :unzip_and_upload do |options| 
-    require 'fileutils'
-    require 'find'
-    check_and_set_project_file
-    
-    sh("pwd")
-    sh("ls -a")
+  firebase = options[:firebase] ? true : false
+  if firebase
+    UI.message('[DEBUG]: Deploy DSYMS to Firebase...')
     dsym_paths = []
-    UI.message("Start find dsyms files!")
-    Find.find(".") do |path|
+    UI.message('Start find dsyms files!')
+    Find.find('.') do |path|
       dsym_paths << path if path.end_with?('.dSYM.zip')
     end
-    UI.message(dsym_paths)
+    upload_symbols_to_crashlytics(dsym_paths: dsym_paths)
+  end
+end
 
-    dsym_paths.each do |zip_file|
-      
-      if File.exist?(zip_file) # Проверяем, существует ли файл
-        UI.message("Use shell script for upload dsyms")
-        sh("unzip -o #{zip_file}")
-        sh("#{HELPER_PATH} -k #{APPMETRICA_KEY} -v")
-      else
-        puts "Файл не найден: #{zip_file}"
-      end
+lane :unzip_and_upload do |_options|
+  require 'fileutils'
+  require 'find'
+  check_and_set_project_file
 
+  sh('pwd')
+  sh('ls -a')
+  dsym_paths = []
+  UI.message('Start find dsyms files!')
+  Find.find('.') do |path|
+    dsym_paths << path if path.end_with?('.dSYM.zip')
+  end
+  UI.message(dsym_paths)
+
+  dsym_paths.each do |zip_file|
+    if File.exist?(zip_file) # Проверяем, существует ли файл
+      UI.message('Use shell script for upload dsyms')
+      sh("unzip -o #{zip_file}")
+      sh("#{HELPER_PATH} -k #{APPMETRICA_KEY} -v")
+    else
+      puts "Файл не найден: #{zip_file}"
     end
+  end
 end

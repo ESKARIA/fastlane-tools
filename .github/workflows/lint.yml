@@ -1,0 +1,26 @@
+name: RuboCop Linter
+
+on:
+  pull_request:
+  push:
+
+jobs:
+  rubocop:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Ruby
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: '3.2.2'  # Укажите вашу версию Ruby
+
+      - name: Install dependencies # Установка зависимостей, включая rubocop
+        run: |
+          bundle install
+
+      - name: Run RuboCop
+        run: |
+          bundle exec rubocop
