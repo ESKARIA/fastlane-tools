@@ -161,6 +161,20 @@ lane :update_metadata_year do |_options|
       sed -i.bak "s/[0-9]\\{4\\}/$TARGET_YEAR/g" "$file"
       rm "$file.bak"
     done
+
+    # Обновление года в файлах description.txt
+    echo "Updating year in description.txt files..."
+    find ./metadata -type f -name "description.txt" | while read -r file; do
+      sed -i.bak "s/[0-9]\\{4\\}/$TARGET_YEAR/g" "$file"
+      rm "$file.bak"
+    done
+
+    # Обновление года в файлах promotional_text.txt
+    echo "Updating year in promotional_text.txt files..."
+    find ./metadata -type f -name "promotional_text.txt" | while read -r file; do
+      sed -i.bak "s/[0-9]\\{4\\}/$TARGET_YEAR/g" "$file"
+      rm "$file.bak"
+    done
   SHELL
 end
 
