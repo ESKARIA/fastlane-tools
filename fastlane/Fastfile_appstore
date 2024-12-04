@@ -47,7 +47,8 @@ lane :auto_release_branch do |options|
   update_metadata_year(options)
   sh("git add '*.txt' && git add '**/*.txt'") # Добавляем все файлы .txt включая вложенные в папках в staged
 
-  git_commit(path: ['./*.txt'], message: 'Version Update for release') # Коммитим изменения
+  # git_commit(path: ['./*.txt'], message: 'Version Update for release') # Коммитим изменения
+  sh("git commit -m 'Version Update for release'")
 
   increment_version_number(version_number: highest_version.to_s)
 
