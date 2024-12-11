@@ -208,7 +208,7 @@ end
 def beta_version_number
   # Используем Fastlane action для получения последнего номера сборки из TestFlight
   app_identifier = ENV['APP_IDENTIFIER'].split(',').first # Замените на идентификатор вашего приложения
-  beta_version = '1.0.0' # Значение по умолчанию
+  beta_version = '0.0.0' # Значение по умолчанию
 
   begin
     # Попытка получить версию из TestFlight
@@ -226,7 +226,7 @@ end
 def release_version_number
   # Используем Fastlane action для получения последнего номера сборки из App Store Connect
   app_identifier = ENV['APP_IDENTIFIER'].split(',').first # Замените на идентификатор вашего приложения
-  release_version = '1.0.0' # Значение по умолчанию
+  release_version = '0.0.0' # Значение по умолчанию
 
   begin
     # Попытка получить версию из App Store Connect
