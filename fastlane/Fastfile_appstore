@@ -206,12 +206,19 @@ lane :merge_and_delete_release_branch do |_options|
 end
 
 def beta_version_number
-  # Используем Fastlane action для получения последнего номера сборки в TestFlight
+  # Используем Fastlane action для получения последнего номера сборки из TestFlight
   app_identifier = ENV['APP_IDENTIFIER'].split(',').first # Замените на идентификатор вашего приложения
-  latest_testflight_build_number(app_identifier: app_identifier)
+  beta_version = '1.0.0' # Значение по умолчанию
 
-  # Возвращаем номер версии из TestFlight
-  beta_version = lane_context[SharedValues::LATEST_TESTFLIGHT_VERSION]
+  begin
+    # Попытка получить версию из TestFlight
+    latest_testflight_build_number(app_identifier: app_identifier)
+    beta_version = lane_context[SharedValues::LATEST_TESTFLIGHT_VERSION] if lane_context[SharedValues::LATEST_TESTFLIGHT_VERSION] # rubocop:disable Layout/LineLength
+  rescue StandardError => e
+    UI.message("Не удалось найти бета версию в TestFlight. Установлено значение по умолчанию: #{beta_version}")
+    UI.error("Ошибка: #{e.message}")
+  end
+
   UI.message("Бета версия: #{beta_version}")
   beta_version
 end
