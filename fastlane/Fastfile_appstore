@@ -219,10 +219,17 @@ end
 def release_version_number
   # Используем Fastlane action для получения последнего номера сборки из App Store Connect
   app_identifier = ENV['APP_IDENTIFIER'].split(',').first # Замените на идентификатор вашего приложения
-  app_store_build_number(app_identifier: app_identifier)
+  release_version = '1.0.0' # Значение по умолчанию
 
-  # Возвращаем номер версии из App Store Connect
-  release_version = lane_context[SharedValues::LATEST_VERSION]
+  begin
+    # Попытка получить версию из App Store Connect
+    app_store_build_number(app_identifier: app_identifier)
+    release_version = lane_context[SharedValues::LATEST_VERSION] if lane_context[SharedValues::LATEST_VERSION]
+  rescue StandardError => e
+    UI.message("Не удалось найти релизную версию в App Store Connect. Установлено значение по умолчанию: #{release_version}") # rubocop:disable Layout/LineLength
+    UI.error("Ошибка: #{e.message}")
+  end
+
   UI.message("Релизная версия: #{release_version}")
   release_version
 end
