@@ -16,10 +16,23 @@ lane :upload_testflight do |options|
                                       is_key_content_base64: true)
 
   # Получение последнего тега
-  last_tag = sh('git describe --tags --abbrev=0').strip
+  begin
+    last_tag = sh('git describe --tags --abbrev=0').strip
+    last_tag = 'v1.0.0-build-1' if last_tag.empty?
+  rescue StandardError
+    UI.message('[DEBUG]: Не найден тег, устанавливаю значение по умолчанию')
+    last_tag = 'v1.0.0-build-1'
+  end
 
   # Получение хэша коммита этого тега
-  commit_of_last_tag = sh("git rev-list -n 1 #{last_tag}").strip
+  begin
+    commit_of_last_tag = sh("git rev-list -n 1 #{last_tag}").strip
+  rescue StandardError
+    UI.message('[DEBUG]: Не удалось получить хэш коммита тега, устанавливаю хэш последнего коммита')
+    commit_of_last_tag = sh('git rev-list --max-parents=0 HEAD').strip
+  end
+
+  UI.message("[DEBUG]: Используем хэш коммита: #{commit_of_last_tag}")
 
   changelog = changelog_from_git_commits(
     between: [commit_of_last_tag.to_s, 'HEAD'],
