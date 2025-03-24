@@ -4,8 +4,6 @@ desc 'Upload symbols'
 lane :upload_dsyms do |options|
   check_and_set_project_file
 
-  # sh("cp " + DSYM_FILE_PATH.to_s + " ./")
-  sh('cp -f ~/Yandex.Disk.localized/TAXCOM-Public/artifacts/YandexMetrica/helper ./')
   sh('chmod +x ./helper')
 
   message = "[DEBUG]: Helper path: #{HELPER_PATH}"
