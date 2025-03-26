@@ -35,17 +35,22 @@ lane :unzip_and_upload do |_options|
   sh('pwd')
   sh('ls -a')
   dsym_paths = []
-  UI.message('Start find dsyms files!')
+  UI.message('Start search *.dSYM.zip files!')
   Find.find('.') do |path|
     dsym_paths << path if path.end_with?('.dSYM.zip')
   end
+  UI.message("We found some path's")
   UI.message(dsym_paths)
 
   dsym_paths.each do |zip_file|
     if File.exist?(zip_file) # Проверяем, существует ли файл
-      UI.message('Use shell script for upload dsyms')
+      UI.message('UnZip archive...')
       sh("unzip -o #{zip_file}")
+      UI.message('UnZip complete!')
+
+      UI.message('Use shell script for upload dsyms')
       sh("#{HELPER_PATH} -k #{APPMETRICA_KEY} -v")
+      UI.message('dSYM file uploaded!')
     else
       puts "Файл не найден: #{zip_file}"
     end
