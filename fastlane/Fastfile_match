@@ -84,11 +84,6 @@ lane :reset_all_profiles do
     is_key_content_base64: true
   )
 
-  match(type: 'development', app_identifier: APP_IDENTIFIER, git_branch: 'development', skip_confirmation: true,
-        safe_remove_certs: false)
-  match(type: 'appstore', app_identifier: APP_IDENTIFIER, git_branch: 'distribution', skip_confirmation: true,
-        safe_remove_certs: false)
-
   match(type: 'development',
         app_identifier: APP_IDENTIFIER,
         api_key: api_key,
