@@ -64,3 +64,8 @@ lane :match_install_appstore do |_options|
 
   match_install(type: 'appstore', git_branch: 'distribution')
 end
+
+lane :nuke_all do
+  match(type: 'development', git_branch: 'development', nuke: true)
+  match(type: 'appstore', git_branch: 'distribution', nuke: true)
+end
