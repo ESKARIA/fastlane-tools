@@ -76,8 +76,35 @@ lane :reset_all_profiles do
   bundle_ids.each do |bundle_id|
     UI.message("🔁 Обработка #{bundle_id}")
 
-    match_generate_dev
-    match_generate_appstore
+    match(type: 'development',
+          app_identifier: bundle_id,
+          api_key: api_key,
+          force_for_new_devices: true,
+          include_all_certificates: true,
+          force_for_new_certificates: true,
+          clone_branch_directly: true,
+          readonly: false,
+          fail_on_name_taken: true,
+          force: true,
+          platform: 'ios',
+          verbose: true,
+          generate_apple_certs: true,
+          git_branch: 'development')
+
+    match(type: 'appstore',
+          app_identifier: bundle_id,
+          api_key: api_key,
+          force_for_new_devices: true,
+          include_all_certificates: true,
+          force_for_new_certificates: true,
+          clone_branch_directly: true,
+          readonly: false,
+          fail_on_name_taken: true,
+          force: true,
+          platform: 'ios',
+          verbose: true,
+          generate_apple_certs: true,
+          git_branch: 'distribution')
   end
 
   UI.success('✅ Все сертификаты и профили обновлены.')
