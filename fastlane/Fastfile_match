@@ -65,7 +65,20 @@ lane :match_install_appstore do |_options|
   match_install(type: 'appstore', git_branch: 'distribution')
 end
 
-lane :nuke_all do
+lane :nuke_all do |_options|
   match(type: 'development', git_branch: 'development', nuke: true)
   match(type: 'appstore', git_branch: 'distribution', nuke: true)
+end
+
+lane :reset_all_profiles do
+  bundle_ids = APP_IDENTIFIER.split(',').map(&:strip)
+
+  bundle_ids.each do |bundle_id|
+    UI.message("🔁 Обработка #{bundle_id}")
+
+    match_generate_dev
+    match_generate_appstore
+  end
+
+  UI.success('✅ Все сертификаты и профили обновлены.')
 end
