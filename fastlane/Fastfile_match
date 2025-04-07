@@ -84,8 +84,8 @@ lane :reset_all_profiles do
 
   bundle_ids = APP_IDENTIFIER.split(',').map(&:strip)
 
-  match(type: 'development', git_branch: 'development', nuke: true)
-  match(type: 'appstore', git_branch: 'distribution', nuke: true)
+  match(type: 'development', git_branch: 'development', skip_confirmation: true, safe_remove_certs: false)
+  match(type: 'appstore', git_branch: 'distribution', skip_confirmation: true, safe_remove_certs: false)
 
   bundle_ids.each do |bundle_id|
     UI.message("🔁 Обработка #{bundle_id}")
