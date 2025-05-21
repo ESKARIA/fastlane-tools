@@ -29,16 +29,31 @@ def generate_match(type:, git_branch:)
 end
 
 def match_install(type:, git_branch:)
-  match(type: type,
-        app_identifier: APP_IDENTIFIER,
-        include_all_certificates: true,
-        clone_branch_directly: true,
-        fail_on_name_taken: true,
-        readonly: true,
-        force: false,
-        platform: 'ios',
-        verbose: true,
-        git_branch: git_branch)
+  UI.message("Installing match profiles for #{type} from #{git_branch}, CI=#{ENV['CI']}")
+  options = {
+    type: type,
+    app_identifier: APP_IDENTIFIER,
+    include_all_certificates: true,
+    clone_branch_directly: true,
+    fail_on_name_taken: true,
+    readonly: true,
+    force: false,
+    platform: 'ios',
+    verbose: true,
+    git_branch: git_branch
+  }
+
+  # Добавляем keychain, если в CI
+  if ENV['CI'] == 'true'
+    options[:keychain_name] = KEYCHAIN_NAME_EXT
+    options[:keychain_password] = KEYCHAIN_PASSWORD
+  end
+  UI.message("options for match: #{options}")
+  match(**options)
+
+  # if ENV['CI'] == 'true'
+  #   sh("security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k #{KEYCHAIN_PASSWORD} ~/Library/Keychains/#{KEYCHAIN_NAME_EXT}")
+  # end
 end
 
 ### Generate match profiles
