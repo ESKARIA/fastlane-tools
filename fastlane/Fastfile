@@ -94,6 +94,29 @@ lane :clear_keychain do
   sh("rm -rf ~/Library/MobileDevice/Provisioning\ Profiles/*.mobileprovision || true")
 end
 
+lane :setup_ci_safe do
+  if ENV['CI'] != 'true'
+    UI.important('Not running in CI environment — skipping CI setup')
+    next
+  end
+  sh('ls ~/Library/Keychains')
+
+  keychain_name = 'fastlane_tmp_keychain.keychain'
+  keychain_path = File.expand_path("~/Library/Keychains/#{keychain_name}")
+  sh("security delete-keychain #{keychain_path} || true")
+
+  UI.message("Creating keychain at path: #{keychain_path}")
+  create_keychain(
+    name: 'fastlane_tmp_keychain',
+    password: 'fastlane',
+    default_keychain: true,
+    unlock: true,
+    timeout: 3600,
+    lock_when_sleeps: false,
+    verbose: true
+  )
+end
+
 # error block is executed when a error occurs
 error do |_lane, exception, _options|
   UI.message(exception.to_s)
