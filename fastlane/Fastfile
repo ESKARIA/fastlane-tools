@@ -113,7 +113,8 @@ lane :setup_ci_safe do
     unlock: true,
     timeout: 3600,
     lock_when_sleeps: false,
-    verbose: true
+    verbose: true,
+    path: keychain_path
   )
 end
 
