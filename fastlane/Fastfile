@@ -119,6 +119,7 @@ lane :setup_ci_safe do
   rescue StandardError => e
     UI.error("Ошибка при создании Keychain: #{e.message}")
     UI.error('Проверьте права доступа к директории ~/Library/Keychains и наличие старых файлов keychain')
+    UI.error(e.to_s)
     raise e
   end
   sh("security list-keychains -d user -s #{keychain_path}")
