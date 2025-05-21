@@ -96,7 +96,7 @@ end
 
 # error block is executed when a error occurs
 error do |_lane, exception, _options|
-  UI.message(exception.to_s) if is_ci
+  UI.message(exception.to_s)
 end
 
 desc 'Upload gemfiles to YandexDisk'
