@@ -25,7 +25,7 @@ lane :build do |options|
   version_number = get_version_number(xcodeproj: ENV['MAIN_PROJECT_FILE'], target: MAIN_TARGET)
 
   UI.message("App version: #{version_number} build #{build_number}")
-  setup_ci
+  setup_ci_safe
   match_install_appstore(options)
 
   build_app(
@@ -40,4 +40,20 @@ lane :build do |options|
   copy_artifacts(target_path: IPA_FOLDER_PATH.to_s, artifacts: ['*.ipa', IPA_FILE_PATH.to_s])
   copy_artifacts(target_path: DSYM_FOLDER_PATH.to_s, artifacts: ['*.dSYM.zip', DSYM_FILE_PATH.to_s])
   copy_artifacts(target_path: 'fastlane/artifacts/', artifacts: ['*.dSYM.zip', '*.ipa'])
+end
+
+lane :setup_ci_safe do
+  if ENV['CI'] != 'true'
+    UI.important('Not running in CI environment — skipping CI setup')
+    next
+  end
+
+  create_keychain(
+    name: 'fastlane_tmp_keychain',
+    password: '',
+    default_keychain: true,
+    unlock: true,
+    timeout: 3600,
+    lock_when_sleeps: false
+  )
 end
