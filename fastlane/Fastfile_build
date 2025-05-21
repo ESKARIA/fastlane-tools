@@ -47,6 +47,7 @@ lane :setup_ci_safe do
     UI.important('Not running in CI environment — skipping CI setup')
     next
   end
+  sh('ls ~/Library/Keychains')
 
   create_keychain(
     name: 'fastlane_tmp_keychain',
@@ -54,6 +55,7 @@ lane :setup_ci_safe do
     default_keychain: true,
     unlock: true,
     timeout: 3600,
-    lock_when_sleeps: false
+    lock_when_sleeps: false,
+    verbose: true
   )
 end
