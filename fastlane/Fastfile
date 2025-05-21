@@ -101,13 +101,13 @@ lane :setup_ci_safe do
   end
   sh('ls ~/Library/Keychains')
 
-  keychain_name = 'fastlane_tmp_keychain.keychain'
-  keychain_path = File.expand_path("~/Library/Keychains/#{keychain_name}")
+  keychain_basename = 'fastlane_tmp_keychain'
+  keychain_path = File.expand_path("~/Library/Keychains/#{keychain_basename}.keychain-db")
   sh("security delete-keychain #{keychain_path} || true")
 
   UI.message("Creating keychain at path: #{keychain_path}")
   create_keychain(
-    name: 'fastlane_tmp_keychain',
+    name: keychain_basename,
     password: 'fastlane',
     default_keychain: true,
     unlock: true,
@@ -116,6 +116,7 @@ lane :setup_ci_safe do
     verbose: true,
     path: keychain_path
   )
+  sh("security list-keychains -d user -s #{keychain_path}")
 end
 
 # error block is executed when a error occurs
