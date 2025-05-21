@@ -50,7 +50,7 @@ lane :setup_ci_safe do
 
   create_keychain(
     name: 'fastlane_tmp_keychain',
-    password: '',
+    password: 'fastlane',
     default_keychain: true,
     unlock: true,
     timeout: 3600,
