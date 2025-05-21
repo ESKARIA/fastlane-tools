@@ -107,14 +107,13 @@ lane :setup_ci_safe do
 
   UI.message("Creating keychain at path: #{keychain_path}")
   create_keychain(
-    name: keychain_basename,
+    path: keychain_path,
     password: 'fastlane',
     default_keychain: true,
     unlock: true,
     timeout: 3600,
     lock_when_sleeps: false,
-    verbose: true,
-    path: keychain_path
+    verbose: true
   )
   sh("security list-keychains -d user -s #{keychain_path}")
 end
