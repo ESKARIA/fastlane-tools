@@ -3,3 +3,4 @@ fastlane/.env
 Pluginfile
 fastlane/README.md
 fastlane/report.xml
+fastlane/.env*

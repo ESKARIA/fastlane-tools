@@ -101,7 +101,7 @@ end
 
 desc 'Upload gemfiles to YandexDisk'
 lane :upload_gemfile do |_options|
-  sh('cp -f ../Gemfile.lock ~/Yandex.Disk.localized/TAXCOM-Public/artifacts/YandexMetrica/Gemfile.lock')
+  # sh('cp -f ../Gemfile.lock ~/Yandex.Disk.localized/TAXCOM-Public/artifacts/YandexMetrica/Gemfile.lock')
 end
 
 desc 'Register new device'
