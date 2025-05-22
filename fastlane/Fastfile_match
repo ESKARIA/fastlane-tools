@@ -48,7 +48,7 @@ def match_install(type:, git_branch:)
     options[:keychain_name] = KEYCHAIN_NAME
     options[:keychain_password] = KEYCHAIN_PASSWORD
   end
-
+  UI.message("options for match: #{options}")
   match(**options)
 end
 
