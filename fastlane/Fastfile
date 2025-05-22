@@ -92,7 +92,7 @@ end
 # after_all do
 #   clear_keychain
 
-#   keychain_path = File.expand_path("~/Library/Keychains/#{KEYCHAIN_NAME}.keychain-db")
+#   keychain_path = File.expand_path("~/Library/Keychains/#{KEYCHAIN_NAME_EXT}.keychain-db")
 
 #   sh("security delete-keychain #{keychain_path} || true")
 #   sh("rm -f #{keychain_path} || true")
