@@ -108,7 +108,7 @@ lane :setup_ci_safe do
   UI.message("Creating keychain at path: #{keychain_path}")
   begin
     create_keychain(
-      path: keychain_path,
+      name: keychain_basename,
       password: 'fastlane',
       default_keychain: true,
       unlock: true,
@@ -116,6 +116,7 @@ lane :setup_ci_safe do
       lock_when_sleeps: false,
       verbose: true
     )
+    sh("security list-keychains -d user -s ~/Library/Keychains/#{keychain_basename}.keychain-db")
   rescue StandardError => e
     UI.error("Ошибка при создании Keychain: #{e.message}")
     UI.error('Проверьте права доступа к директории ~/Library/Keychains и наличие старых файлов keychain')
