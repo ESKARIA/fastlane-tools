@@ -30,9 +30,13 @@ lane :build do |options|
   match_install_appstore(options)
 
   keychain_path = File.expand_path("~/Library/Keychains/#{KEYCHAIN_NAME_EXT}")
+  sh("security list-keychains -s #{keychain_path}")
   sh("security list-keychains")
   sh("security show-keychain-info #{keychain_path}")
   sh("security dump-keychain #{keychain_path} || true")
+  sh("security unlock-keychain -p #{KEYCHAIN_PASSWORD} #{keychain_path}")
+  sh("security set-keychain-settings -t 3600 -u #{keychain_path}")
+  sh("security unlock-keychain -p #{KEYCHAIN_PASSWORD} #{keychain_path}")
   sh("security find-identity -v -p codesigning")
 
   build_app(
