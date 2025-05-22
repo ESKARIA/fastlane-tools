@@ -121,7 +121,7 @@ lane :setup_ci_safe do
 
   UI.message("Creating keychain at path: #{keychain_path}")
   sh("security create-keychain -p #{KEYCHAIN_PASSWORD} #{keychain_path}")
-  sh("security list-keychains -s #{KEYCHAIN_NAME}")
+  sh("security list-keychains -s #{keychain_path}")
   sh("security unlock-keychain -p #{KEYCHAIN_PASSWORD} #{keychain_path}")
   sh("security default-keychain -s #{keychain_path}") rescue UI.important("Can't set default keychain. Skipping.")
   sh("security set-keychain-settings -t 3600 -u #{keychain_path}")
