@@ -118,8 +118,10 @@ lane :setup_ci_safe do
   UI.message("Creating keychain at path: #{keychain_path}")
   sh("security create-keychain -p #{KEYCHAIN_PASSWORD} #{keychain_path}")
   sh("security unlock-keychain -p #{KEYCHAIN_PASSWORD} #{keychain_path}")
-  sh("security list-keychains -d user -s #{keychain_path}")
-  sh("security default-keychain -d user -s #{keychain_path}")
+  sh("security list-keychains -s #{KEYCHAIN_NAME}")
+  sh("security default-keychain -s #{KEYCHAIN_NAME}")
+  sh("security unlock-keychain -p #{KEYCHAIN_PASSWORD} #{KEYCHAIN_NAME}")
+  sh("security set-keychain-settings -t 3600 -u #{KEYCHAIN_NAME}")
 end
 
 # error block is executed when a error occurs
