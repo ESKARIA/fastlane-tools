@@ -41,6 +41,9 @@ DSYM_FILE_PATH              = DSYM_FOLDER_PATH.to_s + DSYM_FILE_NAME.to_s
 
 HELPER_PATH                 = './helper'
 MATCH_PASSWORD              = ENV['MATCH_PASSWORD']
+KEYCHAIN_NAME               = 'fastlane_tmp_keychain'
+KEYCHAIN_PASSWORD           = 'fastlane'
+
 
 # Проверка и установка значения по умолчанию для MAIN_PROJECT_FILE
 def check_and_set_project_file
@@ -87,8 +90,7 @@ end
 # after_all do
 #   clear_keychain
 
-#   keychain_basename = 'fastlane_tmp_keychain'
-#   keychain_path = File.expand_path("~/Library/Keychains/#{keychain_basename}.keychain-db")
+#   keychain_path = File.expand_path("~/Library/Keychains/#{KEYCHAIN_NAME}.keychain-db")
 
 #   sh("security delete-keychain #{keychain_path} || true")
 #   sh("rm -f #{keychain_path} || true")
@@ -108,15 +110,14 @@ lane :setup_ci_safe do
   end
   sh('ls ~/Library/Keychains')
 
-  keychain_basename = 'fastlane_tmp_keychain'
-  keychain_path = File.expand_path("~/Library/Keychains/#{keychain_basename}.keychain-db")
+  keychain_path = File.expand_path("~/Library/Keychains/#{KEYCHAIN_NAME}.keychain-db")
   sh("security delete-keychain #{keychain_path} || true")
   sh("rm -f #{keychain_path} || true")
   sh('ls ~/Library/Keychains')
 
   UI.message("Creating keychain at path: #{keychain_path}")
-  sh("security create-keychain -p fastlane #{keychain_path}")
-  sh("security unlock-keychain -p fastlane #{keychain_path}")
+  sh("security create-keychain -p #{KEYCHAIN_PASSWORD} #{keychain_path}")
+  sh("security unlock-keychain -p #{KEYCHAIN_PASSWORD} #{keychain_path}")
   sh("security list-keychains -d user -s #{keychain_path}")
   sh("security default-keychain -d user -s #{keychain_path}")
 end
