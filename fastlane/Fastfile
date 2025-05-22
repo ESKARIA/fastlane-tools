@@ -99,7 +99,7 @@ end
 # end
 
 lane :clear_keychain do
-  sh('security default-keychain -d system -s ~/Library/Keychains/login.keychain-db || true')
+  sh('security default-keychain -s ~/Library/Keychains/login.keychain-db || true')
   sh("security delete-keychain #{KEYCHAIN_NAME_EXT} || true")
   sh("rm -rf ~/Library/MobileDevice/Provisioning\ Profiles/*.mobileprovision || true")
 end
@@ -121,7 +121,7 @@ lane :setup_ci_safe do
   sh("security create-keychain -p #{KEYCHAIN_PASSWORD} #{KEYCHAIN_NAME_EXT}")
   sh("security unlock-keychain -p #{KEYCHAIN_PASSWORD} #{KEYCHAIN_NAME_EXT}")
   sh("security list-keychains -s #{KEYCHAIN_NAME}")
-  sh("security default-keychain -d system -s #{KEYCHAIN_NAME}") rescue UI.important("Can't set default keychain. Skipping.")
+  sh("security default-keychain -s #{KEYCHAIN_NAME}") rescue UI.important("Can't set default keychain. Skipping.")
   sh("security set-keychain-settings -t 3600 -u #{KEYCHAIN_NAME}")
 end
 
