@@ -50,6 +50,10 @@ def match_install(type:, git_branch:)
   end
   UI.message("options for match: #{options}")
   match(**options)
+
+  if ENV['CI'] == 'true'
+    sh("security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k #{KEYCHAIN_PASSWORD} ~/Library/Keychains/#{KEYCHAIN_NAME}.keychain-db")
+  end
 end
 
 ### Generate match profiles
