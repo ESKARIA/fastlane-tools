@@ -36,6 +36,7 @@ lane :build do |options|
   sh("security dump-keychain #{keychain_path} || true")
   sh("security unlock-keychain -p #{KEYCHAIN_PASSWORD} #{keychain_path}")
   sh("security set-keychain-settings -t 3600 -u #{keychain_path}")
+  sh("security set-key-partition-list -S apple-tool:,apple: -s -k #{KEYCHAIN_PASSWORD} #{keychain_path}")
   sh("security unlock-keychain -p #{KEYCHAIN_PASSWORD} #{keychain_path}")
   sh("security find-identity -v -p codesigning")
 
