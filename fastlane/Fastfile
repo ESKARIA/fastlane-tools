@@ -41,7 +41,8 @@ DSYM_FILE_PATH              = DSYM_FOLDER_PATH.to_s + DSYM_FILE_NAME.to_s
 
 HELPER_PATH                 = './helper'
 MATCH_PASSWORD              = ENV['MATCH_PASSWORD']
-KEYCHAIN_NAME               = 'fastlane_tmp_keychain'
+KEYCHAIN_NAME               = 'fastlane_tmp'
+KEYCHAIN_NAME_EXT           = "#{KEYCHAIN_NAME}.keychain-db"
 KEYCHAIN_PASSWORD           = 'fastlane'
 
 
@@ -98,8 +99,8 @@ end
 # end
 
 lane :clear_keychain do
-  sh('security default-keychain -d user -s ~/Library/Keychains/login.keychain-db || true')
-  sh('security delete-keychain ~/Library/Keychains/fastlane_tmp_keychain-db || true')
+  sh('security default-keychain -d system -s ~/Library/Keychains/login.keychain-db || true')
+  sh("security delete-keychain #{KEYCHAIN_NAME_EXT} || true")
   sh("rm -rf ~/Library/MobileDevice/Provisioning\ Profiles/*.mobileprovision || true")
 end
 
@@ -110,16 +111,17 @@ lane :setup_ci_safe do
   end
   sh('ls ~/Library/Keychains')
 
-  keychain_path = File.expand_path("~/Library/Keychains/#{KEYCHAIN_NAME}.keychain-db")
-  sh("security delete-keychain #{keychain_path} || true")
+  keychain_path = File.expand_path("~/Library/Keychains/#{KEYCHAIN_NAME_EXT}")
+  
+  sh("security delete-keychain #{KEYCHAIN_NAME_EXT} || true")
   sh("rm -f #{keychain_path} || true")
   sh('ls ~/Library/Keychains')
 
   UI.message("Creating keychain at path: #{keychain_path}")
-  sh("security create-keychain -p #{KEYCHAIN_PASSWORD} #{keychain_path}")
-  sh("security unlock-keychain -p #{KEYCHAIN_PASSWORD} #{keychain_path}")
+  sh("security create-keychain -p #{KEYCHAIN_PASSWORD} #{KEYCHAIN_NAME_EXT}")
+  sh("security unlock-keychain -p #{KEYCHAIN_PASSWORD} #{KEYCHAIN_NAME_EXT}")
   sh("security list-keychains -s #{KEYCHAIN_NAME}")
-  sh("security default-keychain -s #{KEYCHAIN_NAME}") rescue UI.important("Can't set default keychain. Skipping.")
+  sh("security default-keychain -d system -s #{KEYCHAIN_NAME}") rescue UI.important("Can't set default keychain. Skipping.")
   sh("security set-keychain-settings -t 3600 -u #{KEYCHAIN_NAME}")
 end
 
