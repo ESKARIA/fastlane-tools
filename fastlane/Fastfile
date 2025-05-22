@@ -109,21 +109,23 @@ lane :setup_ci_safe do
     UI.important('Not running in CI environment — skipping CI setup')
     next
   end
+  sh("pwd")
+  sh("ls -la")
   sh('ls ~/Library/Keychains')
 
   keychain_path = File.expand_path("~/Library/Keychains/#{KEYCHAIN_NAME_EXT}")
   
-  sh("security delete-keychain #{KEYCHAIN_NAME_EXT} || true")
+  sh("security delete-keychain #{keychain_path} || true")
   sh("rm -f #{keychain_path} || true")
   sh('ls ~/Library/Keychains')
 
   UI.message("Creating keychain at path: #{keychain_path}")
-  sh("security create-keychain -p #{KEYCHAIN_PASSWORD} #{KEYCHAIN_NAME_EXT}")
+  sh("security create-keychain -p #{KEYCHAIN_PASSWORD} #{keychain_path}")
   sh("security list-keychains -s #{KEYCHAIN_NAME}")
-  sh("security unlock-keychain -p #{KEYCHAIN_PASSWORD} #{KEYCHAIN_NAME_EXT}")
-  sh("security default-keychain -s #{KEYCHAIN_NAME}") rescue UI.important("Can't set default keychain. Skipping.")
-  sh("security set-keychain-settings -t 3600 -u #{KEYCHAIN_NAME}")
-  sh("security unlock-keychain -p #{KEYCHAIN_PASSWORD} #{KEYCHAIN_NAME_EXT}")
+  sh("security unlock-keychain -p #{KEYCHAIN_PASSWORD} #{keychain_path}")
+  sh("security default-keychain -s #{keychain_path}") rescue UI.important("Can't set default keychain. Skipping.")
+  sh("security set-keychain-settings -t 3600 -u #{keychain_path}")
+  sh("security unlock-keychain -p #{KEYCHAIN_PASSWORD} #{keychain_path}")
 end
 
 # error block is executed when a error occurs
