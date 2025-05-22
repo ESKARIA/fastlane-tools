@@ -86,6 +86,13 @@ end
 
 after_all do
   clear_keychain
+
+  keychain_basename = 'fastlane_tmp_keychain'
+  keychain_path = File.expand_path("~/Library/Keychains/#{keychain_basename}.keychain-db")
+
+  sh("security delete-keychain #{keychain_path} || true")
+  sh("rm -f #{keychain_path} || true")
+  sh('ls ~/Library/Keychains')
 end
 
 lane :clear_keychain do
