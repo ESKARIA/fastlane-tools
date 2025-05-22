@@ -130,6 +130,11 @@ lane :setup_ci_safe do
   sh("security default-keychain -s #{keychain_path}") rescue UI.important("Can't set default keychain. Skipping.")
   sh("security set-keychain-settings -t 3600 -u #{keychain_path}")
   sh("security unlock-keychain -p #{KEYCHAIN_PASSWORD} #{keychain_path}")
+  unlock_keychain( # In addition, the keychain can be selected as a default keychain
+    path: keychain_path,
+    password: KEYCHAIN_PASSWORD,
+    set_default: true
+  )
   sh("security show-keychain-info #{keychain_path}")
   sh("security dump-keychain #{keychain_path} || true")
   sh("security find-identity -v -p codesigning")
