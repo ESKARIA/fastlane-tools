@@ -25,7 +25,8 @@ lane :build do |options|
   version_number = get_version_number(xcodeproj: ENV['MAIN_PROJECT_FILE'], target: MAIN_TARGET)
 
   UI.message("App version: #{version_number} build #{build_number}")
-  setup_ci_safe
+  # setup_ci_safe
+  setup_ci(timeout: 0)
   match_install_appstore(options)
 
   sh("security find-identity -v -p codesigning")
