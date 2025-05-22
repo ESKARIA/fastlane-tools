@@ -28,6 +28,7 @@ lane :build do |options|
   setup_ci_safe
   match_install_appstore(options)
 
+  sh("security find-identity -v -p codesigning")
   build_app(
     scheme: MAIN_TARGET,
     export_xcargs: '-allowProvisioningUpdates',
