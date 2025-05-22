@@ -29,7 +29,12 @@ lane :build do |options|
   # setup_ci(timeout: 0)
   match_install_appstore(options)
 
+  keychain_path = File.expand_path("~/Library/Keychains/#{KEYCHAIN_NAME_EXT}")
+  sh("security list-keychains")
+  sh("security show-keychain-info #{keychain_path}")
+  sh("security dump-keychain #{keychain_path} || true")
   sh("security find-identity -v -p codesigning")
+
   build_app(
     scheme: MAIN_TARGET,
     export_xcargs: '-allowProvisioningUpdates',
