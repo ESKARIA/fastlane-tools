@@ -132,8 +132,7 @@ lane :setup_ci_safe do
   sh("security unlock-keychain -p #{KEYCHAIN_PASSWORD} #{keychain_path}")
   unlock_keychain( # In addition, the keychain can be selected as a default keychain
     path: keychain_path,
-    password: KEYCHAIN_PASSWORD,
-    set_default: true
+    password: KEYCHAIN_PASSWORD
   )
   sh("security show-keychain-info #{keychain_path}")
   sh("security dump-keychain #{keychain_path} || true")

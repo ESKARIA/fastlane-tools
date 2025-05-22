@@ -37,8 +37,7 @@ lane :build do |options|
   sh("security unlock-keychain -p #{KEYCHAIN_PASSWORD} #{keychain_path}")
     unlock_keychain( # In addition, the keychain can be selected as a default keychain
     path: keychain_path,
-    password: KEYCHAIN_PASSWORD,
-    set_default: true
+    password: KEYCHAIN_PASSWORD
   )
   sh("security set-keychain-settings -t 3600 -u #{keychain_path}")
   sh("security set-key-partition-list -S apple-tool:,apple: -s -k #{KEYCHAIN_PASSWORD} #{keychain_path}")
