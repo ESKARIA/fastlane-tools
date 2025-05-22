@@ -35,10 +35,10 @@ lane :auto_release_branch do |options|
   sh('git fetch --prune origin')
 
   # Название ветки для проверки
-  release_branch_name = "release/#{version}"
+  # release_branch_name = "release/#{version}"
 
   # Проверяем, существует ли ветка
-  branch_exists = sh("git branch --list #{release_branch_name}").strip
+  # branch_exists = sh("git branch --list #{release_branch_name}").strip
 
   # # Если ветка не существует, создаем её
   # sh("git branch #{branch_name}") if branch_exists.empty?
