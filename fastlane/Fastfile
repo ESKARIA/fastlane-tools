@@ -104,11 +104,13 @@ lane :setup_ci_safe do
   keychain_basename = 'fastlane_tmp_keychain'
   keychain_path = File.expand_path("~/Library/Keychains/#{keychain_basename}.keychain-db")
   sh("security delete-keychain #{keychain_path} || true")
+  sh("rm -f #{keychain_path} || true")
+  sh('ls ~/Library/Keychains')
 
   UI.message("Creating keychain at path: #{keychain_path}")
   begin
     create_keychain(
-      name: keychain_basename,
+      path: keychain_path,
       password: 'fastlane',
       default_keychain: true,
       unlock: true,
