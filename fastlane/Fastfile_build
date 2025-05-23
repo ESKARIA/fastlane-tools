@@ -35,7 +35,7 @@ lane :build do |options|
   # sh("security show-keychain-info #{keychain_path}")
   # sh("security dump-keychain #{keychain_path} || true")
   # sh("security unlock-keychain -p #{KEYCHAIN_PASSWORD} #{keychain_path}")
-    unlock_keychain( # In addition, the keychain can be selected as a default keychain
+  unlock_keychain( # In addition, the keychain can be selected as a default keychain
     path: KEYCHAIN_PATH,
     password: KEYCHAIN_PASSWORD
   )
