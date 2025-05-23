@@ -41,9 +41,9 @@ DSYM_FILE_PATH              = DSYM_FOLDER_PATH.to_s + DSYM_FILE_NAME.to_s
 
 HELPER_PATH                 = './helper'
 MATCH_PASSWORD              = ENV['MATCH_PASSWORD']
-KEYCHAIN_NAME               = 'login' # 'fastlane_tmp_keychain'
+KEYCHAIN_NAME               = 'login'
 KEYCHAIN_NAME_EXT           = "#{KEYCHAIN_NAME}.keychain-db"
-KEYCHAIN_PASSWORD           = 'P@r0v0z'
+KEYCHAIN_PASSWORD           = ENV['KEYCHAIN_PASSWORD']
 KEYCHAIN_PATH               = '/Users/ci/Library/Keychains/login.keychain-db'
 
 
@@ -115,7 +115,7 @@ lane :setup_ci_safe do
   sh("pwd")
   sh("ls -la")
   sh('ls ~/Library/Keychains')
-
+  sh("security list-keychains")
   # keychain_path = File.expand_path("~/Library/Keychains/#{KEYCHAIN_NAME_EXT}")
   
   # sh("security delete-keychain #{keychain_path} || true")
