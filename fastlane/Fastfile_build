@@ -29,19 +29,19 @@ lane :build do |options|
   # setup_ci(timeout: 0)
   match_install_appstore(options)
 
-  keychain_path = File.expand_path("~/Library/Keychains/#{KEYCHAIN_NAME_EXT}")
-  sh("security list-keychains -s #{keychain_path}")
-  sh("security list-keychains")
-  sh("security show-keychain-info #{keychain_path}")
-  sh("security dump-keychain #{keychain_path} || true")
-  sh("security unlock-keychain -p #{KEYCHAIN_PASSWORD} #{keychain_path}")
+  # keychain_path = File.expand_path("~/Library/Keychains/#{KEYCHAIN_NAME_EXT}")
+  # sh("security list-keychains -s #{keychain_path}")
+  # sh("security list-keychains")
+  # sh("security show-keychain-info #{keychain_path}")
+  # sh("security dump-keychain #{keychain_path} || true")
+  # sh("security unlock-keychain -p #{KEYCHAIN_PASSWORD} #{keychain_path}")
     unlock_keychain( # In addition, the keychain can be selected as a default keychain
-    path: keychain_path,
+    path: KEYCHAIN_PATH,
     password: KEYCHAIN_PASSWORD
   )
-  sh("security set-keychain-settings -t 3600 -u #{keychain_path}")
-  sh("security set-key-partition-list -S apple-tool:,apple: -s -k #{KEYCHAIN_PASSWORD} #{keychain_path}")
-  sh("security unlock-keychain -p #{KEYCHAIN_PASSWORD} #{keychain_path}")
+  # sh("security set-keychain-settings -t 3600 -u #{keychain_path}")
+  # sh("security set-key-partition-list -S apple-tool:,apple: -s -k #{KEYCHAIN_PASSWORD} #{keychain_path}")
+  # sh("security unlock-keychain -p #{KEYCHAIN_PASSWORD} #{keychain_path}")
   sh("security find-identity -v -p codesigning")
 
   build_app(

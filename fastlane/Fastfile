@@ -41,9 +41,10 @@ DSYM_FILE_PATH              = DSYM_FOLDER_PATH.to_s + DSYM_FILE_NAME.to_s
 
 HELPER_PATH                 = './helper'
 MATCH_PASSWORD              = ENV['MATCH_PASSWORD']
-KEYCHAIN_NAME               = 'fastlane_tmp_keychain'
+KEYCHAIN_NAME               = 'login' # 'fastlane_tmp_keychain'
 KEYCHAIN_NAME_EXT           = "#{KEYCHAIN_NAME}.keychain-db"
-KEYCHAIN_PASSWORD           = 'fastlane'
+KEYCHAIN_PASSWORD           = 'P@r0v0z'
+KEYCHAIN_PATH               = '/Users/ci/Library/Keychains/login.keychain-db'
 
 
 # Проверка и установка значения по умолчанию для MAIN_PROJECT_FILE
@@ -75,8 +76,8 @@ import_from_git(
 before_all do
   check_and_set_project_file
   # update_fastlane
-  clear_keychain
-  setup_ci_safe
+  # clear_keychain
+  # setup_ci_safe
   if ENV['CI']
     clear_derived_data
     UI.message('Run on remote CI machine')
@@ -92,17 +93,17 @@ end
 after_all do
   clear_keychain
 
-  keychain_path = File.expand_path("~/Library/Keychains/#{KEYCHAIN_NAME_EXT}")
+  # keychain_path = File.expand_path("~/Library/Keychains/#{KEYCHAIN_NAME_EXT}")
 
-  sh("security delete-keychain #{keychain_path} || true")
-  sh("rm -f #{keychain_path} || true")
+  # sh("security delete-keychain #{keychain_path} || true")
+  # sh("rm -f #{keychain_path} || true")
   sh('ls ~/Library/Keychains')
 end
 
 lane :clear_keychain do
-  keychain_path = File.expand_path("~/Library/Keychains/#{KEYCHAIN_NAME_EXT}")
-  sh('security default-keychain -s ~/Library/Keychains/login.keychain-db || true')
-  sh("security delete-keychain #{keychain_path} || true")
+  # keychain_path = File.expand_path("~/Library/Keychains/#{KEYCHAIN_NAME_EXT}")
+  # sh('security default-keychain -s ~/Library/Keychains/login.keychain-db || true')
+  # sh("security delete-keychain #{keychain_path} || true")
   sh("rm -rf ~/Library/MobileDevice/Provisioning\ Profiles/*.mobileprovision || true")
 end
 
@@ -115,27 +116,27 @@ lane :setup_ci_safe do
   sh("ls -la")
   sh('ls ~/Library/Keychains')
 
-  keychain_path = File.expand_path("~/Library/Keychains/#{KEYCHAIN_NAME_EXT}")
+  # keychain_path = File.expand_path("~/Library/Keychains/#{KEYCHAIN_NAME_EXT}")
   
-  sh("security delete-keychain #{keychain_path} || true")
-  sh("rm -f #{keychain_path} || true")
-  sh('ls ~/Library/Keychains')
+  # sh("security delete-keychain #{keychain_path} || true")
+  # sh("rm -f #{keychain_path} || true")
+  # sh('ls ~/Library/Keychains')
 
-  UI.message("Creating keychain at path: #{keychain_path}")
-  sh("security create-keychain -p #{KEYCHAIN_PASSWORD} #{keychain_path}")
-  UI.message("Adding keychain #{keychain_path} to search list")
-  sh("security list-keychains -s #{keychain_path}")
-  sh("security list-keychains")
-  sh("security unlock-keychain -p #{KEYCHAIN_PASSWORD} #{keychain_path}")
-  sh("security default-keychain -s #{keychain_path}") rescue UI.important("Can't set default keychain. Skipping.")
-  sh("security set-keychain-settings -t 3600 -u #{keychain_path}")
-  sh("security unlock-keychain -p #{KEYCHAIN_PASSWORD} #{keychain_path}")
+  # UI.message("Creating keychain at path: #{keychain_path}")
+  # sh("security create-keychain -p #{KEYCHAIN_PASSWORD} #{keychain_path}")
+  # UI.message("Adding keychain #{keychain_path} to search list")
+  # sh("security list-keychains -s #{keychain_path}")
+  # sh("security list-keychains")
+  # sh("security unlock-keychain -p #{KEYCHAIN_PASSWORD} #{keychain_path}")
+  # sh("security default-keychain -s #{keychain_path}") rescue UI.important("Can't set default keychain. Skipping.")
+  # sh("security set-keychain-settings -t 3600 -u #{keychain_path}")
+  # sh("security unlock-keychain -p #{KEYCHAIN_PASSWORD} #{keychain_path}")
   unlock_keychain( # In addition, the keychain can be selected as a default keychain
-    path: keychain_path,
+    path: KEYCHAIN_PATH,
     password: KEYCHAIN_PASSWORD
   )
-  sh("security show-keychain-info #{keychain_path}")
-  sh("security dump-keychain #{keychain_path} || true")
+  # sh("security show-keychain-info #{keychain_path}")
+  # sh("security dump-keychain #{keychain_path} || true")
   sh("security find-identity -v -p codesigning")
 end
 
