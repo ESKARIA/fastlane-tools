@@ -41,10 +41,10 @@ DSYM_FILE_PATH              = DSYM_FOLDER_PATH.to_s + DSYM_FILE_NAME.to_s
 
 HELPER_PATH                 = './helper'
 MATCH_PASSWORD              = ENV['MATCH_PASSWORD']
-KEYCHAIN_NAME               = 'login'
+KEYCHAIN_NAME               = 'fastlane_tmp_keychain'
 KEYCHAIN_NAME_EXT           = "#{KEYCHAIN_NAME}.keychain-db"
 KEYCHAIN_PASSWORD           = ENV['KEYCHAIN_PASSWORD']
-KEYCHAIN_PATH               = '/Users/ci/Library/Keychains/login.keychain-db'
+KEYCHAIN_PATH               = "/Users/ci/Library/Keychains/#{KEYCHAIN_NAME}.keychain-db"
 
 
 # Проверка и установка значения по умолчанию для MAIN_PROJECT_FILE
