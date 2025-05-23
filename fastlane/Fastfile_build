@@ -31,7 +31,7 @@ lane :build do |options|
 
   # keychain_path = File.expand_path("~/Library/Keychains/#{KEYCHAIN_NAME_EXT}")
   # sh("security list-keychains -s #{keychain_path}")
-  # sh("security list-keychains")
+  sh("security list-keychains")
   # sh("security show-keychain-info #{keychain_path}")
   # sh("security dump-keychain #{keychain_path} || true")
   # sh("security unlock-keychain -p #{KEYCHAIN_PASSWORD} #{keychain_path}")
