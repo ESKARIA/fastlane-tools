@@ -28,10 +28,6 @@ lane :build do |options|
   
   match_install_appstore(options)
   prepare_keychain
-  unlock_keychain(
-    path: KEYCHAIN_PATH,
-    password: KEYCHAIN_PASSWORD
-  )
   sh("security list-keychains")
   sh("security find-identity -v -p codesigning")
 
