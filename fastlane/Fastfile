@@ -41,11 +41,6 @@ DSYM_FILE_PATH              = DSYM_FOLDER_PATH.to_s + DSYM_FILE_NAME.to_s
 
 HELPER_PATH                 = './helper'
 MATCH_PASSWORD              = ENV['MATCH_PASSWORD']
-KEYCHAIN_NAME               = 'fastlane_tmp_keychain'
-KEYCHAIN_NAME_EXT           = "#{KEYCHAIN_NAME}-db"
-KEYCHAIN_PASSWORD           = ENV['KEYCHAIN_PASSWORD']
-KEYCHAIN_PATH               = "/Users/ci/Library/Keychains/#{KEYCHAIN_NAME}-db"
-
 
 # Проверка и установка значения по умолчанию для MAIN_PROJECT_FILE
 def check_and_set_project_file
@@ -76,8 +71,7 @@ import_from_git(
 before_all do
   check_and_set_project_file
   # update_fastlane
-  # clear_keychain
-  # setup_ci_safe
+  clear_keychain
   if ENV['CI']
     clear_derived_data
     UI.message('Run on remote CI machine')
@@ -92,25 +86,17 @@ end
 
 after_all do
   clear_keychain
-
-  # keychain_path = File.expand_path("~/Library/Keychains/#{KEYCHAIN_NAME_EXT}")
-
-  # sh("security delete-keychain #{keychain_path} || true")
-  # sh("rm -f #{keychain_path} || true")
-  sh('pwd')
-  sh('ls ~/Library/Keychains')
 end
 
 lane :clear_keychain do
-  # keychain_path = File.expand_path("~/Library/Keychains/#{KEYCHAIN_NAME_EXT}")
-  # sh('security default-keychain -s ~/Library/Keychains/login.keychain-db || true')
-  # sh("security delete-keychain #{keychain_path} || true")
+  sh('security default-keychain -d user -s ~/Library/Keychains/login.keychain-db || true')
+  sh('security delete-keychain ~/Library/Keychains/fastlane_tmp_keychain-db || true')
   sh("rm -rf ~/Library/MobileDevice/Provisioning\ Profiles/*.mobileprovision || true")
 end
 
 # error block is executed when a error occurs
 error do |_lane, exception, _options|
-  UI.message(exception.to_s)
+  UI.message(exception.to_s) if is_ci
 end
 
 desc 'Upload gemfiles to YandexDisk'
@@ -137,3 +123,7 @@ lane :register_new_device do |options|
 
   match_generate_dev(options)
 end
+
+# lane :debug do |options|
+
+# end

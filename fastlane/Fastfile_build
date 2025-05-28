@@ -25,11 +25,8 @@ lane :build do |options|
   version_number = get_version_number(xcodeproj: ENV['MAIN_PROJECT_FILE'], target: MAIN_TARGET)
 
   UI.message("App version: #{version_number} build #{build_number}")
-  
+  setup_ci
   match_install_appstore(options)
-  prepare_keychain
-  sh("security list-keychains")
-  sh("security find-identity -v -p codesigning")
 
   build_app(
     scheme: MAIN_TARGET,
@@ -43,23 +40,4 @@ lane :build do |options|
   copy_artifacts(target_path: IPA_FOLDER_PATH.to_s, artifacts: ['*.ipa', IPA_FILE_PATH.to_s])
   copy_artifacts(target_path: DSYM_FOLDER_PATH.to_s, artifacts: ['*.dSYM.zip', DSYM_FILE_PATH.to_s])
   copy_artifacts(target_path: 'fastlane/artifacts/', artifacts: ['*.dSYM.zip', '*.ipa'])
-
-end
-
-lane :prepare_keychain do
-  # delete_keychain(keychain_path: KEYCHAIN_PATH)
-  # create_keychain(
-  #   path: KEYCHAIN_PATH,
-  #   password: ENV["KEYCHAIN_PASSWORD"],
-  #   default_keychain: true,
-  #   unlock: true,
-  #   timeout: 3600,
-  #   add_to_search_list: true # ← важно!
-  # )
-  # sh("security list-keychains -s #{KEYCHAIN_PATH} /Users/ci/Library/Keychains/login.keychain-db /Library/Keychains/System.keychain")
-  # sh("security find-identity -v -p codesigning #{KEYCHAIN_PATH}")
-  sh("security unlock-keychain -p #{KEYCHAIN_PASSWORD} #{KEYCHAIN_PATH}")
-  sh("security list-keychains -s #{KEYCHAIN_PATH} /Users/ci/Library/Keychains/login.keychain-db /Library/Keychains/System.keychain")
-  sh("security set-keychain-settings -t 3600 -u #{KEYCHAIN_PATH}")
-  sh("security find-identity -v -p codesigning #{KEYCHAIN_PATH}")
 end
