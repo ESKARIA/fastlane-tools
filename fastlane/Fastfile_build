@@ -49,7 +49,7 @@ lane :build do |options|
 end
 
 lane :prepare_keychain do
-  delete_keychain(path: KEYCHAIN_PATH)
+  delete_keychain(keychain_path: KEYCHAIN_PATH)
   create_keychain(
     path: KEYCHAIN_PATH,
     password: ENV["KEYCHAIN_PASSWORD"],
