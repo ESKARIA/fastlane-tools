@@ -115,6 +115,7 @@ lane :setup_ci_safe do
   sh("pwd")
   sh("ls -la")
   sh('ls ~/Library/Keychains')
+  sh("security list-keychains -s #{KEYCHAIN_PATH}")
   sh("security list-keychains")
   # keychain_path = File.expand_path("~/Library/Keychains/#{KEYCHAIN_NAME_EXT}")
   
@@ -131,6 +132,7 @@ lane :setup_ci_safe do
   # sh("security default-keychain -s #{keychain_path}") rescue UI.important("Can't set default keychain. Skipping.")
   # sh("security set-keychain-settings -t 3600 -u #{keychain_path}")
   # sh("security unlock-keychain -p #{KEYCHAIN_PASSWORD} #{keychain_path}")
+
   unlock_keychain( # In addition, the keychain can be selected as a default keychain
     path: KEYCHAIN_PATH,
     password: KEYCHAIN_PASSWORD
