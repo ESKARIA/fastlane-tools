@@ -25,7 +25,7 @@ lane :build do |options|
   version_number = get_version_number(xcodeproj: ENV['MAIN_PROJECT_FILE'], target: MAIN_TARGET)
 
   UI.message("App version: #{version_number} build #{build_number}")
-  # prepare_keychain
+  prepare_keychain
   match_install_appstore(options)
   unlock_keychain(
     path: KEYCHAIN_PATH,
@@ -51,12 +51,14 @@ end
 
 lane :prepare_keychain do
   # delete_keychain(keychain_path: KEYCHAIN_PATH)
-  create_keychain(
-    path: KEYCHAIN_PATH,
-    password: ENV["KEYCHAIN_PASSWORD"],
-    default_keychain: true,
-    unlock: true,
-    timeout: 3600,
-    add_to_search_list: true # ← важно!
-  )
+  # create_keychain(
+  #   path: KEYCHAIN_PATH,
+  #   password: ENV["KEYCHAIN_PASSWORD"],
+  #   default_keychain: true,
+  #   unlock: true,
+  #   timeout: 3600,
+  #   add_to_search_list: true # ← важно!
+  # )
+  sh("security list-keychains -s #{KEYCHAIN_PATH} /Users/ci/Library/Keychains/login.keychain-db /Library/Keychains/System.keychain")
+  sh("security find-identity -v -p codesigning #{KEYCHAIN_PATH}")
 end
