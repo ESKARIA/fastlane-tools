@@ -56,7 +56,7 @@ lane :prepare_keychain do
   # sh("security set-keychain-settings -t 3600 -u #{KEYCHAIN_PATH}")
   # UI.message("Set my keychain")
   # sh("security list-keychains")
-
+  delete_keychain(name: KEYCHAIN_NAME)
   create_keychain(
     name: KEYCHAIN_NAME,
     password: ENV["KEYCHAIN_PASSWORD"],
