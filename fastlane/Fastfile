@@ -97,6 +97,7 @@ after_all do
 
   # sh("security delete-keychain #{keychain_path} || true")
   # sh("rm -f #{keychain_path} || true")
+  sh('pwd')
   sh('ls ~/Library/Keychains')
 end
 
@@ -105,41 +106,6 @@ lane :clear_keychain do
   # sh('security default-keychain -s ~/Library/Keychains/login.keychain-db || true')
   # sh("security delete-keychain #{keychain_path} || true")
   sh("rm -rf ~/Library/MobileDevice/Provisioning\ Profiles/*.mobileprovision || true")
-end
-
-lane :setup_ci_safe do
-  if ENV['CI'] != 'true'
-    UI.important('Not running in CI environment — skipping CI setup')
-    next
-  end
-  sh("pwd")
-  sh("ls -la")
-  sh('ls ~/Library/Keychains')
-  sh("security list-keychains -s #{KEYCHAIN_PATH}")
-  sh("security list-keychains")
-  # keychain_path = File.expand_path("~/Library/Keychains/#{KEYCHAIN_NAME_EXT}")
-  
-  # sh("security delete-keychain #{keychain_path} || true")
-  # sh("rm -f #{keychain_path} || true")
-  # sh('ls ~/Library/Keychains')
-
-  UI.message("Creating keychain at path: #{KEYCHAIN_PATH}")
-  sh("security create-keychain -p #{KEYCHAIN_PASSWORD} #{KEYCHAIN_PATH}")
-  UI.message("Adding keychain #{KEYCHAIN_PATH} to search list")
-  sh("security list-keychains -s #{KEYCHAIN_PATH}")
-  sh("security list-keychains")
-  # sh("security unlock-keychain -p #{KEYCHAIN_PASSWORD} #{keychain_path}")
-  # sh("security default-keychain -s #{keychain_path}") rescue UI.important("Can't set default keychain. Skipping.")
-  # sh("security set-keychain-settings -t 3600 -u #{keychain_path}")
-  # sh("security unlock-keychain -p #{KEYCHAIN_PASSWORD} #{keychain_path}")
-
-  unlock_keychain( # In addition, the keychain can be selected as a default keychain
-    path: KEYCHAIN_PATH,
-    password: KEYCHAIN_PASSWORD
-  )
-  # sh("security show-keychain-info #{keychain_path}")
-  # sh("security dump-keychain #{keychain_path} || true")
-  sh("security find-identity -v -p codesigning")
 end
 
 # error block is executed when a error occurs
@@ -171,7 +137,3 @@ lane :register_new_device do |options|
 
   match_generate_dev(options)
 end
-
-# lane :debug do |options|
-
-# end
