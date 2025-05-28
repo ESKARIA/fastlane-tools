@@ -25,7 +25,7 @@ lane :build do |options|
   version_number = get_version_number(xcodeproj: ENV['MAIN_PROJECT_FILE'], target: MAIN_TARGET)
 
   UI.message("App version: #{version_number} build #{build_number}")
-  prepare_keychain
+  # prepare_keychain
   match_install_appstore(options)
   unlock_keychain(
     path: KEYCHAIN_PATH,
@@ -42,10 +42,11 @@ lane :build do |options|
     output_name: IPA_FILE_NAME.to_s,
     build_path: DERIVED_PATH.to_s
   )
-  
+
   copy_artifacts(target_path: IPA_FOLDER_PATH.to_s, artifacts: ['*.ipa', IPA_FILE_PATH.to_s])
   copy_artifacts(target_path: DSYM_FOLDER_PATH.to_s, artifacts: ['*.dSYM.zip', DSYM_FILE_PATH.to_s])
   copy_artifacts(target_path: 'fastlane/artifacts/', artifacts: ['*.dSYM.zip', '*.ipa'])
+
 end
 
 lane :prepare_keychain do
