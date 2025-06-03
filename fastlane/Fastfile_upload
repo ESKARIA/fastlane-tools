@@ -98,9 +98,5 @@ def tag_commit(version_number, build_number, options)
   UI.message("[DEBUG]: Tag to set #{tag_name}")
   return unless need_tags
 
-  if git_tag_exists(tag: tag_name, remote: true)
-    UI.message("[DEBUG]: #{tag_name} already exist!")
-  else
-    add_git_tag(tag: tag_name)
-  end
+  add_git_tag(tag: tag_name)
 end
