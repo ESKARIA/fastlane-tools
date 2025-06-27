@@ -36,7 +36,11 @@ lane :build do |options|
     cloned_source_packages_path: 'SourcePackages',
     clean: true,
     output_name: IPA_FILE_NAME.to_s,
-    build_path: DERIVED_PATH.to_s
+    build_path: DERIVED_PATH.to_s,
+    build_settings: {
+      'MARKETING_VERSION' => ENV['APP_VERSION'],
+      'CURRENT_PROJECT_VERSION' => BUILD_NUMBER.to_s
+    }
   )
 
   copy_artifacts(target_path: IPA_FOLDER_PATH.to_s, artifacts: ['*.ipa', IPA_FILE_PATH.to_s])
