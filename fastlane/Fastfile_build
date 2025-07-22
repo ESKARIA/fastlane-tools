@@ -32,9 +32,7 @@ lane :build do |options|
 
   build_app(
     scheme: MAIN_TARGET,
-    export_options: {
-      distribution: 'app-store'
-    },
+    export_xcargs: '-allowProvisioningUpdates',
     cloned_source_packages_path: 'SourcePackages',
     clean: true,
     output_name: IPA_FILE_NAME.to_s,
