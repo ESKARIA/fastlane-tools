@@ -4,6 +4,8 @@ desc 'Upload symbols'
 lane :upload_dsyms do |options|
   check_and_set_project_file
 
+  sh('pwd')
+  sh('ls')
   sh('chmod +x ./helper')
 
   message = "[DEBUG]: Helper path: #{HELPER_PATH}"
