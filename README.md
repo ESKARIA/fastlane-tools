@@ -85,6 +85,7 @@ fastlane upload_dsyms
 **Переменные окружения:**
 
 - `CRASHLYTICS_PATH` — путь к скрипту загрузки символов.
+- `UPLOAD_DSYMS` — опциональный флаг; установите в `false`, чтобы пропустить выгрузку dSYM в AppMetrica.
 
 ### `version_bump`
 

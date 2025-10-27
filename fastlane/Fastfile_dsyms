@@ -2,6 +2,13 @@
 
 desc 'Upload symbols'
 lane :upload_dsyms do |options|
+  if UPLOAD_DSYMS_ENABLED
+    UI.message('[DEBUG]: Start upload dsyms process...')
+  else
+    UI.message('[DEBUG]: Upload dsyms is disabled!')
+    return
+  end
+
   check_and_set_project_file
 
   sh('pwd')
@@ -11,10 +18,13 @@ lane :upload_dsyms do |options|
   message = "[DEBUG]: Helper path: #{HELPER_PATH}"
   UI.message(message)
   is_metrica = !HELPER_PATH.nil? && !HELPER_PATH.empty?
+
   if is_metrica
     UI.message('[DEBUG]: Deploy DSYMS to AppMetrica...')
     unzip_and_upload(options)
     sh('ls -a')
+  else
+    UI.message('[DEBUG]: Skip AppMetrica upload: helper path is not configured')
   end
 
   firebase = options[:firebase] ? true : false

@@ -40,6 +40,8 @@ IPA_FILE_PATH               = IPA_FOLDER_PATH.to_s + IPA_FILE_NAME.to_s
 DSYM_FILE_PATH              = DSYM_FOLDER_PATH.to_s + DSYM_FILE_NAME.to_s
 
 HELPER_PATH                 = './helper'
+UPLOAD_DSYMS                = ENV['UPLOAD_DSYMS']
+UPLOAD_DSYMS_ENABLED        = UPLOAD_DSYMS.to_s.strip.downcase != 'false'
 MATCH_PASSWORD              = ENV['MATCH_PASSWORD']
 
 # Проверка и установка значения по умолчанию для MAIN_PROJECT_FILE
