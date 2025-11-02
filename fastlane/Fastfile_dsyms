@@ -3,39 +3,41 @@
 desc 'Upload symbols'
 lane :upload_dsyms do |options|
   if UPLOAD_DSYMS_ENABLED
-    UI.message('[DEBUG]: Start upload dsyms process...')
+    UI.header('Загрузка символов (dSYM)')
   else
-    UI.message('[DEBUG]: Upload dsyms is disabled!')
+    UI.message('⚠️  Загрузка dSYM отключена (UPLOAD_DSYMS=false)')
     return
   end
 
   check_and_set_project_file
 
-  sh('pwd')
-  sh('ls')
-  sh('chmod +x ./helper')
-
-  message = "[DEBUG]: Helper path: #{HELPER_PATH}"
-  UI.message(message)
   is_metrica = !HELPER_PATH.nil? && !HELPER_PATH.empty?
 
   if is_metrica
-    UI.message('[DEBUG]: Deploy DSYMS to AppMetrica...')
+    UI.message("Путь к helper: #{HELPER_PATH}")
+    UI.message('Загрузка dSYM в AppMetrica...')
+    sh('chmod +x ./helper') if File.exist?('./helper')
     unzip_and_upload(options)
-    sh('ls -a')
   else
-    UI.message('[DEBUG]: Skip AppMetrica upload: helper path is not configured')
+    UI.message('Пропуск загрузки в AppMetrica: путь к helper не настроен')
   end
 
   firebase = options[:firebase] ? true : false
   if firebase
-    UI.message('[DEBUG]: Deploy DSYMS to Firebase...')
+    UI.message('Загрузка dSYM в Firebase Crashlytics...')
+    require 'find'
     dsym_paths = []
-    UI.message('Start find dsyms files!')
     Find.find('.') do |path|
       dsym_paths << path if path.end_with?('.dSYM.zip')
     end
-    upload_symbols_to_crashlytics(dsym_paths: dsym_paths)
+
+    if dsym_paths.empty?
+      UI.message('⚠️  Не найдено dSYM файлов для загрузки в Firebase')
+    else
+      UI.message("Найдено dSYM файлов: #{dsym_paths.count}")
+      upload_symbols_to_crashlytics(dsym_paths: dsym_paths)
+      UI.success('✅ dSYM успешно загружены в Firebase')
+    end
   end
 end
 
@@ -44,27 +46,35 @@ lane :unzip_and_upload do |_options|
   require 'find'
   check_and_set_project_file
 
-  sh('pwd')
-  sh('ls -a')
   dsym_paths = []
-  UI.message('Start search *.dSYM.zip files!')
+  UI.message('Поиск *.dSYM.zip файлов...')
   Find.find('.') do |path|
     dsym_paths << path if path.end_with?('.dSYM.zip')
   end
-  UI.message("We found some path's")
-  UI.message(dsym_paths)
+
+  if dsym_paths.empty?
+    UI.message('⚠️  Не найдено dSYM.zip файлов')
+    return
+  end
+
+  UI.message("Найдено dSYM.zip файлов: #{dsym_paths.count}")
 
   dsym_paths.each do |zip_file|
-    if File.exist?(zip_file) # Проверяем, существует ли файл
-      UI.message('UnZip archive...')
-      sh("unzip -o #{zip_file}")
-      UI.message('UnZip complete!')
+    if File.exist?(zip_file)
+      UI.message("Обработка: #{zip_file}")
+      UI.message('Распаковка архива...')
+      sh("unzip -o -q #{zip_file}") # -q для тихого режима
+      UI.message('Распаковка завершена')
 
-      UI.message('Use shell script for upload dsyms')
-      sh("#{HELPER_PATH} -k #{APPMETRICA_KEY} -v")
-      UI.message('dSYM file uploaded!')
+      if File.exist?(HELPER_PATH)
+        UI.message('Загрузка dSYM через helper скрипт...')
+        sh("#{HELPER_PATH} -k #{APPMETRICA_KEY} -v")
+        UI.success("✅ dSYM загружен: #{zip_file}")
+      else
+        UI.user_error!("Helper скрипт не найден: #{HELPER_PATH}")
+      end
     else
-      puts "Файл не найден: #{zip_file}"
+      UI.message("⚠️  Файл не найден: #{zip_file}")
     end
   end
 end

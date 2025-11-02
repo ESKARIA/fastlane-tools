@@ -10,6 +10,11 @@ desc 'Build project'
 lane :build do |options|
   check_and_set_project_file
 
+  # Проверка обязательных переменных окружения
+  raise 'APP_VERSION не установлен' if ENV['APP_VERSION'].nil? || ENV['APP_VERSION'].empty?
+  raise 'BUILD_NUMBER не установлен' if BUILD_NUMBER.nil? || BUILD_NUMBER.to_s.empty?
+
+  # Создание директорий для артефактов
   sh("mkdir -p #{IPA_FOLDER_PATH}")
   sh("mkdir -p #{DSYM_FOLDER_PATH}")
 
@@ -24,7 +29,10 @@ lane :build do |options|
   build_number = increment_build_number(build_number: BUILD_NUMBER.to_i)
   version_number = get_version_number(xcodeproj: ENV['MAIN_PROJECT_FILE'], target: MAIN_TARGET)
 
-  UI.message("App version: #{version_number} build #{build_number}")
+  UI.header('Сборка приложения')
+  UI.message("Версия: #{version_number}")
+  UI.message("Номер сборки: #{build_number}")
+
   setup_ci
   match_install_appstore(options)
 
@@ -49,4 +57,8 @@ lane :build do |options|
   copy_artifacts(target_path: IPA_FOLDER_PATH.to_s, artifacts: ['*.ipa', IPA_FILE_PATH.to_s])
   copy_artifacts(target_path: DSYM_FOLDER_PATH.to_s, artifacts: ['*.dSYM.zip', DSYM_FILE_PATH.to_s])
   copy_artifacts(target_path: 'fastlane/artifacts/', artifacts: ['*.dSYM.zip', '*.ipa'])
+
+  UI.success('✅ Сборка завершена успешно')
+  UI.message("IPA: #{IPA_FILE_PATH}")
+  UI.message("dSYM: #{DSYM_FILE_PATH}")
 end

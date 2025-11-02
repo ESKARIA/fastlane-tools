@@ -1,87 +1,130 @@
 # frozen_string_literal: true
 
-desc 'Upload ipa to AppStore Connect TestFlight'
-lane :upload_testflight do |options|
-  require 'fileutils'
-  require 'find'
-
-  check_and_set_project_file
-
-  to_external = options[:public]
-
-  api_key = app_store_connect_api_key(key_id: APPSTORE_KEY_ID,
-                                      issuer_id: APPSTORE_ISSUER_ID,
-                                      key_content: APPSTORE_KEY_CONTENT,
-                                      in_house: false,
-                                      is_key_content_base64: true)
-
-  # Получение последнего тега
+# Вспомогательная функция для получения changelog из git
+def get_changelog_from_git
   begin
     last_tag = sh('git describe --tags --abbrev=0').strip
     last_tag = 'v1.0.0-build-1' if last_tag.empty?
   rescue StandardError
-    UI.message('[DEBUG]: Не найден тег, устанавливаю значение по умолчанию')
+    UI.message('Не найден тег, используется значение по умолчанию: v1.0.0-build-1')
     last_tag = 'v1.0.0-build-1'
   end
 
-  # Получение хэша коммита этого тега
   begin
     commit_of_last_tag = sh("git rev-list -n 1 #{last_tag}").strip
   rescue StandardError
-    UI.message('[DEBUG]: Не удалось получить хэш коммита тега, устанавливаю хэш последнего коммита')
+    UI.message('Не удалось получить хэш коммита тега, используется хэш первого коммита')
     commit_of_last_tag = sh('git rev-list --max-parents=0 HEAD').strip
   end
 
-  UI.message("[DEBUG]: Используем хэш коммита: #{commit_of_last_tag}")
+  UI.message("Используем хэш коммита: #{commit_of_last_tag}")
 
   changelog = changelog_from_git_commits(
     between: [commit_of_last_tag.to_s, 'HEAD'],
     pretty: '- %s',
     merge_commit_filtering: 'exclude_merges'
   )
-  UI.message('[DEBUG]: Changelog')
-  UI.message(changelog.to_s)
 
-  app_identifier = ENV['APP_IDENTIFIER'].split(',').first
-  UI.message('=======================================================')
-  UI.message('[DEBUG]: Start deploy')
+  changelog.to_s
+end
 
-  sh('pwd')
-  sh('ls -a')
+# Вспомогательная функция для поиска IPA файлов
+def find_ipa_files(search_path: 'artifacts')
+  require 'find'
 
   ipa_paths = []
-  Find.find('artifacts') do |path|
+  Find.find(search_path) do |path|
     ipa_paths << path if path.end_with?('.ipa')
   end
-  UI.message(ipa_paths)
 
-  ipa_paths.each do |ipa_path|
-    ipa_path = "fastlane/#{ipa_path}"
-    if to_external == true
-      UI.message('[DEBUG]: Deploy to External Public Beta Test')
-      testflight(api_key: api_key,
-                 app_identifier: app_identifier,
-                 changelog: changelog.to_s,
-                 distribute_external: true,
-                 groups: 'External Public Beta',
-                 skip_waiting_for_build_processing: false,
-                 expire_previous_builds: false,
-                 reject_build_waiting_for_review: true,
-                 ipa: ipa_path.to_s)
-    else
-      UI.message('[DEBUG]: Deploy to Internal Beta Test')
-      testflight(api_key: api_key,
-                 app_identifier: app_identifier,
-                 changelog: changelog.to_s,
-                 distribute_external: false,
-                 skip_waiting_for_build_processing: false,
-                 expire_previous_builds: false,
-                 reject_build_waiting_for_review: true,
-                 ipa: ipa_path.to_s)
-    end
+  if ipa_paths.empty?
+    UI.user_error!("Не найдено ни одного IPA файла в директории: #{search_path}")
   end
 
-  UI.message('[DEBUG]: Complete deploy')
+  UI.success("Найдено IPA файлов: #{ipa_paths.count}")
+  ipa_paths
+end
+
+# Вспомогательная функция для настройки API ключа
+def setup_api_key
+  app_store_connect_api_key(key_id: APPSTORE_KEY_ID,
+                            issuer_id: APPSTORE_ISSUER_ID,
+                            key_content: APPSTORE_KEY_CONTENT,
+                            in_house: false,
+                            is_key_content_base64: true)
+end
+
+desc 'Upload ipa to AppStore Connect TestFlight (Internal Testers)'
+lane :upload_testflight do |options|
+  require 'fileutils'
+  require 'find'
+
+  check_and_set_project_file
+
+  api_key = setup_api_key
+  changelog = get_changelog_from_git
+  app_identifier = ENV['APP_IDENTIFIER'].split(',').first
+  ipa_paths = find_ipa_files
+
+  UI.header('Загрузка в TestFlight (Internal Testers)')
+
+  ipa_paths.each do |ipa_path|
+    full_ipa_path = ipa_path.start_with?('fastlane/') ? ipa_path : "fastlane/#{ipa_path}"
+    UI.message("Загружаем: #{full_ipa_path}")
+
+    testflight(api_key: api_key,
+               app_identifier: app_identifier,
+               changelog: changelog,
+               distribute_external: false,
+               skip_waiting_for_build_processing: false,
+               expire_previous_builds: false,
+               reject_build_waiting_for_review: true,
+               ipa: full_ipa_path)
+  end
+
+  UI.success('Загрузка завершена успешно')
+end
+
+desc 'Upload ipa to AppStore Connect TestFlight (External Testers)'
+desc 'Использование: fastlane upload_external_testflight groups:"Group1,Group2"'
+lane :upload_external_testflight do |options|
+  require 'fileutils'
+  require 'find'
+
+  check_and_set_project_file
+
+  # Получаем группы external testers (по умолчанию 'External Public Beta')
+  external_groups = options[:groups] || ENV['EXTERNAL_TESTFLIGHT_GROUPS'] || 'External Public Beta'
+  groups_array = external_groups.to_s.split(',').map(&:strip)
+
+  if groups_array.empty? || groups_array.first.empty?
+    UI.user_error!('Необходимо указать хотя бы одну группу external testers. Используйте параметр groups:"GroupName" или переменную окружения EXTERNAL_TESTFLIGHT_GROUPS')
+  end
+
+  api_key = setup_api_key
+  changelog = get_changelog_from_git
+  app_identifier = ENV['APP_IDENTIFIER'].split(',').first
+  ipa_paths = find_ipa_files
+
+  UI.header('Загрузка в TestFlight (External Testers)')
+  UI.message("Группы: #{groups_array.join(', ')}")
+
+  ipa_paths.each do |ipa_path|
+    full_ipa_path = ipa_path.start_with?('fastlane/') ? ipa_path : "fastlane/#{ipa_path}"
+    UI.message("Загружаем: #{full_ipa_path}")
+
+    testflight(api_key: api_key,
+               app_identifier: app_identifier,
+               changelog: changelog,
+               distribute_external: true,
+               groups: groups_array,
+               skip_waiting_for_build_processing: false,
+               expire_previous_builds: false,
+               reject_build_waiting_for_review: true,
+               ipa: full_ipa_path)
+  end
+
+  UI.success("✅ Сборка успешно загружена для external testers в группы: #{groups_array.join(', ')}")
 end
 
 desc 'Set versions on tag'
