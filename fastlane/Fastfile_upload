@@ -1,51 +1,106 @@
 # frozen_string_literal: true
 
-# Вспомогательная функция для получения changelog из git
+# ==============================================================================
+# Fastfile_upload - Загрузка сборок в TestFlight
+# ==============================================================================
+# Этот модуль содержит lanes для загрузки IPA файлов в App Store Connect
+# TestFlight для внутреннего и внешнего бета-тестирования.
+#
+# Основные функции:
+#   - Загрузка в TestFlight для internal testers
+#   - Загрузка в TestFlight для external testers
+#   - Автоматическая генерация changelog из git коммитов
+#   - Создание git тегов для версий
+# ==============================================================================
+
+# ==============================================================================
+# ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ
+# ==============================================================================
+
+# Получает changelog из git коммитов
+#
+# Генерирует список изменений между последним git тегом и текущим HEAD.
+# Если тег не найден, используется первый коммит в истории.
+#
+# @return [String] changelog в формате списка коммитов
+#
+# @example
+#   changelog = get_changelog_from_git
+#   # => "- Fix bug with login\n- Add new feature\n"
 def get_changelog_from_git
+  # Попытка найти последний git тег
   begin
     last_tag = sh('git describe --tags --abbrev=0').strip
+    # Если тег не найден, используем значение по умолчанию
     last_tag = 'v1.0.0-build-1' if last_tag.empty?
   rescue StandardError
+    # Если команда не удалась, используем значение по умолчанию
     UI.message('Не найден тег, используется значение по умолчанию: v1.0.0-build-1')
     last_tag = 'v1.0.0-build-1'
   end
 
+  # Получение хэша коммита последнего тега
   begin
     commit_of_last_tag = sh("git rev-list -n 1 #{last_tag}").strip
   rescue StandardError
+    # Если не удалось получить хэш тега, используем первый коммит в истории
     UI.message('Не удалось получить хэш коммита тега, используется хэш первого коммита')
     commit_of_last_tag = sh('git rev-list --max-parents=0 HEAD').strip
   end
 
   UI.message("Используем хэш коммита: #{commit_of_last_tag}")
 
+  # Генерация changelog из коммитов между тегом и HEAD
   changelog = changelog_from_git_commits(
-    between: [commit_of_last_tag.to_s, 'HEAD'],
-    pretty: '- %s',
-    merge_commit_filtering: 'exclude_merges'
+    between: [commit_of_last_tag.to_s, 'HEAD'],  # Диапазон коммитов
+    pretty: '- %s',                              # Формат: "- Commit message"
+    merge_commit_filtering: 'exclude_merges'      # Исключить merge коммиты
   )
 
   changelog.to_s
 end
 
-# Вспомогательная функция для поиска IPA файлов
+# Находит все IPA файлы в указанной директории
+#
+# Рекурсивно ищет все файлы с расширением .ipa в указанной директории.
+# Если файлы не найдены, выбрасывает ошибку.
+#
+# @param search_path [String] путь для поиска IPA файлов (по умолчанию 'artifacts')
+# @return [Array<String>] массив путей к IPA файлам
+#
+# @raise [FastlaneCore::Interface::FastlaneError] если IPA файлы не найдены
+#
+# @example
+#   ipa_paths = find_ipa_files(search_path: 'artifacts')
+#   # => ["artifacts/App_v1.0.0_b123.ipa"]
 def find_ipa_files(search_path: 'artifacts')
   require 'find'
 
   ipa_paths = []
+  # Рекурсивный поиск всех файлов с расширением .ipa
   Find.find(search_path) do |path|
     ipa_paths << path if path.end_with?('.ipa')
   end
 
+  # Проверка наличия найденных файлов
   if ipa_paths.empty?
     UI.user_error!("Не найдено ни одного IPA файла в директории: #{search_path}")
   end
 
+  # Вывод информации о найденных файлах
   UI.success("Найдено IPA файлов: #{ipa_paths.count}")
   ipa_paths
 end
 
-# Вспомогательная функция для настройки API ключа
+# Настраивает API ключ App Store Connect
+#
+# Создает и возвращает объект API ключа для работы с App Store Connect API.
+# Используется для загрузки сборок в TestFlight.
+#
+# @return [Spaceship::ConnectAPI::API] объект API ключа
+#
+# @example
+#   api_key = setup_api_key
 def setup_api_key
   app_store_connect_api_key(key_id: APPSTORE_KEY_ID,
                             issuer_id: APPSTORE_ISSUER_ID,
@@ -54,79 +109,189 @@ def setup_api_key
                             is_key_content_base64: true)
 end
 
+# ==============================================================================
+# LANES ДЛЯ ЗАГРУЗКИ В TESTFLIGHT
+# ==============================================================================
+
+# Загружает IPA файл в TestFlight для Internal Testers
+#
+# Процесс загрузки:
+#   1. Находит IPA файлы в директории fastlane/artifacts/
+#   2. Генерирует changelog из git коммитов
+#   3. Загружает каждый IPA файл в TestFlight
+#   4. Распределяет сборку для internal testers
+#
+# Требует:
+#   - IPA файлы в fastlane/artifacts/ (создаются lane build)
+#   - API ключи App Store Connect
+#
+# Результат:
+#   - Сборка доступна для internal testers немедленно
+#   - Changelog отображается в TestFlight
+#
+# @example
+#   # Сначала соберите приложение
+#   fastlane build
+#   # Затем загрузите в TestFlight
+#   fastlane upload_testflight
 desc 'Upload ipa to AppStore Connect TestFlight (Internal Testers)'
 lane :upload_testflight do |options|
   require 'fileutils'
   require 'find'
 
+  # Проверка и установка файла проекта по умолчанию
   check_and_set_project_file
 
+  # Настройка API ключа для App Store Connect
   api_key = setup_api_key
+  # Генерация changelog из git коммитов
   changelog = get_changelog_from_git
+  # Получение bundle identifier приложения
   app_identifier = ENV['APP_IDENTIFIER'].split(',').first
+  # Поиск IPA файлов для загрузки
   ipa_paths = find_ipa_files
 
   UI.header('Загрузка в TestFlight (Internal Testers)')
 
+  # Загрузка каждого найденного IPA файла
   ipa_paths.each do |ipa_path|
+    # Формирование полного пути к IPA файлу
     full_ipa_path = ipa_path.start_with?('fastlane/') ? ipa_path : "fastlane/#{ipa_path}"
     UI.message("Загружаем: #{full_ipa_path}")
 
+    # Загрузка в TestFlight через testflight action
     testflight(api_key: api_key,
                app_identifier: app_identifier,
-               changelog: changelog,
-               distribute_external: false,
-               skip_waiting_for_build_processing: false,
-               expire_previous_builds: false,
-               reject_build_waiting_for_review: true,
-               ipa: full_ipa_path)
+               changelog: changelog,                    # Changelog для TestFlight
+               distribute_external: false,              # Internal testers (не external)
+               skip_waiting_for_build_processing: false, # Ждать обработки сборки Apple
+               expire_previous_builds: false,          # Не удалять предыдущие сборки
+               reject_build_waiting_for_review: true,  # Отклонить сборку, ожидающую рецензирования
+               ipa: full_ipa_path)                      # Путь к IPA файлу
   end
 
   UI.success('Загрузка завершена успешно')
 end
 
+# Загружает IPA файл в TestFlight для External Testers
+#
+# Процесс загрузки:
+#   1. Находит IPA файлы в директории fastlane/artifacts/
+#   2. Генерирует changelog из git коммитов
+#   3. Получает группы external testers (из параметра или переменной окружения)
+#   4. Загружает каждый IPA файл в TestFlight
+#   5. Распределяет сборку для external testers в указанные группы
+#
+# Требует:
+#   - IPA файлы в fastlane/artifacts/ (создаются lane build)
+#   - API ключи App Store Connect
+#   - Группы external testers должны существовать в App Store Connect
+#
+# Важно:
+#   - Первая сборка версии требует рецензирования Apple (24-48 часов)
+#   - Changelog обязателен для external testers
+#   - Группы должны быть созданы заранее в App Store Connect
+#
+# Параметры:
+#   - groups: группы external testers через запятую (например, "Group1,Group2")
+#
+# Переменные окружения:
+#   - EXTERNAL_TESTFLIGHT_GROUPS: группы по умолчанию (например, "External Public Beta")
+#
+# Результат:
+#   - Сборка отправлена на рецензирование Apple (для первой версии)
+#   - После одобрения доступна для external testers в указанных группах
+#
+# @example
+#   # С указанием групп
+#   fastlane upload_external_testflight groups:"External Public Beta,QA Testers"
+#
+#   # С группой по умолчанию
+#   export EXTERNAL_TESTFLIGHT_GROUPS="External Public Beta"
+#   fastlane upload_external_testflight
 desc 'Upload ipa to AppStore Connect TestFlight (External Testers)'
 desc 'Использование: fastlane upload_external_testflight groups:"Group1,Group2"'
 lane :upload_external_testflight do |options|
   require 'fileutils'
   require 'find'
 
+  # Проверка и установка файла проекта по умолчанию
   check_and_set_project_file
 
-  # Получаем группы external testers (по умолчанию 'External Public Beta')
+  # ========================================================================
+  # ПОЛУЧЕНИЕ ГРУПП EXTERNAL TESTERS
+  # ========================================================================
+  # Приоритет получения групп:
+  #   1. Параметр options[:groups] (если передан)
+  #   2. Переменная окружения EXTERNAL_TESTFLIGHT_GROUPS
+  #   3. Значение по умолчанию 'External Public Beta'
   external_groups = options[:groups] || ENV['EXTERNAL_TESTFLIGHT_GROUPS'] || 'External Public Beta'
+  # Разделение строки групп на массив и удаление пробелов
   groups_array = external_groups.to_s.split(',').map(&:strip)
 
+  # Валидация наличия групп
   if groups_array.empty? || groups_array.first.empty?
     UI.user_error!('Необходимо указать хотя бы одну группу external testers. Используйте параметр groups:"GroupName" или переменную окружения EXTERNAL_TESTFLIGHT_GROUPS')
   end
 
+  # ========================================================================
+  # ПОДГОТОВКА К ЗАГРУЗКЕ
+  # ========================================================================
+  # Настройка API ключа для App Store Connect
   api_key = setup_api_key
+  # Генерация changelog из git коммитов
   changelog = get_changelog_from_git
+  # Получение bundle identifier приложения
   app_identifier = ENV['APP_IDENTIFIER'].split(',').first
+  # Поиск IPA файлов для загрузки
   ipa_paths = find_ipa_files
 
   UI.header('Загрузка в TestFlight (External Testers)')
   UI.message("Группы: #{groups_array.join(', ')}")
 
+  # ========================================================================
+  # ЗАГРУЗКА В TESTFLIGHT
+  # ========================================================================
+  # Загрузка каждого найденного IPA файла
   ipa_paths.each do |ipa_path|
+    # Формирование полного пути к IPA файлу
     full_ipa_path = ipa_path.start_with?('fastlane/') ? ipa_path : "fastlane/#{ipa_path}"
     UI.message("Загружаем: #{full_ipa_path}")
 
+    # Загрузка в TestFlight для external testers
     testflight(api_key: api_key,
                app_identifier: app_identifier,
-               changelog: changelog,
-               distribute_external: true,
-               groups: groups_array,
-               skip_waiting_for_build_processing: false,
-               expire_previous_builds: false,
-               reject_build_waiting_for_review: true,
-               ipa: full_ipa_path)
+               changelog: changelog,                    # Changelog обязателен для external testers
+               distribute_external: true,              # External testers (важно!)
+               groups: groups_array,                    # Массив групп external testers
+               skip_waiting_for_build_processing: false, # Ждать обработки сборки Apple
+               expire_previous_builds: false,          # Не удалять предыдущие сборки
+               reject_build_waiting_for_review: true,  # Отклонить сборку, ожидающую рецензирования
+               ipa: full_ipa_path)                      # Путь к IPA файлу
   end
 
+  # Сообщение об успешном завершении с указанием групп
   UI.success("✅ Сборка успешно загружена для external testers в группы: #{groups_array.join(', ')}")
 end
 
+# ==============================================================================
+# УТИЛИТЫ
+# ==============================================================================
+
+# Создает git тег с версией и build number
+#
+# Формат тега: v{VERSION}-build-{BUILD_NUMBER}
+# Пример: v1.2.3-build-456
+#
+# Параметры:
+#   - tags: если true, создает тег (по умолчанию false)
+#
+# Требует переменные окружения:
+#   - APP_VERSION: версия приложения
+#   - CI_PIPELINE_IID или BUILD_NUMBER: номер сборки
+#
+# @example
+#   fastlane tagging tags:true
 desc 'Set versions on tag'
 lane :tagging do |options|
   build_number = BUILD_NUMBER.to_i
@@ -135,11 +300,23 @@ lane :tagging do |options|
   tag_commit(version_number, build_number, options)
 end
 
+# Вспомогательная функция для создания git тега
+#
+# @param version_number [String] версия приложения
+# @param build_number [Integer] номер сборки
+# @param options [Hash] опции lane
+# @return [void]
+#
+# @private
 def tag_commit(version_number, build_number, options)
+  # Проверка, нужно ли создавать тег
   need_tags = options[:tags] ? true : false
+  # Формирование имени тега в формате v{VERSION}-build-{BUILD}
   tag_name = "v#{version_number}-build-#{build_number}"
-  UI.message("[DEBUG]: Tag to set #{tag_name}")
+  UI.message("Тег для создания: #{tag_name}")
+  # Выход, если теги не требуются
   return unless need_tags
 
+  # Создание git тега
   add_git_tag(tag: tag_name)
 end

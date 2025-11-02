@@ -1,50 +1,100 @@
 # frozen_string_literal: true
 
-# Uncomment the line if you want fastlane to automatically update itself
+# ==============================================================================
+# Fastfile - Главный конфигурационный файл Fastlane
+# ==============================================================================
+# Этот файл содержит основную конфигурацию и импортирует все остальные Fastfile
+# из модульного репозитория fastlane-tools
+#
+# Структура:
+#   - Переменные окружения и константы
+#   - Функции валидации и проверок
+#   - Импорт модульных Fastfile файлов
+#   - Хуки before_all/after_all для общей инициализации
+#   - Общие lanes для всех проектов
+# ==============================================================================
+
+# Раскомментируйте строку ниже, если хотите автоматически обновлять fastlane
 # update_fastlane
 
+# Платформа по умолчанию для всех lanes
 default_platform(:ios)
 
+# ==============================================================================
+# ПЕРЕМЕННЫЕ ОКРУЖЕНИЯ И КОНСТАНТЫ
+# ==============================================================================
+
+# Идентификатор приложения (Bundle Identifier)
+# Пример: com.company.appname
 APP_IDENTIFIER              = ENV['APP_IDENTIFIER']
 
-### Project ###
+### Настройки проекта ###
+# Файл проекта Xcode (если не указан, будет использоваться MAIN_TARGET.xcodeproj)
 MAIN_PROJECT_FILE           = ENV['MAIN_PROJECT_FILE']
+# Основной target для сборки
 MAIN_TARGET                 = ENV['MAIN_TARGET']
 
-### Appstore keys ###
+### Ключи App Store Connect API ###
+# ID ключа API для App Store Connect
 APPSTORE_KEY_ID             = ENV['APPSTORE_KEY_ID']
+# ID издателя (Issuer ID) для App Store Connect
 APPSTORE_ISSUER_ID          = ENV['APPSTORE_ISSUER_ID']
+# Содержимое ключа API в формате Base64
 APPSTORE_KEY_CONTENT        = ENV['APPSTORE_KEY_CONTENT']
 
+# Номер сборки (обычно берется из CI/CD переменной)
 BUILD_NUMBER                = ENV['CI_PIPELINE_IID']
+# Ключ API для AppMetrica (для загрузки dSYM)
 APPMETRICA_KEY              = ENV['APPMETRICA_KEY']
+# Путь к helper скрипту для загрузки dSYM в AppMetrica
 APPMETRICA_HELPER_PATH      = ENV['APPMETRICA_HELPER_PATH']
 
+# Путь к директории для derived data (промежуточные файлы сборки)
 DERIVED_PATH                = 'build'
+# Путь к скрипту загрузки символов в Crashlytics (Firebase)
 CRASHLYTICS_PATH            = './SourcePackages/checkouts/firebase-ios-sdk/Crashlytics/upload-symbols'
 
-### metadata ###
+### Метаданные ###
+# Путь к директории с метаданными приложения (описание, скриншоты и т.д.)
 DATA_META_PATH              = './fastlane/metadata'
+# Путь к директории со скриншотами приложения
 DATA_SCREEN_PATH            = './fastlane/screenshots'
 
+# Формирование имени файла для артефактов сборки
+# Формат: {TARGET}_v{VERSION}_b{BUILD_NUMBER}
 FILE_NAME                   = "#{MAIN_TARGET}_v#{ENV['APP_VERSION']}_b#{BUILD_NUMBER}"
+# Базовый путь для хранения артефактов сборки
 ARTIFACTS_PATH              = "~/.cache/apps/#{MAIN_TARGET}/"
 
+# Имена файлов артефактов
 IPA_FILE_NAME               = "#{FILE_NAME}.ipa"
 DSYM_FILE_NAME              = "#{FILE_NAME}.app.dSYM.zip"
 
+# Полные пути к директориям артефактов
 IPA_FOLDER_PATH             = "#{ARTIFACTS_PATH}ipa/"
 DSYM_FOLDER_PATH            = "#{ARTIFACTS_PATH}dsyms/"
 
+# Полные пути к файлам артефактов
 IPA_FILE_PATH               = IPA_FOLDER_PATH.to_s + IPA_FILE_NAME.to_s
 DSYM_FILE_PATH              = DSYM_FOLDER_PATH.to_s + DSYM_FILE_NAME.to_s
 
+# Путь к helper скрипту для загрузки символов
 HELPER_PATH                 = './helper'
+# Флаг включения/выключения загрузки dSYM файлов
 UPLOAD_DSYMS                = ENV['UPLOAD_DSYMS']
+# Проверка, включена ли загрузка dSYM (по умолчанию включена, если не 'false')
 UPLOAD_DSYMS_ENABLED        = UPLOAD_DSYMS.to_s.strip.downcase != 'false'
+# Пароль для match (шифрование сертификатов и профилей)
 MATCH_PASSWORD              = ENV['MATCH_PASSWORD']
 
+# ==============================================================================
+# ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ
+# ==============================================================================
+
 # Проверка и установка значения по умолчанию для MAIN_PROJECT_FILE
+# Если MAIN_PROJECT_FILE не установлен, используется значение {MAIN_TARGET}.xcodeproj
+#
+# @return [void]
 def check_and_set_project_file
   if ENV['MAIN_PROJECT_FILE'].nil? || ENV['MAIN_PROJECT_FILE'].empty?
     ENV['MAIN_PROJECT_FILE'] = "#{ENV['MAIN_TARGET']}.xcodeproj"
@@ -54,30 +104,59 @@ def check_and_set_project_file
   end
 end
 
+# ==============================================================================
+# ИМПОРТ МОДУЛЬНЫХ FASTFILE
+# ==============================================================================
+# Импорт Fastfile из удаленного git репозитория
+# Используется path: 'fastlane/Fastfile_match' для избежания рекурсивного импорта
+#
+# Все зависимости автоматически импортируются:
+#   - Fastfile_match: управление сертификатами и профилями (match)
+#   - Fastfile_build: сборка приложений
+#   - Fastfile_tests: запуск тестов
+#   - Fastfile_dsyms: загрузка символов (dSYM)
+#   - Fastfile_upload: загрузка в TestFlight
+#   - Fastfile_appstore: работа с App Store (метаданные, публикация)
+#   - Fastfile_create_app: создание нового приложения в App Store Connect
 import_from_git(
   url: 'git@github.com:ESKARIA/fastlane-tools.git',
-  # branch: 'main',
-  path: 'fastlane/Fastfile_match', # use any another Fastfile besides fastlane/Fastfile for fix recursive import
-  # version: [">= 1.0.0"],
+  # branch: 'main', # Укажите конкретную ветку, если нужно
+  path: 'fastlane/Fastfile_match', # Используется любой другой Fastfile кроме Fastfile для избежания рекурсии
+  # version: [">= 1.0.0"], # Ограничение версии, если нужно
   dependencies: [
-    'fastlane/Fastfile_build',
-    'fastlane/Fastfile_tests',
-    'fastlane/Fastfile_dsyms',
-    'fastlane/Fastfile_upload',
-    'fastlane/Fastfile_appstore',
-    'fastlane/Fastfile_create_app'
+    'fastlane/Fastfile_build',        # Сборка приложений
+    'fastlane/Fastfile_tests',        # Запуск тестов
+    'fastlane/Fastfile_dsyms',        # Загрузка символов
+    'fastlane/Fastfile_upload',       # Загрузка в TestFlight
+    'fastlane/Fastfile_appstore',     # Работа с App Store
+    'fastlane/Fastfile_create_app'    # Создание приложения
   ]
-  # cache_path: "~/.cache/fastlane/imported/"
+  # cache_path: "~/.cache/fastlane/imported/" # Путь для кэширования импортированных файлов
 )
 
+# ==============================================================================
+# ХУКИ FASTLANE
+# ==============================================================================
+
+# Хук before_all выполняется перед запуском любого lane
+# Используется для общей инициализации и настройки окружения
 before_all do
+  # Проверка и установка файла проекта по умолчанию
   check_and_set_project_file
+  # Раскомментируйте для автоматического обновления fastlane перед запуском
   # update_fastlane
+  
+  # Очистка keychain перед запуском
   clear_keychain
+  
+  # Дополнительные действия на CI/CD машинах
   if ENV['CI']
+    # Очистка derived data для чистых сборок
     clear_derived_data
-    UI.message('Run on remote CI machine')
+    UI.message('Запуск на удаленной CI машине')
     clear_derived_data(derived_data_path: DERIVED_PATH)
+    
+    # Настройка API ключа App Store Connect для CI окружения
     app_store_connect_api_key(key_id: APPSTORE_KEY_ID,
                               issuer_id: APPSTORE_ISSUER_ID,
                               key_content: APPSTORE_KEY_CONTENT,
@@ -86,33 +165,69 @@ before_all do
   end
 end
 
+# Хук after_all выполняется после завершения любого lane
+# Используется для очистки и финализации
 after_all do
+  # Очистка keychain после завершения
   clear_keychain
 end
 
+# ==============================================================================
+# ОБЩИЕ LANES
+# ==============================================================================
+
+# Очистка keychain и provisioning profiles
+# Удаляет временные keychain и provisioning profiles, созданные fastlane
+#
+# @example
+#   fastlane clear_keychain
+desc 'Clear keychain and provisioning profiles'
 lane :clear_keychain do
+  # Установка системного keychain по умолчанию
   sh('security default-keychain -d user -s ~/Library/Keychains/login.keychain-db || true')
+  # Удаление временного keychain fastlane, если существует
   sh('security delete-keychain ~/Library/Keychains/fastlane_tmp_keychain-db || true')
+  # Удаление всех provisioning profiles (|| true для игнорирования ошибок)
   sh("rm -rf ~/Library/MobileDevice/Provisioning\ Profiles/*.mobileprovision || true")
 end
 
-# error block is executed when a error occurs
+# Обработчик ошибок - выполняется при возникновении ошибки в любом lane
+# @param _lane [String] название lane, где произошла ошибка
+# @param exception [Exception] объект исключения
+# @param _options [Hash] опции lane
 error do |_lane, exception, _options|
+  # Вывод сообщения об ошибке только в CI окружении
   UI.message(exception.to_s) if is_ci
 end
 
+# Загрузка Gemfile.lock на Yandex Disk (закомментировано, можно использовать при необходимости)
+# @example
+#   fastlane upload_gemfile
 desc 'Upload gemfiles to YandexDisk'
 lane :upload_gemfile do |_options|
+  # Пример команды для загрузки Gemfile.lock
   # sh('cp -f ../Gemfile.lock ~/Yandex.Disk.localized/TAXCOM-Public/artifacts/YandexMetrica/Gemfile.lock')
 end
 
-desc 'Register new device'
+# Регистрация нового устройства в App Store Connect
+# Добавляет устройство в список разработчиков и перегенерирует provisioning profiles
+#
+# Интерактивно запрашивает имя устройства и UDID
+#
+# @example
+#   fastlane register_new_device
+desc 'Register new device in App Store Connect'
 lane :register_new_device do |options|
+  # Интерактивный ввод имени устройства
   device_name = prompt(text: 'Enter the device name: ')
+  # Интерактивный ввод UDID устройства
   device_udid = prompt(text: 'Enter the device UDID: ')
+  
+  # Формирование хэша устройств для регистрации
   device_hash = {}
   device_hash[device_name] = device_udid
 
+  # Настройка API ключа App Store Connect
   api_key = app_store_connect_api_key(
     key_id: APPSTORE_KEY_ID,
     issuer_id: APPSTORE_ISSUER_ID,
@@ -121,8 +236,10 @@ lane :register_new_device do |options|
     is_key_content_base64: true
   )
 
+  # Регистрация устройства через App Store Connect API
   register_devices(api_key: api_key, devices: device_hash)
 
+  # Перегенерация development provisioning profiles с новым устройством
   match_generate_dev(options)
 end
 

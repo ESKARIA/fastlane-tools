@@ -1,63 +1,174 @@
 # frozen_string_literal: true
 
+# ==============================================================================
+# Fastfile_build - Сборка iOS приложений
+# ==============================================================================
+# Этот модуль содержит lanes для сборки iOS приложений в формате IPA
+# для публикации в App Store через TestFlight.
+#
+# Основные функции:
+#   - Установка маркетинговой версии приложения
+#   - Сборка IPA файлов с подписью для App Store
+#   - Управление build numbers
+#   - Сохранение артефактов сборки (IPA и dSYM)
+# ==============================================================================
+
+# ==============================================================================
+# LANES
+# ==============================================================================
+
+# Устанавливает маркетинговую версию приложения
+#
+# Обновляет версию приложения в:
+#   - Info.plist файле целевого target
+#   - Проекте Xcode (xcodeproj)
+#
+# Требует переменную окружения: APP_VERSION
+#
+# @example
+#   export APP_VERSION="1.2.3"
+#   fastlane version
 desc 'Set new marketing version'
 lane :version do |_options|
+  # Обновление версии в Info.plist целевого target
   increment_version_number_in_plist(version_number: ENV['APP_VERSION'].to_s, target: MAIN_TARGET)
+  # Обновление версии в проекте Xcode
   increment_version_number_in_xcodeproj(version_number: ENV['APP_VERSION'].to_s)
 end
 
+# Собирает IPA файл для App Store
+#
+# Полный процесс сборки:
+#   1. Валидация обязательных переменных окружения
+#   2. Создание директорий для артефактов
+#   3. Установка маркетинговой версии
+#   4. Настройка API ключа App Store Connect
+#   5. Инкрементирование build number
+#   6. Установка App Store сертификатов через match
+#   7. Сборка приложения с подписью для App Store
+#   8. Сохранение артефактов (IPA и dSYM)
+#
+# Требует переменные окружения:
+#   - APP_VERSION: маркетинговая версия (например, "1.2.3")
+#   - CI_PIPELINE_IID или BUILD_NUMBER: номер сборки
+#   - APP_IDENTIFIER: bundle identifier приложения
+#   - MAIN_TARGET: название target для сборки
+#   - APPSTORE_KEY_ID, APPSTORE_ISSUER_ID, APPSTORE_KEY_CONTENT: API ключи
+#
+# Результат:
+#   - IPA файл: ~/.cache/apps/{TARGET}/ipa/{TARGET}_v{VERSION}_b{BUILD}.ipa
+#   - dSYM файл: ~/.cache/apps/{TARGET}/dsyms/{TARGET}_v{VERSION}_b{BUILD}.app.dSYM.zip
+#   - Артефакты также копируются в fastlane/artifacts/ для последующей загрузки
+#
+# @example
+#   export APP_VERSION="1.2.3"
+#   export CI_PIPELINE_IID="456"
+#   fastlane build
 desc 'Build project'
 lane :build do |options|
+  # Проверка и установка файла проекта по умолчанию
   check_and_set_project_file
 
-  # Проверка обязательных переменных окружения
+  # ========================================================================
+  # ВАЛИДАЦИЯ ОБЯЗАТЕЛЬНЫХ ПЕРЕМЕННЫХ ОКРУЖЕНИЯ
+  # ========================================================================
+  # Проверка наличия маркетинговой версии
   raise 'APP_VERSION не установлен' if ENV['APP_VERSION'].nil? || ENV['APP_VERSION'].empty?
+  # Проверка наличия номера сборки
   raise 'BUILD_NUMBER не установлен' if BUILD_NUMBER.nil? || BUILD_NUMBER.to_s.empty?
 
-  # Создание директорий для артефактов
+  # ========================================================================
+  # ПОДГОТОВКА ОКРУЖЕНИЯ
+  # ========================================================================
+  # Создание директорий для хранения артефактов сборки
+  # ~/.cache/apps/{TARGET}/ipa/ - для IPA файлов
   sh("mkdir -p #{IPA_FOLDER_PATH}")
+  # ~/.cache/apps/{TARGET}/dsyms/ - для dSYM файлов
   sh("mkdir -p #{DSYM_FOLDER_PATH}")
 
+  # ========================================================================
+  # УПРАВЛЕНИЕ ВЕРСИЯМИ
+  # ========================================================================
+  # Установка маркетинговой версии приложения
   version(options)
 
+  # ========================================================================
+  # НАСТРОЙКА API КЛЮЧА APP STORE CONNECT
+  # ========================================================================
+  # Настройка API ключа для работы с App Store Connect
+  # Необходимо для некоторых операций с сертификатами
   app_store_connect_api_key(key_id: APPSTORE_KEY_ID,
                             issuer_id: APPSTORE_ISSUER_ID,
                             key_content: APPSTORE_KEY_CONTENT,
                             in_house: false,
                             is_key_content_base64: true)
 
+  # ========================================================================
+  # УПРАВЛЕНИЕ BUILD NUMBER
+  # ========================================================================
+  # Инкрементирование build number для новой сборки
   build_number = increment_build_number(build_number: BUILD_NUMBER.to_i)
+  # Получение текущей маркетинговой версии из проекта
   version_number = get_version_number(xcodeproj: ENV['MAIN_PROJECT_FILE'], target: MAIN_TARGET)
 
+  # Вывод информации о версии и номере сборки
   UI.header('Сборка приложения')
   UI.message("Версия: #{version_number}")
   UI.message("Номер сборки: #{build_number}")
 
+  # ========================================================================
+  # УСТАНОВКА СЕРТИФИКАТОВ
+  # ========================================================================
+  # Настройка CI окружения (если применимо)
   setup_ci
+  # Установка App Store сертификатов и provisioning profiles через match
+  # Это необходимо для подписи приложения для App Store distribution
   match_install_appstore(options)
 
+  # ========================================================================
+  # СБОРКА ПРИЛОЖЕНИЯ
+  # ========================================================================
+  # Получение bundle identifier приложения
+  # Поддержка нескольких bundle identifiers через запятую
   app_identifier = ENV['APP_IDENTIFIER'].to_s.split(',').first.strip
 
+  # Сборка приложения с использованием build_app action
   build_app(
-    scheme: MAIN_TARGET,
+    scheme: MAIN_TARGET,                    # Схема для сборки (обычно название target)
     export_options: {
-      distribution: 'app-store',
+      distribution: 'app-store',            # Тип дистрибуции: для App Store
       provisioningProfiles: {
+        # Mapping bundle identifier к provisioning profile
+        # Формат: "match AppStore {bundle_identifier}"
         app_identifier => "match AppStore #{app_identifier}"
       },
-      signingStyle: 'manual'
+      signingStyle: 'manual' # Ручная подпись через match
     },
-    cloned_source_packages_path: 'SourcePackages',
-    clean: true,
-    output_name: IPA_FILE_NAME.to_s,
-    build_path: DERIVED_PATH.to_s,
+    cloned_source_packages_path: 'SourcePackages', # Путь к Swift Package Manager зависимостям
+    clean: true,                            # Очистка перед сборкой для чистой сборки
+    output_name: IPA_FILE_NAME.to_s,        # Имя выходного IPA файла
+    build_path: DERIVED_PATH.to_s,          # Путь к derived data (промежуточные файлы)
+    # Передача версии и build number в Xcode через xcargs
     xcargs: "MARKETING_VERSION=#{ENV['APP_VERSION']} CURRENT_PROJECT_VERSION=#{BUILD_NUMBER}"
   )
 
+  # ========================================================================
+  # СОХРАНЕНИЕ АРТЕФАКТОВ
+  # ========================================================================
+  # Копирование IPA файлов в директорию артефактов
+  # ~/.cache/apps/{TARGET}/ipa/
   copy_artifacts(target_path: IPA_FOLDER_PATH.to_s, artifacts: ['*.ipa', IPA_FILE_PATH.to_s])
+  # Копирование dSYM файлов в директорию символов
+  # ~/.cache/apps/{TARGET}/dsyms/
   copy_artifacts(target_path: DSYM_FOLDER_PATH.to_s, artifacts: ['*.dSYM.zip', DSYM_FILE_PATH.to_s])
+  # Копирование всех артефактов в fastlane/artifacts/ для последующей загрузки
+  # Это директория используется lanes upload_testflight и upload_external_testflight
   copy_artifacts(target_path: 'fastlane/artifacts/', artifacts: ['*.dSYM.zip', '*.ipa'])
 
+  # ========================================================================
+  # ЗАВЕРШЕНИЕ СБОРКИ
+  # ========================================================================
+  # Вывод сообщения об успешном завершении и путей к артефактам
   UI.success('✅ Сборка завершена успешно')
   UI.message("IPA: #{IPA_FILE_PATH}")
   UI.message("dSYM: #{DSYM_FILE_PATH}")

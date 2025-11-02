@@ -1,9 +1,36 @@
 # frozen_string_literal: true
 
+# ==============================================================================
+# Fastfile_match - Управление сертификатами и provisioning profiles
+# ==============================================================================
+# Этот модуль содержит lanes для управления сертификатами и provisioning
+# profiles через match. Match хранит все сертификаты в зашифрованном виде
+# в git репозитории.
+#
+# Основные функции:
+#   - Генерация сертификатов (development и appstore)
+#   - Установка сертификатов локально
+#   - Управление provisioning profiles
+# ==============================================================================
+
+# ==============================================================================
+# ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ
+# ==============================================================================
+
+# Генерирует новые сертификаты и provisioning profiles через match
+#
+# @param type [String] тип сертификата: 'development' или 'appstore'
+# @param git_branch [String] ветка git репозитория match для хранения сертификатов
+# @return [void]
+#
+# @example
+#   generate_match(type: 'development', git_branch: 'development')
 def generate_match(type:, git_branch:)
+  # Валидация обязательных переменных окружения
   raise 'Has no APP_IDENTIFIER' unless APP_IDENTIFIER
   raise 'Has no APPSTORE_KEY_CONTENT' unless APPSTORE_KEY_CONTENT
 
+  # Настройка API ключа App Store Connect для работы с сертификатами
   api_key = app_store_connect_api_key(
     key_id: APPSTORE_KEY_ID,
     issuer_id: APPSTORE_ISSUER_ID,
@@ -12,70 +39,168 @@ def generate_match(type:, git_branch:)
     is_key_content_base64: true
   )
 
+  # Генерация сертификатов и профилей через match
   match(type: type,
         app_identifier: APP_IDENTIFIER,
         api_key: api_key,
-        force_for_new_devices: true,
-        include_all_certificates: true,
-        force_for_new_certificates: true,
-        clone_branch_directly: true,
-        readonly: false,
-        fail_on_name_taken: true,
-        force: true,
+        force_for_new_devices: true,        # Принудительно обновлять при добавлении новых устройств
+        include_all_certificates: true,      # Включать все существующие сертификаты
+        force_for_new_certificates: true,   # Принудительно создавать новые сертификаты при необходимости
+        clone_branch_directly: true,         # Клонировать указанную ветку напрямую
+        readonly: false,                    # Режим записи (разрешает создание/обновление)
+        fail_on_name_taken: true,           # Ошибка, если имя сертификата уже занято
+        force: true,                         # Принудительное обновление существующих сертификатов
         platform: 'ios',
-        verbose: true,
-        generate_apple_certs: true,
-        git_branch: git_branch)
+        verbose: true,                      # Подробный вывод информации
+        generate_apple_certs: true,         # Генерировать сертификаты в Apple Developer Portal
+        git_branch: git_branch)             # Ветка git репозитория для хранения сертификатов
 end
 
+# Устанавливает существующие сертификаты и профили из match репозитория
+#
+# @param type [String] тип сертификата: 'development' или 'appstore'
+# @param git_branch [String] ветка git репозитория match
+# @return [void]
+#
+# @example
+#   match_install(type: 'appstore', git_branch: 'distribution')
 def match_install(type:, git_branch:)
+  # Установка сертификатов и профилей в режиме только чтения
   match(type: type,
         app_identifier: APP_IDENTIFIER,
-        include_all_certificates: true,
-        clone_branch_directly: true,
-        fail_on_name_taken: true,
-        readonly: true,
-        force: false,
+        include_all_certificates: true,      # Включать все существующие сертификаты
+        clone_branch_directly: true,         # Клонировать указанную ветку напрямую
+        fail_on_name_taken: true,           # Ошибка, если имя сертификата уже занято
+        readonly: true,                     # Режим только чтения (не создает новые сертификаты)
+        force: false,                        # Не принуждать обновление
         platform: 'ios',
-        verbose: true,
-        git_branch: git_branch)
+        verbose: true,                      # Подробный вывод информации
+        git_branch: git_branch)             # Ветка git репозитория
 end
 
-### Generate match profiles
+# ==============================================================================
+# LANES ДЛЯ ГЕНЕРАЦИИ СЕРТИФИКАТОВ
+# ==============================================================================
+
+# Генерирует development сертификаты и provisioning profiles
+#
+# Используется для:
+#   - Первой настройки проекта
+#   - Добавления новых устройств для разработки
+#   - Обновления списка устройств
+#
+# @example
+#   fastlane match_generate_dev
+desc 'Generate development certificates and provisioning profiles'
 lane :match_generate_dev do |_options|
+  # Валидация наличия API ключа App Store Connect
   raise 'Has no APPSTORE_KEY_CONTENT' unless APPSTORE_KEY_CONTENT
 
+  # Генерация development сертификатов в ветке 'development'
   generate_match(type: 'development', git_branch: 'development')
 end
 
+# Генерирует App Store сертификаты и provisioning profiles
+#
+# Используется для:
+#   - Первой сборки для App Store
+#   - Обновления сертификатов для публикации
+#
+# @example
+#   fastlane match_generate_appstore
+desc 'Generate App Store certificates and provisioning profiles'
 lane :match_generate_appstore do |_options|
+  # Валидация наличия API ключа App Store Connect
   raise 'Has no APPSTORE_KEY_CONTENT' unless APPSTORE_KEY_CONTENT
 
+  # Генерация App Store сертификатов в ветке 'distribution'
   generate_match(type: 'appstore', git_branch: 'distribution')
 end
 
-### Install match certificate and profiles
+# ==============================================================================
+# LANES ДЛЯ УСТАНОВКИ СЕРТИФИКАТОВ
+# ==============================================================================
+
+# Устанавливает development сертификаты и профили локально
+#
+# Используется для:
+#   - Настройки нового компьютера разработчика
+#   - Восстановления сертификатов после сбоев
+#   - Перед локальной разработкой
+#
+# @example
+#   fastlane match_install_dev
+desc 'Install development certificates and provisioning profiles'
 lane :match_install_dev do |_options|
+  # Установка development сертификатов из ветки 'development'
   match_install(type: 'development', git_branch: 'development')
 end
 
+# Устанавливает App Store сертификаты и профили локально
+#
+# Используется для:
+#   - Настройки CI/CD окружения
+#   - Перед сборкой для App Store
+#   - Восстановления сертификатов
+#
+# @example
+#   fastlane match_install_appstore
+desc 'Install App Store certificates and provisioning profiles'
 lane :match_install_appstore do |_options|
+  # Валидация наличия API ключа (может потребоваться для некоторых операций)
   raise 'Has no APPSTORE_KEY_CONTENT' unless APPSTORE_KEY_CONTENT
 
+  # Установка App Store сертификатов из ветки 'distribution'
   match_install(type: 'appstore', git_branch: 'distribution')
 end
 
+# ==============================================================================
+# УТИЛИТЫ
+# ==============================================================================
+
+# Полностью удаляет все сертификаты и профили (разрушительная операция)
+#
+# ⚠️ ВНИМАНИЕ: Это необратимое действие!
+# Используется только при необходимости полностью очистить все сертификаты.
+# После выполнения потребуется перегенерировать все сертификаты.
+#
+# @example
+#   fastlane nuke_all
+desc 'Nuke (delete) all certificates and provisioning profiles'
 lane :nuke_all do |_options|
-  match(type: 'development', app_identifier: APP_IDENTIFIER, git_branch: 'development', skip_confirmation: true,
-        safe_remove_certs: false)
-  match(type: 'appstore', app_identifier: APP_IDENTIFIER, git_branch: 'distribution', skip_confirmation: true,
-        safe_remove_certs: false)
+  # Удаление development сертификатов и профилей
+  match(type: 'development',
+        app_identifier: APP_IDENTIFIER,
+        git_branch: 'development',
+        skip_confirmation: true,           # Пропуск подтверждения (опасно!)
+        safe_remove_certs: false)          # Небезопасное удаление (удаляет даже используемые)
+
+  # Удаление App Store сертификатов и профилей
+  match(type: 'appstore',
+        app_identifier: APP_IDENTIFIER,
+        git_branch: 'distribution',
+        skip_confirmation: true,           # Пропуск подтверждения
+        safe_remove_certs: false)         # Небезопасное удаление
 end
 
+# Полностью перегенерирует все сертификаты и профили
+#
+# Используется для:
+#   - Обновления всех сертификатов при подозрении на проблемы
+#   - Синхронизации после конфликтов в match репозитории
+#
+# ⚠️ ВНИМАНИЕ: Это действие удалит и пересоздаст все сертификаты.
+# Используйте с осторожностью!
+#
+# @example
+#   fastlane reset_all_profiles
+desc 'Reset (regenerate) all certificates and provisioning profiles'
 lane :reset_all_profiles do
+  # Валидация обязательных переменных
   raise 'Has no APP_IDENTIFIER' unless APP_IDENTIFIER
   raise 'Has no APPSTORE_KEY_CONTENT' unless APPSTORE_KEY_CONTENT
 
+  # Настройка API ключа App Store Connect
   api_key = app_store_connect_api_key(
     key_id: APPSTORE_KEY_ID,
     issuer_id: APPSTORE_ISSUER_ID,
@@ -84,21 +209,23 @@ lane :reset_all_profiles do
     is_key_content_base64: true
   )
 
+  # Перегенерация development сертификатов и профилей
   match(type: 'development',
         app_identifier: APP_IDENTIFIER,
         api_key: api_key,
-        force_for_new_devices: true,
-        include_all_certificates: true,
-        force_for_new_certificates: true,
+        force_for_new_devices: true,        # Обновлять при добавлении устройств
+        include_all_certificates: true,      # Включать все сертификаты
+        force_for_new_certificates: true,   # Принудительно создавать новые
         clone_branch_directly: true,
-        readonly: false,
+        readonly: false,                    # Режим записи
         fail_on_name_taken: true,
-        force: true,
+        force: true,                        # Принудительное обновление
         platform: 'ios',
         verbose: true,
         generate_apple_certs: true,
         git_branch: 'development')
 
+  # Перегенерация App Store сертификатов и профилей
   match(type: 'appstore',
         app_identifier: APP_IDENTIFIER,
         api_key: api_key,
@@ -114,5 +241,6 @@ lane :reset_all_profiles do
         generate_apple_certs: true,
         git_branch: 'distribution')
 
+  # Сообщение об успешном завершении
   UI.success('✅ Все сертификаты и профили обновлены.')
 end
