@@ -113,28 +113,48 @@ end
 # LANES ДЛЯ ЗАГРУЗКИ В TESTFLIGHT
 # ==============================================================================
 
-# Загружает IPA файл в TestFlight для Internal Testers
+# Загружает IPA файл в TestFlight (автоматически определяет Internal или External)
+#
+# Автоматически определяет тип загрузки:
+#   - Если установлена переменная EXTERNAL_TESTFLIGHT_GROUPS или параметр external:true,
+#     то загружает для External Testers
+#   - Иначе загружает для Internal Testers
 #
 # Процесс загрузки:
 #   1. Находит IPA файлы в директории fastlane/artifacts/
 #   2. Генерирует changelog из git коммитов
-#   3. Загружает каждый IPA файл в TestFlight
-#   4. Распределяет сборку для internal testers
+#   3. Определяет тип загрузки (internal/external) на основе переменных окружения
+#   4. Загружает каждый IPA файл в TestFlight
+#   5. Распределяет сборку для соответствующего типа testers
+#
+# Параметры:
+#   - external: если true, принудительно загружает для external testers
+#   - groups: группы external testers (работает только если external=true или установлена EXTERNAL_TESTFLIGHT_GROUPS)
+#
+# Переменные окружения:
+#   - EXTERNAL_TESTFLIGHT_GROUPS: если установлена, автоматически загружает для external testers
 #
 # Требует:
 #   - IPA файлы в fastlane/artifacts/ (создаются lane build)
 #   - API ключи App Store Connect
+#   - Для external: группы должны существовать в App Store Connect
 #
 # Результат:
-#   - Сборка доступна для internal testers немедленно
-#   - Changelog отображается в TestFlight
+#   - Internal: сборка доступна для internal testers немедленно
+#   - External: сборка отправлена на рецензирование Apple (для первой версии)
 #
 # @example
-#   # Сначала соберите приложение
-#   fastlane build
-#   # Затем загрузите в TestFlight
+#   # Загрузка для internal testers (по умолчанию)
 #   fastlane upload_testflight
-desc 'Upload ipa to AppStore Connect TestFlight (Internal Testers)'
+#
+#   # Загрузка для external testers через переменную окружения
+#   export EXTERNAL_TESTFLIGHT_GROUPS="External Public Beta"
+#   fastlane upload_testflight
+#
+#   # Принудительная загрузка для external testers
+#   fastlane upload_testflight external:true groups:"External Public Beta"
+desc 'Upload ipa to AppStore Connect TestFlight (Auto-detects Internal/External)'
+desc 'Автоматически определяет тип загрузки на основе EXTERNAL_TESTFLIGHT_GROUPS'
 lane :upload_testflight do |options|
   require 'fileutils'
   require 'find'
@@ -142,6 +162,37 @@ lane :upload_testflight do |options|
   # Проверка и установка файла проекта по умолчанию
   check_and_set_project_file
 
+  # ========================================================================
+  # АВТОМАТИЧЕСКОЕ ОПРЕДЕЛЕНИЕ ТИПА ЗАГРУЗКИ
+  # ========================================================================
+  # Определяем, нужно ли загружать для external testers:
+  #   1. Параметр external:true имеет приоритет
+  #   2. Переменная окружения EXTERNAL_TESTFLIGHT_GROUPS
+  #   3. Иначе - internal testers
+  force_external = options[:external] == true
+  has_external_groups = !ENV['EXTERNAL_TESTFLIGHT_GROUPS'].nil? && !ENV['EXTERNAL_TESTFLIGHT_GROUPS'].empty?
+  is_external = force_external || has_external_groups
+
+  # Если загрузка для external testers, получаем группы
+  if is_external
+    # Получаем группы из параметра, переменной окружения или значения по умолчанию
+    external_groups = options[:groups] || ENV['EXTERNAL_TESTFLIGHT_GROUPS'] || 'External Public Beta'
+    groups_array = external_groups.to_s.split(',').map(&:strip)
+
+    # Валидация наличия групп
+    if groups_array.empty? || groups_array.first.empty?
+      UI.user_error!('Для загрузки для external testers необходимо указать группы. Используйте параметр groups:"GroupName" или переменную окружения EXTERNAL_TESTFLIGHT_GROUPS')
+    end
+
+    UI.header('Загрузка в TestFlight (External Testers) - автоопределение')
+    UI.message("Группы: #{groups_array.join(', ')}")
+  else
+    UI.header('Загрузка в TestFlight (Internal Testers)')
+  end
+
+  # ========================================================================
+  # ПОДГОТОВКА К ЗАГРУЗКЕ
+  # ========================================================================
   # Настройка API ключа для App Store Connect
   api_key = setup_api_key
   # Генерация changelog из git коммитов
@@ -151,26 +202,42 @@ lane :upload_testflight do |options|
   # Поиск IPA файлов для загрузки
   ipa_paths = find_ipa_files
 
-  UI.header('Загрузка в TestFlight (Internal Testers)')
-
+  # ========================================================================
+  # ЗАГРУЗКА В TESTFLIGHT
+  # ========================================================================
   # Загрузка каждого найденного IPA файла
   ipa_paths.each do |ipa_path|
     # Формирование полного пути к IPA файлу
     full_ipa_path = ipa_path.start_with?('fastlane/') ? ipa_path : "fastlane/#{ipa_path}"
     UI.message("Загружаем: #{full_ipa_path}")
 
-    # Загрузка в TestFlight через testflight action
-    testflight(api_key: api_key,
-               app_identifier: app_identifier,
-               changelog: changelog,                    # Changelog для TestFlight
-               distribute_external: false,              # Internal testers (не external)
-               skip_waiting_for_build_processing: false, # Ждать обработки сборки Apple
-               expire_previous_builds: false,          # Не удалять предыдущие сборки
-               reject_build_waiting_for_review: true,  # Отклонить сборку, ожидающую рецензирования
-               ipa: full_ipa_path)                      # Путь к IPA файлу
+    # Формирование параметров для testflight action
+    testflight_params = {
+      api_key: api_key,
+      app_identifier: app_identifier,
+      changelog: changelog,
+      distribute_external: is_external,              # Автоматическое определение типа
+      skip_waiting_for_build_processing: false,      # Ждать обработки сборки Apple
+      expire_previous_builds: false,                # Не удалять предыдущие сборки
+      reject_build_waiting_for_review: true,         # Отклонить сборку, ожидающую рецензирования
+      ipa: full_ipa_path
+    }
+
+    # Добавляем группы только для external testers
+    if is_external
+      testflight_params[:groups] = groups_array
+    end
+
+    # Загрузка в TestFlight
+    testflight(**testflight_params)
   end
 
-  UI.success('Загрузка завершена успешно')
+  # Сообщение об успешном завершении
+  if is_external
+    UI.success("✅ Сборка успешно загружена для external testers в группы: #{groups_array.join(', ')}")
+  else
+    UI.success('✅ Загрузка завершена успешно (Internal Testers)')
+  end
 end
 
 # Загружает IPA файл в TestFlight для External Testers
