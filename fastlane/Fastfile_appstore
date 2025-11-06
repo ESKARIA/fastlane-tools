@@ -85,44 +85,101 @@ end
 
 lane :pass_to_review do |_options| # rubocop:disable Lint/UnderscorePrefixedVariableName
   check_and_set_project_file
+  
+  # ========================================================================
+  # ВАЛИДАЦИЯ ОБЯЗАТЕЛЬНЫХ ПЕРЕМЕННЫХ
+  # ========================================================================
+  raise 'BUILD_NUMBER не установлен' if BUILD_NUMBER.nil? || BUILD_NUMBER.to_s.empty?
+  
+  # Настройка API ключа App Store Connect
   app_store_connect_api_key(key_id: APPSTORE_KEY_ID,
                             issuer_id: APPSTORE_ISSUER_ID,
                             key_content: APPSTORE_KEY_CONTENT,
                             in_house: false,
                             is_key_content_base64: true)
 
-  latest_testflight_build_number(app_identifier: ENV['APP_IDENTIFIER'].split(',').first)
+  app_identifier = ENV['APP_IDENTIFIER'].split(',').first
+  
+  UI.header('Отправка на рецензирование в App Store')
+  
+  # ========================================================================
+  # ПРОВЕРКА СУЩЕСТВОВАНИЯ СБОРКИ В TESTFLIGHT
+  # ========================================================================
+  begin
+    UI.message('Проверка существования сборки в TestFlight...')
+    latest_testflight_build_number(app_identifier: app_identifier)
+    
+    testflight_version = lane_context[SharedValues::LATEST_TESTFLIGHT_VERSION]
+    testflight_build = lane_context[SharedValues::LATEST_TESTFLIGHT_BUILD_NUMBER]
+    
+    if testflight_version.nil? || testflight_build.nil?
+      UI.user_error!("❌ Не найдено сборок в TestFlight для приложения #{app_identifier}")
+    end
+    
+    UI.success("✅ Найдена сборка в TestFlight:")
+    UI.message("   Версия: #{testflight_version}")
+    UI.message("   Build: #{testflight_build}")
+    UI.message("   Текущий build для отправки: #{BUILD_NUMBER}")
+    
+    # Предупреждение, если build number не совпадает
+    if testflight_build.to_s != BUILD_NUMBER.to_s
+      UI.important("⚠️  Build number в TestFlight (#{testflight_build}) не совпадает с текущим (#{BUILD_NUMBER})")
+      UI.important("Будет использована последняя доступная сборка: #{testflight_build}")
+    end
+  rescue StandardError => e
+    UI.user_error!("❌ Ошибка при проверке сборки в TestFlight: #{e.message}")
+  end
 
-  deliver(app_version: lane_context[SharedValues::LATEST_TESTFLIGHT_VERSION],
-          build_number: BUILD_NUMBER,
-          submit_for_review: true,
-          automatic_release: true,
-          reject_if_possible: true,
-          force: true, # Skip HTMl report verification
-          skip_metadata: false,
-          skip_screenshots: true,
-          skip_binary_upload: true,
-          precheck_include_in_app_purchases: false,
-          submission_information: {
-            add_id_info_limits_tracking: false,
-            add_id_info_serves_ads: false,
-            add_id_info_tracks_action: false,
-            add_id_info_tracks_install: false,
-            add_id_info_uses_idfa: false,
-            content_rights_has_rights: false,
-            content_rights_contains_third_party_content: false,
-            export_compliance_platform: 'ios',
-            export_compliance_compliance_required: false,
-            export_compliance_encryption_updated: false,
-            export_compliance_app_type: nil,
-            export_compliance_uses_encryption: false,
-            export_compliance_is_exempt: false,
-            export_compliance_contains_third_party_cryptography: false,
-            export_compliance_contains_proprietary_cryptography: false,
-            export_compliance_available_on_french_store: false
-          })
+  # ========================================================================
+  # ОТПРАВКА НА РЕЦЕНЗИРОВАНИЕ
+  # ========================================================================
+  UI.message('Отправка приложения на рецензирование...')
+  
+  begin
+    deliver(app_version: lane_context[SharedValues::LATEST_TESTFLIGHT_VERSION],
+            build_number: testflight_build || BUILD_NUMBER,
+            submit_for_review: true,
+            automatic_release: true,
+            reject_if_possible: true,
+            force: true, # Skip HTML report verification
+            skip_metadata: false,
+            skip_screenshots: true,
+            skip_binary_upload: true,
+            precheck_include_in_app_purchases: false,
+            submission_information: {
+              add_id_info_limits_tracking: false,
+              add_id_info_serves_ads: false,
+              add_id_info_tracks_action: false,
+              add_id_info_tracks_install: false,
+              add_id_info_uses_idfa: false,
+              content_rights_has_rights: false,
+              content_rights_contains_third_party_content: false,
+              export_compliance_platform: 'ios',
+              export_compliance_compliance_required: false,
+              export_compliance_encryption_updated: false,
+              export_compliance_app_type: nil,
+              export_compliance_uses_encryption: false,
+              export_compliance_is_exempt: false,
+              export_compliance_contains_third_party_cryptography: false,
+              export_compliance_contains_proprietary_cryptography: false,
+              export_compliance_available_on_french_store: false
+            })
+    
+    UI.success('✅ Приложение успешно отправлено на рецензирование')
+  rescue StandardError => e
+    UI.user_error!("❌ Ошибка при отправке на рецензирование: #{e.message}")
+  end
 
-  merge_and_delete_release_branch(_options)
+  # ========================================================================
+  # ОБЪЕДИНЕНИЕ RELEASE ВЕТКИ
+  # ========================================================================
+  begin
+    merge_and_delete_release_branch(_options)
+  rescue StandardError => e
+    UI.important("⚠️  Ошибка при объединении release ветки: #{e.message}")
+    UI.important("Приложение отправлено на рецензирование, но ветка не была объединена")
+    raise
+  end
 end
 
 lane :update_metadata_year do |_options|

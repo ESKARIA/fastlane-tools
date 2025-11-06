@@ -1,12 +1,81 @@
 # frozen_string_literal: true
 
+# ==============================================================================
+# Fastfile_tests - Запуск тестов
+# ==============================================================================
+# Этот модуль содержит lanes для запуска unit и UI тестов iOS приложений.
+# ==============================================================================
+
+# Запускает тесты для указанной схемы на указанном симуляторе
+#
+# Процесс:
+#   1. Валидация обязательных параметров
+#   2. Проверка существования схемы в проекте
+#   3. Запуск тестов на указанном симуляторе
+#   4. Генерация отчета о покрытии кода
+#
+# Параметры:
+#   - scheme: название схемы для тестирования (обязательно)
+#   - device: симулятор для тестирования (обязательно)
+#
+# Требует:
+#   - Схема должна существовать в проекте
+#   - Симулятор должен быть доступен
+#
+# Результат:
+#   - Результаты тестирования
+#   - Отчет о покрытии кода
+#
+# @example
+#   fastlane tests scheme:"AppNameTests" device:"iPhone 13"
 desc 'Build and run unit tests'
 lane :tests do |options|
+  # Проверка и установка файла проекта по умолчанию
   check_and_set_project_file
-  test_target_schame = options['scheme']
-  test_device_target = options['device']
-  run_tests(devices: [test_device_target.to_s],
-            scheme: test_target_schame.to_s,
-            code_coverage: true,
-            derived_data_path: DERIVED_PATH)
+
+  # ========================================================================
+  # ВАЛИДАЦИЯ ПАРАМЕТРОВ
+  # ========================================================================
+  # Получение параметров
+  test_target_scheme = options[:scheme] || options['scheme']
+  test_device_target = options[:device] || options['device']
+
+  # Проверка наличия обязательных параметров
+  if test_target_scheme.nil? || test_target_scheme.to_s.empty?
+    UI.user_error!('❌ Не указан параметр scheme. Использование: fastlane tests scheme:"SchemeName" device:"iPhone 13"')
+  end
+
+  if test_device_target.nil? || test_device_target.to_s.empty?
+    UI.user_error!('❌ Не указан параметр device. Использование: fastlane tests scheme:"SchemeName" device:"iPhone 13"')
+  end
+
+  # Валидация схемы в проекте
+  begin
+    # Попытка получить информацию о схеме (будет ошибка, если схема не существует)
+    schemes = sh("xcodebuild -list -project #{ENV['MAIN_PROJECT_FILE']} -json | jq -r '.project.schemes[]' | grep -E '^#{test_target_scheme}$'", log: false)
+    if schemes.strip.empty?
+      UI.important("⚠️  Схема '#{test_target_scheme}' не найдена в проекте. Проверьте правильность названия.")
+    end
+  rescue StandardError => e
+    UI.message("Не удалось проверить существование схемы: #{e.message}")
+    UI.important("Продолжаем выполнение, но схема может не существовать")
+  end
+
+  # ========================================================================
+  # ЗАПУСК ТЕСТОВ
+  # ========================================================================
+  UI.header("Запуск тестов")
+  UI.message("Схема: #{test_target_scheme}")
+  UI.message("Устройство: #{test_device_target}")
+
+  begin
+    # Запуск тестов
+    run_tests(devices: [test_device_target.to_s],
+              scheme: test_target_scheme.to_s,
+              code_coverage: true,
+              derived_data_path: DERIVED_PATH)
+    UI.success("✅ Тесты выполнены успешно для схемы '#{test_target_scheme}'")
+  rescue StandardError => e
+    UI.user_error!("❌ Ошибка при выполнении тестов: #{e.message}")
+  end
 end

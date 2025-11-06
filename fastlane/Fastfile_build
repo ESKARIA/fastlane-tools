@@ -69,6 +69,9 @@ lane :build do |options|
   # Проверка и установка файла проекта по умолчанию
   check_and_set_project_file
 
+  # Начало сбора метрик (если helpers доступны)
+  start_metrics('build') if respond_to?(:start_metrics)
+
   # ========================================================================
   # ВАЛИДАЦИЯ ОБЯЗАТЕЛЬНЫХ ПЕРЕМЕННЫХ ОКРУЖЕНИЯ
   # ========================================================================
@@ -76,6 +79,10 @@ lane :build do |options|
   raise 'APP_VERSION не установлен' if ENV['APP_VERSION'].nil? || ENV['APP_VERSION'].empty?
   # Проверка наличия номера сборки
   raise 'BUILD_NUMBER не установлен' if BUILD_NUMBER.nil? || BUILD_NUMBER.to_s.empty?
+
+  # Добавление метрик о версии и build number
+  add_metric('version', ENV['APP_VERSION']) if respond_to?(:add_metric)
+  add_metric('build_number', BUILD_NUMBER.to_s) if respond_to?(:add_metric)
 
   # ========================================================================
   # ПОДГОТОВКА ОКРУЖЕНИЯ
@@ -166,10 +173,56 @@ lane :build do |options|
   copy_artifacts(target_path: 'fastlane/artifacts/', artifacts: ['*.dSYM.zip', '*.ipa'])
 
   # ========================================================================
+  # ВАЛИДАЦИЯ АРТЕФАКТОВ
+  # ========================================================================
+  # Проверка существования IPA файла
+  UI.user_error!("❌ IPA файл не найден после сборки: #{IPA_FILE_PATH}") unless File.exist?(IPA_FILE_PATH)
+
+  # Проверка существования dSYM файла
+  unless File.exist?(DSYM_FILE_PATH)
+    UI.important("⚠️  dSYM файл не найден: #{DSYM_FILE_PATH}")
+    UI.important('Это не критично, но может затруднить отладку крашей')
+  end
+
+  # Получение размера IPA файла
+  ipa_size_mb = File.size(IPA_FILE_PATH) / (1024.0 * 1024.0)
+  ipa_size_gb = ipa_size_mb / 1024.0
+
+  # Проверка размера IPA файла (лимит App Store: 4GB)
+  if ipa_size_gb > 4.0
+    UI.user_error!("❌ IPA файл слишком большой: #{ipa_size_gb.round(2)}GB (лимит App Store: 4GB)")
+  elsif ipa_size_gb > 3.5
+    UI.important("⚠️  IPA файл близок к лимиту: #{ipa_size_gb.round(2)}GB")
+  end
+
+  # ========================================================================
   # ЗАВЕРШЕНИЕ СБОРКИ
   # ========================================================================
   # Вывод сообщения об успешном завершении и путей к артефактам
   UI.success('✅ Сборка завершена успешно')
   UI.message("IPA: #{IPA_FILE_PATH}")
+  UI.message("Размер IPA: #{ipa_size_mb.round(2)}MB (#{ipa_size_gb.round(3)}GB)")
   UI.message("dSYM: #{DSYM_FILE_PATH}")
+
+  # Вывод размера dSYM, если файл существует
+  if File.exist?(DSYM_FILE_PATH)
+    dsym_size_mb = File.size(DSYM_FILE_PATH) / (1024.0 * 1024.0)
+    UI.message("Размер dSYM: #{dsym_size_mb.round(2)}MB")
+    add_metric('dsym_size_mb', dsym_size_mb.round(2)) if respond_to?(:add_metric)
+  end
+
+  # Добавление метрик о размере IPA
+  add_metric('ipa_size_mb', ipa_size_mb.round(2)) if respond_to?(:add_metric)
+  add_metric('ipa_size_gb', ipa_size_gb.round(3)) if respond_to?(:add_metric)
+  add_metric('status', 'success') if respond_to?(:add_metric)
+
+  # Отправка уведомления в Telegram (если включено)
+  if ENV['TELEGRAM_ENABLED'] == 'true' && respond_to?(:notify_telegram_success)
+    notify_telegram_success('Сборка завершена', {
+                              'Версия' => version_number,
+                              'Build' => build_number.to_s,
+                              'Размер IPA' => "#{ipa_size_mb.round(2)}MB",
+                              'IPA' => File.basename(IPA_FILE_PATH)
+                            })
+  end
 end

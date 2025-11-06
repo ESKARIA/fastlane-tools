@@ -105,6 +105,12 @@ def check_and_set_project_file
 end
 
 # ==============================================================================
+# ИМПОРТ ВСПОМОГАТЕЛЬНЫХ ФУНКЦИЙ
+# ==============================================================================
+# Импорт helpers для retry логики, уведомлений и метрик
+require_relative 'Fastfile_helpers'
+
+# ==============================================================================
 # ИМПОРТ МОДУЛЬНЫХ FASTFILE
 # ==============================================================================
 # Импорт Fastfile из удаленного git репозитория
@@ -130,6 +136,7 @@ import_from_git(
     'fastlane/Fastfile_upload',       # Загрузка в TestFlight
     'fastlane/Fastfile_appstore',     # Работа с App Store
     'fastlane/Fastfile_create_app'    # Создание приложения
+    # Fastfile_helpers импортируется локально через require_relative
   ]
   # cache_path: "~/.cache/fastlane/imported/" # Путь для кэширования импортированных файлов
 )
@@ -140,7 +147,10 @@ import_from_git(
 
 # Хук before_all выполняется перед запуском любого lane
 # Используется для общей инициализации и настройки окружения
-before_all do
+before_all do |lane, options|
+  # Начало сбора метрик для текущего lane
+  start_metrics(lane) if lane
+  
   # Проверка и установка файла проекта по умолчанию
   check_and_set_project_file
   # Раскомментируйте для автоматического обновления fastlane перед запуском
@@ -167,7 +177,11 @@ end
 
 # Хук after_all выполняется после завершения любого lane
 # Используется для очистки и финализации
-after_all do
+after_all do |lane|
+  # Завершение сбора метрик и отправка уведомлений
+  send_telegram = ENV['TELEGRAM_ENABLED'] == 'true'
+  finish_metrics(send_to_telegram: send_telegram, save_to_file: true)
+  
   # Очистка keychain после завершения
   clear_keychain
 end
@@ -195,9 +209,24 @@ end
 # @param _lane [String] название lane, где произошла ошибка
 # @param exception [Exception] объект исключения
 # @param _options [Hash] опции lane
-error do |_lane, exception, _options|
-  # Вывод сообщения об ошибке только в CI окружении
-  UI.message(exception.to_s) if is_ci
+error do |lane, exception, _options|
+  # Вывод сообщения об ошибке
+  UI.error("❌ Ошибка в lane '#{lane}': #{exception.message}")
+  
+  # Завершение метрик с информацией об ошибке
+  if $current_metrics
+    $current_metrics.add_metric('status', 'failed')
+    $current_metrics.add_metric('error', exception.message)
+    finish_metrics(send_to_telegram: ENV['TELEGRAM_ENABLED'] == 'true', save_to_file: true)
+  end
+  
+  # Отправка уведомления об ошибке в Telegram
+  if ENV['TELEGRAM_ENABLED'] == 'true'
+    notify_telegram_error("Ошибка в lane '#{lane}'", exception, {
+      'Lane' => lane.to_s,
+      'Время' => Time.now.strftime('%Y-%m-%d %H:%M:%S')
+    })
+  end
 end
 
 # Загрузка Gemfile.lock на Yandex Disk (закомментировано, можно использовать при необходимости)
