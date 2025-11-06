@@ -135,8 +135,8 @@ import_from_git(
     'fastlane/Fastfile_dsyms',        # Загрузка символов
     'fastlane/Fastfile_upload',       # Загрузка в TestFlight
     'fastlane/Fastfile_appstore',     # Работа с App Store
-    'fastlane/Fastfile_create_app'    # Создание приложения
-    # Fastfile_helpers импортируется локально через require_relative
+    'fastlane/Fastfile_create_app',   # Создание приложения
+    'fastlane/Fastfile_helpers'       # Вспомогательные функции
   ]
   # cache_path: "~/.cache/fastlane/imported/" # Путь для кэширования импортированных файлов
 )
@@ -150,22 +150,22 @@ import_from_git(
 before_all do |lane, options|
   # Начало сбора метрик для текущего lane
   start_metrics(lane) if lane
-  
+
   # Проверка и установка файла проекта по умолчанию
   check_and_set_project_file
   # Раскомментируйте для автоматического обновления fastlane перед запуском
   # update_fastlane
-  
+
   # Очистка keychain перед запуском
   clear_keychain
-  
+
   # Дополнительные действия на CI/CD машинах
   if ENV['CI']
     # Очистка derived data для чистых сборок
     clear_derived_data
     UI.message('Запуск на удаленной CI машине')
     clear_derived_data(derived_data_path: DERIVED_PATH)
-    
+
     # Настройка API ключа App Store Connect для CI окружения
     app_store_connect_api_key(key_id: APPSTORE_KEY_ID,
                               issuer_id: APPSTORE_ISSUER_ID,
@@ -181,7 +181,7 @@ after_all do |lane|
   # Завершение сбора метрик и отправка уведомлений
   send_telegram = ENV['TELEGRAM_ENABLED'] == 'true'
   finish_metrics(send_to_telegram: send_telegram, save_to_file: true)
-  
+
   # Очистка keychain после завершения
   clear_keychain
 end
@@ -212,20 +212,20 @@ end
 error do |lane, exception, _options|
   # Вывод сообщения об ошибке
   UI.error("❌ Ошибка в lane '#{lane}': #{exception.message}")
-  
+
   # Завершение метрик с информацией об ошибке
   if $current_metrics
     $current_metrics.add_metric('status', 'failed')
     $current_metrics.add_metric('error', exception.message)
     finish_metrics(send_to_telegram: ENV['TELEGRAM_ENABLED'] == 'true', save_to_file: true)
   end
-  
+
   # Отправка уведомления об ошибке в Telegram
   if ENV['TELEGRAM_ENABLED'] == 'true'
     notify_telegram_error("Ошибка в lane '#{lane}'", exception, {
-      'Lane' => lane.to_s,
-      'Время' => Time.now.strftime('%Y-%m-%d %H:%M:%S')
-    })
+                            'Lane' => lane.to_s,
+                            'Время' => Time.now.strftime('%Y-%m-%d %H:%M:%S')
+                          })
   end
 end
 
@@ -251,7 +251,7 @@ lane :register_new_device do |options|
   device_name = prompt(text: 'Enter the device name: ')
   # Интерактивный ввод UDID устройства
   device_udid = prompt(text: 'Enter the device UDID: ')
-  
+
   # Формирование хэша устройств для регистрации
   device_hash = {}
   device_hash[device_name] = device_udid
