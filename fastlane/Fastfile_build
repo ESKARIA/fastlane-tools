@@ -175,17 +175,54 @@ lane :build do |options|
   # ========================================================================
   # ВАЛИДАЦИЯ АРТЕФАКТОВ
   # ========================================================================
-  # Проверка существования IPA файла
-  UI.user_error!("❌ IPA файл не найден после сборки: #{IPA_FILE_PATH}") unless File.exist?(IPA_FILE_PATH)
+  # Раскрытие путей с ~ (home directory)
+  expanded_ipa_path = File.expand_path(IPA_FILE_PATH)
+  expanded_dsym_path = File.expand_path(DSYM_FILE_PATH)
+
+  # Поиск IPA файла в нескольких возможных местах
+  # build_app может создать файл в разных местах в зависимости от настроек
+  possible_ipa_paths = [
+    expanded_ipa_path,
+    File.join(Dir.pwd, IPA_FILE_NAME),
+    File.join(DERIVED_PATH, IPA_FILE_NAME),
+    File.join('fastlane/artifacts', IPA_FILE_NAME)
+  ].map { |p| File.expand_path(p) }.uniq
+
+  # Поиск существующего IPA файла
+  found_ipa_path = possible_ipa_paths.find { |path| File.exist?(path) }
+
+  unless found_ipa_path
+    UI.user_error!("❌ IPA файл не найден после сборки. Проверялись пути:\n  - #{possible_ipa_paths.join("\n  - ")}")
+  end
+
+  # Используем найденный путь
+  expanded_ipa_path = found_ipa_path
+  UI.message("✅ Найден IPA файл: #{expanded_ipa_path}")
 
   # Проверка существования dSYM файла
-  unless File.exist?(DSYM_FILE_PATH)
-    UI.important("⚠️  dSYM файл не найден: #{DSYM_FILE_PATH}")
-    UI.important('Это не критично, но может затруднить отладку крашей')
+  unless File.exist?(expanded_dsym_path)
+    # Поиск dSYM в других возможных местах
+    possible_dsym_paths = [
+      expanded_dsym_path,
+      File.join(Dir.pwd, DSYM_FILE_NAME),
+      File.join(DERIVED_PATH, DSYM_FILE_NAME),
+      File.join('fastlane/artifacts', DSYM_FILE_NAME)
+    ].map { |p| File.expand_path(p) }.uniq
+
+    found_dsym_path = possible_dsym_paths.find { |path| File.exist?(path) }
+
+    if found_dsym_path
+      expanded_dsym_path = found_dsym_path
+      UI.message("✅ Найден dSYM файл: #{expanded_dsym_path}")
+    else
+      UI.important('⚠️  dSYM файл не найден. Проверялись пути:')
+      possible_dsym_paths.each { |p| UI.important("  - #{p}") }
+      UI.important('Это не критично, но может затруднить отладку крашей')
+    end
   end
 
   # Получение размера IPA файла
-  ipa_size_mb = File.size(IPA_FILE_PATH) / (1024.0 * 1024.0)
+  ipa_size_mb = File.size(expanded_ipa_path) / (1024.0 * 1024.0)
   ipa_size_gb = ipa_size_mb / 1024.0
 
   # Проверка размера IPA файла (лимит App Store: 4GB)
@@ -200,13 +237,13 @@ lane :build do |options|
   # ========================================================================
   # Вывод сообщения об успешном завершении и путей к артефактам
   UI.success('✅ Сборка завершена успешно')
-  UI.message("IPA: #{IPA_FILE_PATH}")
+  UI.message("IPA: #{expanded_ipa_path}")
   UI.message("Размер IPA: #{ipa_size_mb.round(2)}MB (#{ipa_size_gb.round(3)}GB)")
-  UI.message("dSYM: #{DSYM_FILE_PATH}")
+  UI.message("dSYM: #{expanded_dsym_path}")
 
   # Вывод размера dSYM, если файл существует
-  if File.exist?(DSYM_FILE_PATH)
-    dsym_size_mb = File.size(DSYM_FILE_PATH) / (1024.0 * 1024.0)
+  if File.exist?(expanded_dsym_path)
+    dsym_size_mb = File.size(expanded_dsym_path) / (1024.0 * 1024.0)
     UI.message("Размер dSYM: #{dsym_size_mb.round(2)}MB")
     add_metric('dsym_size_mb', dsym_size_mb.round(2)) if respond_to?(:add_metric)
   end
@@ -222,7 +259,7 @@ lane :build do |options|
                               'Версия' => version_number,
                               'Build' => build_number.to_s,
                               'Размер IPA' => "#{ipa_size_mb.round(2)}MB",
-                              'IPA' => File.basename(IPA_FILE_PATH)
+                              'IPA' => File.basename(expanded_ipa_path)
                             })
   end
 end

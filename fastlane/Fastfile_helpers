@@ -13,6 +13,7 @@ require 'time'
 require 'net/http'
 require 'uri'
 require 'json'
+require 'fileutils'
 
 # ==============================================================================
 # RETRY ЛОГИКА
@@ -249,6 +250,10 @@ class FastlaneMetrics
       timestamp: @start_time.iso8601,
       metrics: @metrics
     }
+    
+    # Создание директории, если она не существует
+    file_dir = File.dirname(file_path)
+    FileUtils.mkdir_p(file_dir) unless File.directory?(file_dir)
     
     # Чтение существующих метрик
     existing_metrics = []
