@@ -108,7 +108,8 @@ end
 # ИМПОРТ ВСПОМОГАТЕЛЬНЫХ ФУНКЦИЙ
 # ==============================================================================
 # Импорт helpers для retry логики, уведомлений и метрик
-require_relative 'Fastfile_helpers'
+# Fastfile_helpers загружается через import_from_git dependencies
+# Функции будут доступны после импорта всех зависимостей
 
 # ==============================================================================
 # ИМПОРТ МОДУЛЬНЫХ FASTFILE
@@ -147,9 +148,9 @@ import_from_git(
 
 # Хук before_all выполняется перед запуском любого lane
 # Используется для общей инициализации и настройки окружения
-before_all do |lane, options|
-  # Начало сбора метрик для текущего lane
-  start_metrics(lane) if lane
+before_all do |lane, _options|
+  # Начало сбора метрик для текущего lane (если helpers доступны)
+  start_metrics(lane) if lane && respond_to?(:start_metrics)
 
   # Проверка и установка файла проекта по умолчанию
   check_and_set_project_file
@@ -177,10 +178,12 @@ end
 
 # Хук after_all выполняется после завершения любого lane
 # Используется для очистки и финализации
-after_all do |lane|
-  # Завершение сбора метрик и отправка уведомлений
-  send_telegram = ENV['TELEGRAM_ENABLED'] == 'true'
-  finish_metrics(send_to_telegram: send_telegram, save_to_file: true)
+after_all do |_lane|
+  # Завершение сбора метрик и отправка уведомлений (если helpers доступны)
+  if respond_to?(:finish_metrics)
+    send_telegram = ENV['TELEGRAM_ENABLED'] == 'true'
+    finish_metrics(send_to_telegram: send_telegram, save_to_file: true)
+  end
 
   # Очистка keychain после завершения
   clear_keychain
@@ -213,15 +216,15 @@ error do |lane, exception, _options|
   # Вывод сообщения об ошибке
   UI.error("❌ Ошибка в lane '#{lane}': #{exception.message}")
 
-  # Завершение метрик с информацией об ошибке
-  if $current_metrics
+  # Завершение метрик с информацией об ошибке (если helpers доступны)
+  if respond_to?(:finish_metrics) && defined?($current_metrics) && $current_metrics
     $current_metrics.add_metric('status', 'failed')
     $current_metrics.add_metric('error', exception.message)
     finish_metrics(send_to_telegram: ENV['TELEGRAM_ENABLED'] == 'true', save_to_file: true)
   end
 
-  # Отправка уведомления об ошибке в Telegram
-  if ENV['TELEGRAM_ENABLED'] == 'true'
+  # Отправка уведомления об ошибке в Telegram (если helpers доступны)
+  if ENV['TELEGRAM_ENABLED'] == 'true' && respond_to?(:notify_telegram_error)
     notify_telegram_error("Ошибка в lane '#{lane}'", exception, {
                             'Lane' => lane.to_s,
                             'Время' => Time.now.strftime('%Y-%m-%d %H:%M:%S')

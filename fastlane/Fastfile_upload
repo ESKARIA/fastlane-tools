@@ -228,8 +228,13 @@ lane :upload_testflight do |options|
       testflight_params[:groups] = groups_array
     end
 
-    # Загрузка в TestFlight с retry логикой
-    retry_with_backoff(max_retries: 3, delay: 5.0) do
+    # Загрузка в TestFlight с retry логикой (если доступна)
+    if respond_to?(:retry_with_backoff)
+      retry_with_backoff(max_retries: 3, delay: 5.0) do
+        testflight(**testflight_params)
+      end
+    else
+      # Если retry логика недоступна, выполняем без повторов
       testflight(**testflight_params)
     end
     
