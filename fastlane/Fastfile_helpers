@@ -39,8 +39,33 @@ def retry_with_backoff(max_retries: 3, delay: 5.0, retryable_errors: [StandardEr
     UI.message("Попытка #{attempts}/#{max_retries}...") if attempts > 1
     return block.call
   rescue *retryable_errors => e
-    if attempts < max_retries
+    error_message = e.message.to_s.downcase
+    
+    # Ошибки, которые не требуют повторной попытки (считаются успехом)
+    non_retryable_errors = [
+      'already submitted for review',
+      'cannot add internal group to a build',
+      'builds cannot be assigned to this internal group',
+      'already distributed',
+      'build already exists'
+    ]
+    
+    # Если ошибка указывает на то, что операция уже выполнена, считаем успехом
+    if non_retryable_errors.any? { |msg| error_message.include?(msg) }
+      UI.success("✅ Операция уже выполнена: #{e.message}")
+      return true
+    end
+    
+    # Проверяем, является ли ошибка сетевой (требующей повторной попытки)
+    if network_error?(e) && attempts < max_retries
       # Экспоненциальная задержка: delay * 2^(attempts-1)
+      wait_time = delay * (2 ** (attempts - 1))
+      UI.important("⚠️  Сетевая ошибка (попытка #{attempts}/#{max_retries}): #{e.message}")
+      UI.message("Повторная попытка через #{wait_time.round(1)} секунд...")
+      sleep(wait_time)
+      retry
+    elsif attempts < max_retries
+      # Для других ошибок также повторяем, но с предупреждением
       wait_time = delay * (2 ** (attempts - 1))
       UI.important("⚠️  Ошибка (попытка #{attempts}/#{max_retries}): #{e.message}")
       UI.message("Повторная попытка через #{wait_time.round(1)} секунд...")

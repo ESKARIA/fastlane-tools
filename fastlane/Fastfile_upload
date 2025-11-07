@@ -54,7 +54,7 @@ def get_changelog_from_git
   changelog = changelog_from_git_commits(
     between: [commit_of_last_tag.to_s, 'HEAD'],  # Диапазон коммитов
     pretty: '- %s',                              # Формат: "- Commit message"
-    merge_commit_filtering: 'exclude_merges'      # Исключить merge коммиты
+    merge_commit_filtering: 'exclude_merges' # Исключить merge коммиты
   )
 
   changelog.to_s
@@ -83,9 +83,7 @@ def find_ipa_files(search_path: 'artifacts')
   end
 
   # Проверка наличия найденных файлов
-  if ipa_paths.empty?
-    UI.user_error!("Не найдено ни одного IPA файла в директории: #{search_path}")
-  end
+  UI.user_error!("Не найдено ни одного IPA файла в директории: #{search_path}") if ipa_paths.empty?
 
   # Вывод информации о найденных файлах
   UI.success("Найдено IPA файлов: #{ipa_paths.count}")
@@ -218,56 +216,85 @@ lane :upload_testflight do |options|
       changelog: changelog,
       distribute_external: is_external,              # Автоматическое определение типа
       skip_waiting_for_build_processing: false,      # Ждать обработки сборки Apple
-      expire_previous_builds: false,                # Не удалять предыдущие сборки
+      expire_previous_builds: false,                 # Не удалять предыдущие сборки
       reject_build_waiting_for_review: true,         # Отклонить сборку, ожидающую рецензирования
       ipa: full_ipa_path
     }
 
     # Добавляем группы только для external testers
-    if is_external
-      testflight_params[:groups] = groups_array
-    end
+    testflight_params[:groups] = groups_array if is_external
 
     # Загрузка в TestFlight с retry логикой (если доступна)
+    upload_success = false
     if respond_to?(:retry_with_backoff)
-      retry_with_backoff(max_retries: 3, delay: 5.0) do
-        testflight(**testflight_params)
+      begin
+        retry_with_backoff(max_retries: 3, delay: 5.0) do
+          testflight(**testflight_params)
+          upload_success = true
+        end
+      rescue StandardError => e
+        # Если ошибка связана с тем, что сборка уже загружена/отправлена, считаем успехом
+        error_msg = e.message.to_s.downcase
+        if error_msg.include?('already submitted for review') ||
+           error_msg.include?('cannot add internal group') ||
+           error_msg.include?('builds cannot be assigned')
+          UI.success("✅ Сборка уже загружена и обработана: #{e.message}")
+          upload_success = true
+        else
+          raise e
+        end
       end
     else
       # Если retry логика недоступна, выполняем без повторов
-      testflight(**testflight_params)
+      begin
+        testflight(**testflight_params)
+        upload_success = true
+      rescue StandardError => e
+        # Обработка ошибок для случая без retry
+        error_msg = e.message.to_s.downcase
+        if error_msg.include?('already submitted for review') ||
+           error_msg.include?('cannot add internal group') ||
+           error_msg.include?('builds cannot be assigned')
+          UI.success("✅ Сборка уже загружена и обработана: #{e.message}")
+          upload_success = true
+        else
+          raise e
+        end
+      end
     end
-    
+
+    UI.user_error!("❌ Не удалось загрузить сборку: #{full_ipa_path}") unless upload_success
+
     # Добавление метрик о загрузке
-    add_metric("uploaded_ipa", full_ipa_path) if respond_to?(:add_metric)
+    add_metric('uploaded_ipa', full_ipa_path) if respond_to?(:add_metric)
   end
 
   # Сообщение об успешном завершении
   if is_external
     UI.success("✅ Сборка успешно загружена для external testers в группы: #{groups_array.join(', ')}")
-    
+
     # Отправка уведомления в Telegram (если включено)
     if ENV['TELEGRAM_ENABLED'] == 'true' && respond_to?(:notify_telegram_success)
-      notify_telegram_success("Сборка загружена для External Testers", {
-        'Версия' => ENV['APP_VERSION'] || 'не указана',
-        'Build' => BUILD_NUMBER.to_s,
-        'Группы' => groups_array.join(', ')
-      })
+      notify_telegram_success('Сборка загружена для External Testers', {
+                                'Версия' => ENV['APP_VERSION'] || 'не указана',
+                                'Build' => BUILD_NUMBER.to_s,
+                                'Группы' => groups_array.join(', ')
+                              })
     end
   else
     UI.success('✅ Загрузка завершена успешно (Internal Testers)')
-    
+
     # Отправка уведомления в Telegram (если включено)
     if ENV['TELEGRAM_ENABLED'] == 'true' && respond_to?(:notify_telegram_success)
-      notify_telegram_success("Сборка загружена для Internal Testers", {
-        'Версия' => ENV['APP_VERSION'] || 'не указана',
-        'Build' => BUILD_NUMBER.to_s
-      })
+      notify_telegram_success('Сборка загружена для Internal Testers', {
+                                'Версия' => ENV['APP_VERSION'] || 'не указана',
+                                'Build' => BUILD_NUMBER.to_s
+                              })
     end
   end
-  
+
   # Добавление метрик о количестве загруженных файлов
-  add_metric("uploaded_files_count", ipa_paths.count) if respond_to?(:add_metric)
+  add_metric('uploaded_files_count', ipa_paths.count) if respond_to?(:add_metric)
 end
 
 # Загружает IPA файл в TestFlight для External Testers
@@ -358,13 +385,13 @@ lane :upload_external_testflight do |options|
     # Загрузка в TestFlight для external testers
     testflight(api_key: api_key,
                app_identifier: app_identifier,
-               changelog: changelog,                    # Changelog обязателен для external testers
-               distribute_external: true,              # External testers (важно!)
-               groups: groups_array,                    # Массив групп external testers
+               changelog: changelog, # Changelog обязателен для external testers
+               distribute_external: true, # External testers (важно!)
+               groups: groups_array, # Массив групп external testers
                skip_waiting_for_build_processing: false, # Ждать обработки сборки Apple
                expire_previous_builds: false,          # Не удалять предыдущие сборки
                reject_build_waiting_for_review: true,  # Отклонить сборку, ожидающую рецензирования
-               ipa: full_ipa_path)                      # Путь к IPA файлу
+               ipa: full_ipa_path) # Путь к IPA файлу
   end
 
   # Сообщение об успешном завершении с указанием групп
