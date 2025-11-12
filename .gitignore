@@ -6,4 +6,5 @@ fastlane/report.xml
 fastlane/.env*
 *.md
 !README.md
+!docs/*.md
 fastlane/*.md

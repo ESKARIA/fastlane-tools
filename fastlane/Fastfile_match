@@ -19,16 +19,44 @@
 
 # Генерирует новые сертификаты и provisioning profiles через match
 #
+# Поддерживает несколько bundle identifiers через запятую в APP_IDENTIFIER.
+# Пример: "com.app.main,com.app.widget,com.app.watchkit"
+#
 # @param type [String] тип сертификата: 'development' или 'appstore'
 # @param git_branch [String] ветка git репозитория match для хранения сертификатов
 # @return [void]
 #
 # @example
+#   # Один идентификатор
 #   generate_match(type: 'development', git_branch: 'development')
+#
+#   # Несколько идентификаторов (через запятую в APP_IDENTIFIER)
+#   # APP_IDENTIFIER="com.app.main,com.app.widget"
+#   generate_match(type: 'appstore', git_branch: 'distribution')
 def generate_match(type:, git_branch:)
   # Валидация обязательных переменных окружения
   raise 'Has no APP_IDENTIFIER' unless APP_IDENTIFIER
   raise 'Has no APPSTORE_KEY_CONTENT' unless APPSTORE_KEY_CONTENT
+
+  # Получение всех bundle identifiers
+  # Поддержка нескольких bundle identifiers через запятую
+  app_identifiers = if respond_to?(:get_all_app_identifiers)
+                      get_all_app_identifiers
+                    else
+                      APP_IDENTIFIER.to_s.split(',').map(&:strip).reject(&:empty?)
+                    end
+
+  UI.user_error!('❌ APP_IDENTIFIER не установлен или пуст') if app_identifiers.empty?
+
+  # Информативный вывод о количестве идентификаторов
+  UI.message("Найдено bundle identifiers для match: #{app_identifiers.count}")
+  app_identifiers.each_with_index do |identifier, index|
+    UI.message("  #{index + 1}. #{identifier}")
+  end
+
+  # Match поддерживает как строку с запятыми, так и массив
+  # Используем строку с запятыми для совместимости
+  app_identifier_param = app_identifiers.join(',')
 
   # Настройка API ключа App Store Connect для работы с сертификатами
   api_key = app_store_connect_api_key(
@@ -41,7 +69,7 @@ def generate_match(type:, git_branch:)
 
   # Генерация сертификатов и профилей через match
   match(type: type,
-        app_identifier: APP_IDENTIFIER,
+        app_identifier: app_identifier_param,
         api_key: api_key,
         force_for_new_devices: true,        # Принудительно обновлять при добавлении новых устройств
         include_all_certificates: true,     # Включать все существующие сертификаты
@@ -58,16 +86,44 @@ end
 
 # Устанавливает существующие сертификаты и профили из match репозитория
 #
+# Поддерживает несколько bundle identifiers через запятую в APP_IDENTIFIER.
+# Пример: "com.app.main,com.app.widget,com.app.watchkit"
+#
 # @param type [String] тип сертификата: 'development' или 'appstore'
 # @param git_branch [String] ветка git репозитория match
 # @return [void]
 #
 # @example
+#   # Один идентификатор
+#   match_install(type: 'appstore', git_branch: 'distribution')
+#
+#   # Несколько идентификаторов (через запятую в APP_IDENTIFIER)
+#   # APP_IDENTIFIER="com.app.main,com.app.widget"
 #   match_install(type: 'appstore', git_branch: 'distribution')
 def match_install(type:, git_branch:)
+  # Получение всех bundle identifiers
+  # Поддержка нескольких bundle identifiers через запятую
+  app_identifiers = if respond_to?(:get_all_app_identifiers)
+                      get_all_app_identifiers
+                    else
+                      APP_IDENTIFIER.to_s.split(',').map(&:strip).reject(&:empty?)
+                    end
+
+  UI.user_error!('❌ APP_IDENTIFIER не установлен или пуст') if app_identifiers.empty?
+
+  # Информативный вывод о количестве идентификаторов
+  UI.message("Установка сертификатов для bundle identifiers: #{app_identifiers.count}")
+  app_identifiers.each_with_index do |identifier, index|
+    UI.message("  #{index + 1}. #{identifier}")
+  end
+
+  # Match поддерживает как строку с запятыми, так и массив
+  # Используем строку с запятыми для совместимости
+  app_identifier_param = app_identifiers.join(',')
+
   # Установка сертификатов и профилей в режиме только чтения
   match(type: type,
-        app_identifier: APP_IDENTIFIER,
+        app_identifier: app_identifier_param,
         include_all_certificates: true,      # Включать все существующие сертификаты
         clone_branch_directly: true,         # Клонировать указанную ветку напрямую
         fail_on_name_taken: true,            # Ошибка, если имя сертификата уже занято
@@ -168,16 +224,29 @@ end
 #   fastlane nuke_all
 desc 'Nuke (delete) all certificates and provisioning profiles'
 lane :nuke_all do |_options|
+  # Получение всех bundle identifiers
+  app_identifiers = if respond_to?(:get_all_app_identifiers)
+                      get_all_app_identifiers
+                    else
+                      APP_IDENTIFIER.to_s.split(',').map(&:strip).reject(&:empty?)
+                    end
+
+  UI.user_error!('❌ APP_IDENTIFIER не установлен или пуст') if app_identifiers.empty?
+
+  app_identifier_param = app_identifiers.join(',')
+
+  UI.important("⚠️  Удаление сертификатов для #{app_identifiers.count} bundle identifier(s)")
+
   # Удаление development сертификатов и профилей
   match(type: 'development',
-        app_identifier: APP_IDENTIFIER,
+        app_identifier: app_identifier_param,
         git_branch: 'development',
         skip_confirmation: true,           # Пропуск подтверждения (опасно!)
         safe_remove_certs: false)          # Небезопасное удаление (удаляет даже используемые)
 
   # Удаление App Store сертификатов и профилей
   match(type: 'appstore',
-        app_identifier: APP_IDENTIFIER,
+        app_identifier: app_identifier_param,
         git_branch: 'distribution',
         skip_confirmation: true, # Пропуск подтверждения
         safe_remove_certs: false) # Небезопасное удаление
@@ -200,6 +269,22 @@ lane :reset_all_profiles do
   raise 'Has no APP_IDENTIFIER' unless APP_IDENTIFIER
   raise 'Has no APPSTORE_KEY_CONTENT' unless APPSTORE_KEY_CONTENT
 
+  # Получение всех bundle identifiers
+  app_identifiers = if respond_to?(:get_all_app_identifiers)
+                      get_all_app_identifiers
+                    else
+                      APP_IDENTIFIER.to_s.split(',').map(&:strip).reject(&:empty?)
+                    end
+
+  UI.user_error!('❌ APP_IDENTIFIER не установлен или пуст') if app_identifiers.empty?
+
+  app_identifier_param = app_identifiers.join(',')
+
+  UI.message("Перегенерация сертификатов для bundle identifiers: #{app_identifiers.count}")
+  app_identifiers.each_with_index do |identifier, index|
+    UI.message("  #{index + 1}. #{identifier}")
+  end
+
   # Настройка API ключа App Store Connect
   api_key = app_store_connect_api_key(
     key_id: APPSTORE_KEY_ID,
@@ -211,7 +296,7 @@ lane :reset_all_profiles do
 
   # Перегенерация development сертификатов и профилей
   match(type: 'development',
-        app_identifier: APP_IDENTIFIER,
+        app_identifier: app_identifier_param,
         api_key: api_key,
         force_for_new_devices: true, # Обновлять при добавлении устройств
         include_all_certificates: true, # Включать все сертификаты
@@ -227,7 +312,7 @@ lane :reset_all_profiles do
 
   # Перегенерация App Store сертификатов и профилей
   match(type: 'appstore',
-        app_identifier: APP_IDENTIFIER,
+        app_identifier: app_identifier_param,
         api_key: api_key,
         force_for_new_devices: true,
         include_all_certificates: true,
