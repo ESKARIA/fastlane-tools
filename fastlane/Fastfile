@@ -162,9 +162,8 @@ before_all do |lane, _options|
 
   # Дополнительные действия на CI/CD машинах
   if ENV['CI']
-    # Очистка derived data для чистых сборок
-    clear_derived_data
     UI.message('Запуск на удаленной CI машине')
+    # Очистка derived data для чистых сборок
     clear_derived_data(derived_data_path: DERIVED_PATH)
 
     # Настройка API ключа App Store Connect для CI окружения

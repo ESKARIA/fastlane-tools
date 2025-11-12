@@ -196,7 +196,7 @@ lane :upload_testflight do |options|
   # Генерация changelog из git коммитов
   changelog = get_changelog_from_git
   # Получение bundle identifier приложения
-  app_identifier = ENV['APP_IDENTIFIER'].split(',').first
+  app_identifier = respond_to?(:get_primary_app_identifier) ? get_primary_app_identifier : ENV['APP_IDENTIFIER'].split(',').first
   # Поиск IPA файлов для загрузки
   ipa_paths = find_ipa_files
 
@@ -206,7 +206,11 @@ lane :upload_testflight do |options|
   # Загрузка каждого найденного IPA файла
   ipa_paths.each do |ipa_path|
     # Формирование полного пути к IPA файлу
-    full_ipa_path = ipa_path.start_with?('fastlane/') ? ipa_path : "fastlane/#{ipa_path}"
+    full_ipa_path = if respond_to?(:normalize_ipa_path)
+                      normalize_ipa_path(ipa_path)
+                    else
+                      (ipa_path.start_with?('fastlane/') ? ipa_path : "fastlane/#{ipa_path}")
+                    end
     UI.message("Загружаем: #{full_ipa_path}")
 
     # Формирование параметров для testflight action
@@ -366,7 +370,7 @@ lane :upload_external_testflight do |options|
   # Генерация changelog из git коммитов
   changelog = get_changelog_from_git
   # Получение bundle identifier приложения
-  app_identifier = ENV['APP_IDENTIFIER'].split(',').first
+  app_identifier = respond_to?(:get_primary_app_identifier) ? get_primary_app_identifier : ENV['APP_IDENTIFIER'].split(',').first
   # Поиск IPA файлов для загрузки
   ipa_paths = find_ipa_files
 
@@ -379,23 +383,85 @@ lane :upload_external_testflight do |options|
   # Загрузка каждого найденного IPA файла
   ipa_paths.each do |ipa_path|
     # Формирование полного пути к IPA файлу
-    full_ipa_path = ipa_path.start_with?('fastlane/') ? ipa_path : "fastlane/#{ipa_path}"
+    full_ipa_path = if respond_to?(:normalize_ipa_path)
+                      normalize_ipa_path(ipa_path)
+                    else
+                      (ipa_path.start_with?('fastlane/') ? ipa_path : "fastlane/#{ipa_path}")
+                    end
     UI.message("Загружаем: #{full_ipa_path}")
 
-    # Загрузка в TestFlight для external testers
-    testflight(api_key: api_key,
-               app_identifier: app_identifier,
-               changelog: changelog, # Changelog обязателен для external testers
-               distribute_external: true, # External testers (важно!)
-               groups: groups_array, # Массив групп external testers
-               skip_waiting_for_build_processing: false, # Ждать обработки сборки Apple
-               expire_previous_builds: false,          # Не удалять предыдущие сборки
-               reject_build_waiting_for_review: true,  # Отклонить сборку, ожидающую рецензирования
-               ipa: full_ipa_path) # Путь к IPA файлу
+    # Формирование параметров для testflight action
+    testflight_params = {
+      api_key: api_key,
+      app_identifier: app_identifier,
+      changelog: changelog, # Changelog обязателен для external testers
+      distribute_external: true, # External testers (важно!)
+      groups: groups_array, # Массив групп external testers
+      skip_waiting_for_build_processing: false, # Ждать обработки сборки Apple
+      expire_previous_builds: false, # Не удалять предыдущие сборки
+      reject_build_waiting_for_review: true, # Отклонить сборку, ожидающую рецензирования
+      ipa: full_ipa_path
+    }
+
+    # Загрузка в TestFlight с retry логикой (если доступна)
+    upload_success = false
+    if respond_to?(:retry_with_backoff)
+      begin
+        retry_with_backoff(max_retries: 3, delay: 5.0) do
+          testflight(**testflight_params)
+          upload_success = true
+        end
+      rescue StandardError => e
+        # Если ошибка связана с тем, что сборка уже загружена/отправлена, считаем успехом
+        error_msg = e.message.to_s.downcase
+        if error_msg.include?('already submitted for review') ||
+           error_msg.include?('cannot add internal group') ||
+           error_msg.include?('builds cannot be assigned')
+          UI.success("✅ Сборка уже загружена и обработана: #{e.message}")
+          upload_success = true
+        else
+          raise e
+        end
+      end
+    else
+      # Если retry логика недоступна, выполняем без повторов
+      begin
+        testflight(**testflight_params)
+        upload_success = true
+      rescue StandardError => e
+        # Обработка ошибок для случая без retry
+        error_msg = e.message.to_s.downcase
+        if error_msg.include?('already submitted for review') ||
+           error_msg.include?('cannot add internal group') ||
+           error_msg.include?('builds cannot be assigned')
+          UI.success("✅ Сборка уже загружена и обработана: #{e.message}")
+          upload_success = true
+        else
+          raise e
+        end
+      end
+    end
+
+    UI.user_error!("❌ Не удалось загрузить сборку: #{full_ipa_path}") unless upload_success
+
+    # Добавление метрик о загрузке
+    add_metric('uploaded_ipa', full_ipa_path) if respond_to?(:add_metric)
   end
 
   # Сообщение об успешном завершении с указанием групп
   UI.success("✅ Сборка успешно загружена для external testers в группы: #{groups_array.join(', ')}")
+
+  # Отправка уведомления в Telegram (если включено)
+  if ENV['TELEGRAM_ENABLED'] == 'true' && respond_to?(:notify_telegram_success)
+    notify_telegram_success('Сборка загружена для External Testers', {
+                              'Версия' => ENV['APP_VERSION'] || 'не указана',
+                              'Build' => BUILD_NUMBER.to_s,
+                              'Группы' => groups_array.join(', ')
+                            })
+  end
+
+  # Добавление метрик о количестве загруженных файлов
+  add_metric('uploaded_files_count', ipa_paths.count) if respond_to?(:add_metric)
 end
 
 # ==============================================================================

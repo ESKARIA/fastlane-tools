@@ -98,13 +98,16 @@ lane :pass_to_review do |_options| # rubocop:disable Lint/UnderscorePrefixedVari
                             in_house: false,
                             is_key_content_base64: true)
 
-  app_identifier = ENV['APP_IDENTIFIER'].split(',').first
+  app_identifier = respond_to?(:get_primary_app_identifier) ? get_primary_app_identifier : ENV['APP_IDENTIFIER'].split(',').first
   
   UI.header('Отправка на рецензирование в App Store')
   
   # ========================================================================
   # ПРОВЕРКА СУЩЕСТВОВАНИЯ СБОРКИ В TESTFLIGHT
   # ========================================================================
+  testflight_version = nil
+  testflight_build = nil
+  
   begin
     UI.message('Проверка существования сборки в TestFlight...')
     latest_testflight_build_number(app_identifier: app_identifier)
@@ -136,7 +139,7 @@ lane :pass_to_review do |_options| # rubocop:disable Lint/UnderscorePrefixedVari
   UI.message('Отправка приложения на рецензирование...')
   
   begin
-    deliver(app_version: lane_context[SharedValues::LATEST_TESTFLIGHT_VERSION],
+    deliver(app_version: testflight_version || lane_context[SharedValues::LATEST_TESTFLIGHT_VERSION],
             build_number: testflight_build || BUILD_NUMBER,
             submit_for_review: true,
             automatic_release: true,
@@ -264,7 +267,7 @@ end
 
 def beta_version_number
   # Используем Fastlane action для получения последнего номера сборки из TestFlight
-  app_identifier = ENV['APP_IDENTIFIER'].split(',').first # Замените на идентификатор вашего приложения
+  app_identifier = respond_to?(:get_primary_app_identifier) ? get_primary_app_identifier : ENV['APP_IDENTIFIER'].split(',').first # Замените на идентификатор вашего приложения
   beta_version = '0.0.0' # Значение по умолчанию
 
   begin
@@ -282,7 +285,7 @@ end
 
 def release_version_number
   # Используем Fastlane action для получения последнего номера сборки из App Store Connect
-  app_identifier = ENV['APP_IDENTIFIER'].split(',').first # Замените на идентификатор вашего приложения
+  app_identifier = respond_to?(:get_primary_app_identifier) ? get_primary_app_identifier : ENV['APP_IDENTIFIER'].split(',').first # Замените на идентификатор вашего приложения
   release_version = '0.0.0' # Значение по умолчанию
 
   begin

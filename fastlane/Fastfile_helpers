@@ -343,3 +343,92 @@ def add_metric(key, value)
   $current_metrics&.add_metric(key, value)
 end
 
+# ==============================================================================
+# РАБОТА С APP_IDENTIFIER
+# ==============================================================================
+
+# Получает все bundle identifiers из переменной окружения APP_IDENTIFIER
+#
+# Поддерживает несколько идентификаторов, разделенных запятой.
+# Пример: "com.app.main,com.app.widget,com.app.watchkit"
+#
+# @return [Array<String>] массив bundle identifiers (без пустых строк)
+#
+# @example
+#   identifiers = get_all_app_identifiers
+#   # => ["com.app.main", "com.app.widget"]
+def get_all_app_identifiers
+  APP_IDENTIFIER.to_s.split(',').map(&:strip).reject(&:empty?)
+end
+
+# Получает первый (основной) bundle identifier
+#
+# Используется для операций, которые требуют только один identifier
+# (например, загрузка в TestFlight, проверка версий).
+#
+# @return [String] первый bundle identifier
+# @raise [FastlaneCore::Interface::FastlaneError] если APP_IDENTIFIER не установлен
+#
+# @example
+#   identifier = get_primary_app_identifier
+#   # => "com.app.main"
+def get_primary_app_identifier
+  identifiers = get_all_app_identifiers
+  if identifiers.empty?
+    UI.user_error!('❌ APP_IDENTIFIER не установлен или пуст')
+  end
+  identifiers.first
+end
+
+# ==============================================================================
+# РАБОТА С ПУТЯМИ И ФАЙЛАМИ
+# ==============================================================================
+
+# Нормализует путь к IPA файлу
+#
+# Добавляет префикс 'fastlane/' если путь не начинается с него.
+# Используется для унификации путей к IPA файлам.
+#
+# @param ipa_path [String] путь к IPA файлу
+# @return [String] нормализованный путь
+#
+# @example
+#   normalize_ipa_path("artifacts/app.ipa")
+#   # => "fastlane/artifacts/app.ipa"
+#
+#   normalize_ipa_path("fastlane/artifacts/app.ipa")
+#   # => "fastlane/artifacts/app.ipa"
+def normalize_ipa_path(ipa_path)
+  ipa_path.start_with?('fastlane/') ? ipa_path : "fastlane/#{ipa_path}"
+end
+
+# Находит файлы по паттерну в указанных директориях
+#
+# Рекурсивно ищет файлы, соответствующие паттерну, в указанных директориях.
+# Используется для поиска IPA, dSYM и других артефактов.
+#
+# @param pattern [String] паттерн для поиска (например, "*.ipa", "*.dSYM.zip")
+# @param search_paths [Array<String>] массив путей для поиска
+# @return [Array<String>] массив найденных файлов (уникальные пути)
+#
+# @example
+#   ipa_files = find_artifact_files(pattern: "*.ipa", search_paths: [".", "artifacts"])
+#   # => ["./app.ipa", "artifacts/app.ipa"]
+def find_artifact_files(pattern:, search_paths: [])
+  require 'find'
+  found_files = []
+  
+  search_paths.each do |search_path|
+    expanded_path = File.expand_path(search_path)
+    next unless File.directory?(expanded_path)
+    
+    Find.find(expanded_path) do |path|
+      if File.file?(path) && File.fnmatch?(pattern, File.basename(path))
+        found_files << path
+      end
+    end
+  end
+  
+  found_files.uniq
+end
+

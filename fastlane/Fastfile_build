@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require 'fileutils'
+
 # ==============================================================================
 # Fastfile_build - Сборка iOS приложений
 # ==============================================================================
@@ -76,9 +78,9 @@ lane :build do |options|
   # ВАЛИДАЦИЯ ОБЯЗАТЕЛЬНЫХ ПЕРЕМЕННЫХ ОКРУЖЕНИЯ
   # ========================================================================
   # Проверка наличия маркетинговой версии
-  raise 'APP_VERSION не установлен' if ENV['APP_VERSION'].nil? || ENV['APP_VERSION'].empty?
+  UI.user_error!('❌ APP_VERSION не установлен') if ENV['APP_VERSION'].nil? || ENV['APP_VERSION'].empty?
   # Проверка наличия номера сборки
-  raise 'BUILD_NUMBER не установлен' if BUILD_NUMBER.nil? || BUILD_NUMBER.to_s.empty?
+  UI.user_error!('❌ BUILD_NUMBER не установлен') if BUILD_NUMBER.nil? || BUILD_NUMBER.to_s.empty?
 
   # Добавление метрик о версии и build number
   add_metric('version', ENV['APP_VERSION']) if respond_to?(:add_metric)
@@ -89,9 +91,9 @@ lane :build do |options|
   # ========================================================================
   # Создание директорий для хранения артефактов сборки
   # ~/.cache/apps/{TARGET}/ipa/ - для IPA файлов
-  sh("mkdir -p #{IPA_FOLDER_PATH}")
+  FileUtils.mkdir_p(File.expand_path(IPA_FOLDER_PATH))
   # ~/.cache/apps/{TARGET}/dsyms/ - для dSYM файлов
-  sh("mkdir -p #{DSYM_FOLDER_PATH}")
+  FileUtils.mkdir_p(File.expand_path(DSYM_FOLDER_PATH))
 
   # ========================================================================
   # УПРАВЛЕНИЕ ВЕРСИЯМИ
@@ -137,7 +139,7 @@ lane :build do |options|
   # ========================================================================
   # Получение всех bundle identifiers приложения
   # Поддержка нескольких bundle identifiers через запятую (2, 3 или больше)
-  app_identifiers = APP_IDENTIFIER.to_s.split(',').map(&:strip).reject(&:empty?)
+  app_identifiers = respond_to?(:get_all_app_identifiers) ? get_all_app_identifiers : APP_IDENTIFIER.to_s.split(',').map(&:strip).reject(&:empty?)
 
   UI.user_error!('❌ APP_IDENTIFIER не установлен или пуст') if app_identifiers.empty?
 
@@ -148,9 +150,8 @@ lane :build do |options|
 
   # Формирование provisioningProfiles для всех идентификаторов
   # Каждый идентификатор должен иметь соответствующий provisioning profile
-  provisioning_profiles = {}
-  app_identifiers.each do |identifier|
-    provisioning_profiles[identifier] = "match AppStore #{identifier}"
+  provisioning_profiles = app_identifiers.each_with_object({}) do |identifier, hash|
+    hash[identifier] = "match AppStore #{identifier}"
   end
 
   # Сборка приложения с использованием build_app action
