@@ -135,20 +135,30 @@ lane :build do |options|
   # ========================================================================
   # СБОРКА ПРИЛОЖЕНИЯ
   # ========================================================================
-  # Получение bundle identifier приложения
-  # Поддержка нескольких bundle identifiers через запятую
-  app_identifier = ENV['APP_IDENTIFIER'].to_s.split(',').first.strip
+  # Получение всех bundle identifiers приложения
+  # Поддержка нескольких bundle identifiers через запятую (2, 3 или больше)
+  app_identifiers = APP_IDENTIFIER.to_s.split(',').map(&:strip).reject(&:empty?)
+
+  UI.user_error!('❌ APP_IDENTIFIER не установлен или пуст') if app_identifiers.empty?
+
+  UI.message("Найдено bundle identifiers: #{app_identifiers.count}")
+  app_identifiers.each_with_index do |identifier, index|
+    UI.message("  #{index + 1}. #{identifier}")
+  end
+
+  # Формирование provisioningProfiles для всех идентификаторов
+  # Каждый идентификатор должен иметь соответствующий provisioning profile
+  provisioning_profiles = {}
+  app_identifiers.each do |identifier|
+    provisioning_profiles[identifier] = "match AppStore #{identifier}"
+  end
 
   # Сборка приложения с использованием build_app action
   build_app(
     scheme: MAIN_TARGET,                    # Схема для сборки (обычно название target)
     export_options: {
       distribution: 'app-store',            # Тип дистрибуции: для App Store
-      provisioningProfiles: {
-        # Mapping bundle identifier к provisioning profile
-        # Формат: "match AppStore {bundle_identifier}"
-        app_identifier => "match AppStore #{app_identifier}"
-      },
+      provisioningProfiles: provisioning_profiles, # Mapping всех bundle identifiers к provisioning profiles
       signingStyle: 'manual' # Ручная подпись через match
     },
     cloned_source_packages_path: 'SourcePackages', # Путь к Swift Package Manager зависимостям

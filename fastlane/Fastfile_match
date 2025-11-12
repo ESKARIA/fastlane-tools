@@ -44,12 +44,12 @@ def generate_match(type:, git_branch:)
         app_identifier: APP_IDENTIFIER,
         api_key: api_key,
         force_for_new_devices: true,        # Принудительно обновлять при добавлении новых устройств
-        include_all_certificates: true,      # Включать все существующие сертификаты
+        include_all_certificates: true,     # Включать все существующие сертификаты
         force_for_new_certificates: true,   # Принудительно создавать новые сертификаты при необходимости
-        clone_branch_directly: true,         # Клонировать указанную ветку напрямую
+        clone_branch_directly: true,        # Клонировать указанную ветку напрямую
         readonly: false,                    # Режим записи (разрешает создание/обновление)
         fail_on_name_taken: true,           # Ошибка, если имя сертификата уже занято
-        force: true,                         # Принудительное обновление существующих сертификатов
+        force: true,                        # Принудительное обновление существующих сертификатов
         platform: 'ios',
         verbose: true,                      # Подробный вывод информации
         generate_apple_certs: true,         # Генерировать сертификаты в Apple Developer Portal
@@ -70,12 +70,12 @@ def match_install(type:, git_branch:)
         app_identifier: APP_IDENTIFIER,
         include_all_certificates: true,      # Включать все существующие сертификаты
         clone_branch_directly: true,         # Клонировать указанную ветку напрямую
-        fail_on_name_taken: true,           # Ошибка, если имя сертификата уже занято
-        readonly: true,                     # Режим только чтения (не создает новые сертификаты)
+        fail_on_name_taken: true,            # Ошибка, если имя сертификата уже занято
+        readonly: true,                      # Режим только чтения (не создает новые сертификаты)
         force: false,                        # Не принуждать обновление
         platform: 'ios',
-        verbose: true,                      # Подробный вывод информации
-        git_branch: git_branch)             # Ветка git репозитория
+        verbose: true,                       # Подробный вывод информации
+        git_branch: git_branch)              # Ветка git репозитория
 end
 
 # ==============================================================================
@@ -179,8 +179,8 @@ lane :nuke_all do |_options|
   match(type: 'appstore',
         app_identifier: APP_IDENTIFIER,
         git_branch: 'distribution',
-        skip_confirmation: true,           # Пропуск подтверждения
-        safe_remove_certs: false)         # Небезопасное удаление
+        skip_confirmation: true, # Пропуск подтверждения
+        safe_remove_certs: false) # Небезопасное удаление
 end
 
 # Полностью перегенерирует все сертификаты и профили
@@ -213,8 +213,8 @@ lane :reset_all_profiles do
   match(type: 'development',
         app_identifier: APP_IDENTIFIER,
         api_key: api_key,
-        force_for_new_devices: true,        # Обновлять при добавлении устройств
-        include_all_certificates: true,      # Включать все сертификаты
+        force_for_new_devices: true, # Обновлять при добавлении устройств
+        include_all_certificates: true, # Включать все сертификаты
         force_for_new_certificates: true,   # Принудительно создавать новые
         clone_branch_directly: true,
         readonly: false,                    # Режим записи
