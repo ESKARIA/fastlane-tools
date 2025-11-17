@@ -224,9 +224,10 @@ error do |lane, exception, _options|
 
   # Отправка уведомления об ошибке в Telegram (если helpers доступны)
   if ENV['TELEGRAM_ENABLED'] == 'true' && respond_to?(:notify_telegram_error)
-    notify_telegram_error("Ошибка в lane '#{lane}'", exception, {
+    notify_telegram_error("Ошибка выполнения lane", exception, {
                             'Lane' => lane.to_s,
-                            'Время' => Time.now.strftime('%Y-%m-%d %H:%M:%S')
+                            'Время' => Time.now.strftime('%Y-%m-%d %H:%M:%S'),
+                            'Проект' => ENV['CI_PROJECT_NAME'] || ENV['GITHUB_REPOSITORY'] || 'не указан'
                           })
   end
 end

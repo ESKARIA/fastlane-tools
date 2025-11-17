@@ -168,10 +168,44 @@ def send_telegram_notification(message, bot_token: nil, chat_id: nil, parse_mode
   end
 end
 
+# Получает ссылку на pipeline/job из переменных окружения CI/CD
+#
+# Поддерживает:
+# - GitLab CI: CI_PIPELINE_URL, CI_JOB_URL
+# - GitHub Actions: GITHUB_SERVER_URL, GITHUB_REPOSITORY, GITHUB_RUN_ID
+# - Jenkins: BUILD_URL, JOB_URL
+#
+# @return [String, nil] ссылка на pipeline или nil, если не найдена
+def get_pipeline_url
+  # GitLab CI
+  if ENV['CI_PIPELINE_URL']
+    return ENV['CI_PIPELINE_URL']
+  elsif ENV['CI_JOB_URL']
+    return ENV['CI_JOB_URL']
+  elsif ENV['CI_PROJECT_URL'] && ENV['CI_PIPELINE_IID']
+    return "#{ENV['CI_PROJECT_URL']}/-/pipelines/#{ENV['CI_PIPELINE_IID']}"
+  end
+  
+  # GitHub Actions
+  if ENV['GITHUB_SERVER_URL'] && ENV['GITHUB_REPOSITORY'] && ENV['GITHUB_RUN_ID']
+    return "#{ENV['GITHUB_SERVER_URL']}/#{ENV['GITHUB_REPOSITORY']}/actions/runs/#{ENV['GITHUB_RUN_ID']}"
+  end
+  
+  # Jenkins
+  if ENV['BUILD_URL']
+    return ENV['BUILD_URL']
+  elsif ENV['JOB_URL']
+    return ENV['JOB_URL']
+  end
+  
+  nil
+end
+
 # Форматирует сообщение для Telegram с эмодзи и HTML тегами
 #
 # @param title [String] заголовок сообщения
 # @param details [Hash] детали сообщения
+# @param include_pipeline_link [Boolean] включать ли ссылку на pipeline (по умолчанию true)
 # @return [String] отформатированное сообщение
 #
 # @example
@@ -179,11 +213,52 @@ end
 #     "Версия" => "1.2.3",
 #     "Build" => "456"
 #   })
-def format_telegram_message(title, details = {})
-  message = "<b>#{title}</b>\n\n"
+def format_telegram_message(title, details = {}, include_pipeline_link: true)
+  message = "<b>#{title}</b>\n"
+  message += "━━━━━━━━━━━━━━━━━━━━\n\n"
   
+  # Добавление деталей
   details.each do |key, value|
-    message += "<b>#{key}:</b> #{value}\n"
+    # Форматирование специальных значений
+    formatted_value = if value.is_a?(Float)
+                        value.round(2).to_s
+                      elsif value.is_a?(Array)
+                        value.join(', ')
+                      else
+                        value.to_s
+                      end
+    
+    # Эмодзи для ключевых полей
+    emoji = case key.to_s.downcase
+            when /версия|version/
+              '📱'
+            when /build|сборка/
+              '🔢'
+            when /размер|size/
+              '📦'
+            when /ipa|файл|file/
+              '📄'
+            when /группы|groups/
+              '👥'
+            when /время|time|duration/
+              '⏱️'
+            when /lane/
+              '🛣️'
+            when /ошибка|error/
+              '❌'
+            else
+              '•'
+            end
+    
+    message += "#{emoji} <b>#{key}:</b> <code>#{formatted_value}</code>\n"
+  end
+  
+  # Добавление ссылки на pipeline
+  if include_pipeline_link
+    pipeline_url = get_pipeline_url
+    if pipeline_url
+      message += "\n🔗 <a href=\"#{pipeline_url}\">Открыть Pipeline</a>\n"
+    end
   end
   
   message
@@ -193,8 +268,22 @@ end
 #
 # @param title [String] заголовок уведомления
 # @param details [Hash] детали (версия, build, время и т.д.)
-def notify_telegram_success(title, details = {})
-  message = format_telegram_message("✅ #{title}", details)
+# @param include_pipeline_link [Boolean] включать ли ссылку на pipeline
+def notify_telegram_success(title, details = {}, include_pipeline_link: true)
+  # Добавление дополнительной информации, если доступна
+  enhanced_details = details.dup
+  
+  # Добавление времени выполнения, если доступны метрики
+  if defined?($current_metrics) && $current_metrics && $current_metrics.metrics[:duration_formatted]
+    enhanced_details['Время выполнения'] = $current_metrics.metrics[:duration_formatted]
+  end
+  
+  # Добавление информации о lane, если доступна
+  if defined?($current_metrics) && $current_metrics && $current_metrics.lane_name
+    enhanced_details['Lane'] = $current_metrics.lane_name
+  end
+  
+  message = format_telegram_message("✅ #{title}", enhanced_details, include_pipeline_link: include_pipeline_link)
   send_telegram_notification(message)
 end
 
@@ -203,9 +292,32 @@ end
 # @param title [String] заголовок уведомления
 # @param error [Exception] ошибка
 # @param details [Hash] дополнительные детали
-def notify_telegram_error(title, error, details = {})
-  error_details = details.merge("Ошибка" => error.message)
-  message = format_telegram_message("❌ #{title}", error_details)
+# @param include_pipeline_link [Boolean] включать ли ссылку на pipeline
+def notify_telegram_error(title, error, details = {}, include_pipeline_link: true)
+  error_details = details.dup
+  
+  # Добавление информации об ошибке
+  error_message = error.message.to_s
+  # Ограничиваем длину сообщения об ошибке для читаемости
+  if error_message.length > 200
+    error_message = error_message[0..200] + "..."
+  end
+  error_details['Ошибка'] = error_message
+  
+  # Добавление типа ошибки
+  error_details['Тип ошибки'] = error.class.name
+  
+  # Добавление времени выполнения, если доступны метрики
+  if defined?($current_metrics) && $current_metrics && $current_metrics.metrics[:duration_formatted]
+    error_details['Время до ошибки'] = $current_metrics.metrics[:duration_formatted]
+  end
+  
+  # Добавление информации о lane
+  if defined?($current_metrics) && $current_metrics && $current_metrics.lane_name
+    error_details['Lane'] = $current_metrics.lane_name
+  end
+  
+  message = format_telegram_message("❌ #{title}", error_details, include_pipeline_link: include_pipeline_link)
   send_telegram_notification(message)
 end
 

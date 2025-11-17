@@ -282,7 +282,8 @@ lane :upload_testflight do |options|
       notify_telegram_success('Сборка загружена для External Testers', {
                                 'Версия' => ENV['APP_VERSION'] || 'не указана',
                                 'Build' => BUILD_NUMBER.to_s,
-                                'Группы' => groups_array.join(', ')
+                                'Группы' => groups_array,
+                                'Загружено файлов' => ipa_paths.count.to_s
                               })
     end
   else
@@ -292,7 +293,8 @@ lane :upload_testflight do |options|
     if ENV['TELEGRAM_ENABLED'] == 'true' && respond_to?(:notify_telegram_success)
       notify_telegram_success('Сборка загружена для Internal Testers', {
                                 'Версия' => ENV['APP_VERSION'] || 'не указана',
-                                'Build' => BUILD_NUMBER.to_s
+                                'Build' => BUILD_NUMBER.to_s,
+                                'Загружено файлов' => ipa_paths.count.to_s
                               })
     end
   end
@@ -456,7 +458,8 @@ lane :upload_external_testflight do |options|
     notify_telegram_success('Сборка загружена для External Testers', {
                               'Версия' => ENV['APP_VERSION'] || 'не указана',
                               'Build' => BUILD_NUMBER.to_s,
-                              'Группы' => groups_array.join(', ')
+                              'Группы' => groups_array,
+                              'Загружено файлов' => ipa_paths.count.to_s
                             })
   end
 

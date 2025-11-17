@@ -266,11 +266,12 @@ lane :build do |options|
 
   # Отправка уведомления в Telegram (если включено)
   if ENV['TELEGRAM_ENABLED'] == 'true' && respond_to?(:notify_telegram_success)
-    notify_telegram_success('Сборка завершена', {
+    notify_telegram_success('Сборка завершена успешно', {
                               'Версия' => version_number,
                               'Build' => build_number.to_s,
-                              'Размер IPA' => "#{ipa_size_mb.round(2)}MB",
-                              'IPA' => File.basename(expanded_ipa_path)
+                              'Размер IPA' => "#{ipa_size_mb.round(2)}MB (#{ipa_size_gb.round(3)}GB)",
+                              'IPA файл' => File.basename(expanded_ipa_path),
+                              'dSYM' => File.exist?(expanded_dsym_path) ? File.basename(expanded_dsym_path) : 'не найден'
                             })
   end
 end
