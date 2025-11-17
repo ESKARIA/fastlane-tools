@@ -346,6 +346,69 @@ class FastlaneMetrics
     @start_time = Time.now
     @end_time = nil
     @metrics = {}
+
+    # Автоматическое добавление базовой контекстной информации
+    add_context_metrics
+  end
+
+  # Добавляет базовую контекстную информацию о проекте
+  def add_context_metrics
+    # Информация о проекте
+    project_name = ENV['CI_PROJECT_NAME'] || ENV['GITHUB_REPOSITORY'] || ENV['CI_PROJECT_PATH'] || 'не указан'
+    @metrics[:project] = project_name
+
+    # Target приложения
+    if defined?(MAIN_TARGET) && MAIN_TARGET
+      @metrics[:target] = MAIN_TARGET.to_s
+    elsif ENV['MAIN_TARGET']
+      @metrics[:target] = ENV['MAIN_TARGET']
+    end
+
+    # Версия приложения
+    @metrics[:version] = ENV['APP_VERSION'] if ENV['APP_VERSION'] && !ENV['APP_VERSION'].empty?
+
+    # Build number
+    if defined?(BUILD_NUMBER) && BUILD_NUMBER
+      @metrics[:build_number] = BUILD_NUMBER.to_s
+    elsif ENV['CI_PIPELINE_IID']
+      @metrics[:build_number] = ENV['CI_PIPELINE_IID']
+    elsif ENV['BUILD_NUMBER']
+      @metrics[:build_number] = ENV['BUILD_NUMBER']
+    end
+
+    # CI/CD система
+    @metrics[:ci_system] = if ENV['CI']
+                             if ENV['CI_PIPELINE_URL'] || ENV['CI_JOB_URL']
+                               'GitLab CI'
+                             elsif ENV['GITHUB_SERVER_URL']
+                               'GitHub Actions'
+                             elsif ENV['BUILD_URL'] || ENV['JOB_URL']
+                               'Jenkins'
+                             else
+                               'CI/CD'
+                             end
+                           else
+                             'Local'
+                           end
+
+    # Pipeline URL (если доступен)
+    # Вызываем глобальную функцию get_pipeline_url
+    begin
+      # Функция определена в том же файле, поэтому доступна в контексте
+      pipeline_url = get_pipeline_url
+      @metrics[:pipeline_url] = pipeline_url if pipeline_url
+    rescue StandardError
+      # Если функция недоступна, просто пропускаем
+    end
+
+    # Pipeline ID
+    if ENV['CI_PIPELINE_IID']
+      @metrics[:pipeline_id] = ENV['CI_PIPELINE_IID']
+    elsif ENV['GITHUB_RUN_ID']
+      @metrics[:pipeline_id] = ENV['GITHUB_RUN_ID']
+    elsif ENV['BUILD_NUMBER']
+      @metrics[:pipeline_id] = ENV['BUILD_NUMBER']
+    end
   end
 
   # Добавляет метрику
@@ -378,17 +441,130 @@ class FastlaneMetrics
   # Выводит метрики в консоль
   def print
     UI.header("📊 Метрики выполнения: #{@lane_name}")
+
+    # Группировка метрик по категориям для лучшей читаемости
+    context_metrics = {}
+    custom_metrics = {}
+    time_metrics = {}
+
     @metrics.each do |key, value|
-      UI.message("#{key}: #{value}")
+      case key.to_s
+      when /^(project|target|version|build_number|ci_system|pipeline|app_identifier)$/
+        context_metrics[key] = value
+      when /^(duration|time)/
+        time_metrics[key] = value
+      else
+        custom_metrics[key] = value
+      end
     end
+
+    # Вывод контекстной информации
+    unless context_metrics.empty?
+      UI.message('📋 Контекст:')
+      context_metrics.each do |key, value|
+        UI.message("  #{format_metric_key(key)}: #{value}")
+      end
+    end
+
+    # Вывод временных метрик
+    unless time_metrics.empty?
+      UI.message('⏱️  Время выполнения:')
+      time_metrics.each do |key, value|
+        UI.message("  #{format_metric_key(key)}: #{value}")
+      end
+    end
+
+    # Вывод пользовательских метрик
+    return if custom_metrics.empty?
+
+    UI.message('📈 Дополнительные метрики:')
+    custom_metrics.each do |key, value|
+      UI.message("  #{format_metric_key(key)}: #{value}")
+    end
+  end
+
+  # Форматирует ключ метрики для вывода
+  def format_metric_key(key)
+    key.to_s.gsub('_', ' ').split.map(&:capitalize).join(' ')
   end
 
   # Возвращает метрики в виде строки для Telegram
   def to_telegram_message
-    message = "<b>📊 Метрики: #{@lane_name}</b>\n\n"
+    message = "<b>📊 Метрики: #{@lane_name}</b>\n"
+    message += "━━━━━━━━━━━━━━━━━━━━\n\n"
+
+    # Группировка метрик для лучшей читаемости
+    context_metrics = {}
+    custom_metrics = {}
+    time_metrics = {}
+
     @metrics.each do |key, value|
-      message += "<b>#{key}:</b> #{value}\n"
+      case key.to_s
+      when /^(project|target|version|build_number|ci_system|pipeline|app_identifier)$/
+        context_metrics[key] = value
+      when /^(duration|time)/
+        time_metrics[key] = value
+      else
+        custom_metrics[key] = value
+      end
     end
+
+    # Контекстная информация
+    unless context_metrics.empty?
+      context_metrics.each do |key, value|
+        emoji = case key.to_s
+                when 'project'
+                  '📁'
+                when 'target'
+                  '🎯'
+                when 'version'
+                  '📱'
+                when 'build_number'
+                  '🔢'
+                when 'ci_system'
+                  '🔄'
+                when 'pipeline_id'
+                  '🔗'
+                else
+                  '•'
+                end
+        message += "#{emoji} <b>#{format_metric_key(key)}:</b> <code>#{value}</code>\n"
+      end
+      message += "\n"
+    end
+
+    # Временные метрики
+    unless time_metrics.empty?
+      time_metrics.each do |key, value|
+        message += "⏱️  <b>#{format_metric_key(key)}:</b> <code>#{value}</code>\n"
+      end
+      message += "\n"
+    end
+
+    # Пользовательские метрики
+    unless custom_metrics.empty?
+      custom_metrics.each do |key, value|
+        emoji = case key.to_s
+                when /size|размер/
+                  '📦'
+                when /file|файл|ipa|dsym/
+                  '📄'
+                when /status|статус/
+                  '✅'
+                when /error|ошибка/
+                  '❌'
+                when /count|количество/
+                  '🔢'
+                else
+                  '•'
+                end
+        message += "#{emoji} <b>#{format_metric_key(key)}:</b> <code>#{value}</code>\n"
+      end
+    end
+
+    # Добавление ссылки на pipeline, если доступна
+    message += "\n🔗 <a href=\"#{@metrics[:pipeline_url]}\">Открыть Pipeline</a>\n" if @metrics[:pipeline_url]
+
     message
   end
 
@@ -397,6 +573,16 @@ class FastlaneMetrics
     metrics_data = {
       lane: @lane_name,
       timestamp: @start_time.iso8601,
+      end_time: @end_time&.iso8601,
+      # Контекстная информация для удобного поиска
+      context: {
+        project: @metrics[:project],
+        target: @metrics[:target],
+        version: @metrics[:version],
+        build_number: @metrics[:build_number],
+        ci_system: @metrics[:ci_system],
+        pipeline_id: @metrics[:pipeline_id]
+      },
       metrics: @metrics
     }
 
