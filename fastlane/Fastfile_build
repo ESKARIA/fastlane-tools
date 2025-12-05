@@ -87,12 +87,12 @@ lane :build do |options|
   add_metric('build_number', BUILD_NUMBER.to_s) if respond_to?(:add_metric)
 
   # Отправка уведомления о начале сборки в Telegram (если включено)
-  if ENV['TELEGRAM_ENABLED'] == 'true' && respond_to?(:notify_telegram_start)
-    notify_telegram_start('Начало сборки приложения', {
-                            'Версия' => ENV['APP_VERSION'],
-                            'Build' => BUILD_NUMBER.to_s,
-                            'Target' => MAIN_TARGET.to_s
-                          })
+  if ENV['TELEGRAM_ENABLED'] == 'true' && respond_to?(:notify_telegram_stage)
+    notify_telegram_stage('Начало сборки приложения', {
+                           'Версия' => ENV['APP_VERSION'],
+                           'Build' => BUILD_NUMBER.to_s,
+                           'Target' => MAIN_TARGET.to_s
+                         })
   end
 
   # ========================================================================
@@ -274,6 +274,7 @@ lane :build do |options|
   add_metric('status', 'success') if respond_to?(:add_metric)
 
   # Отправка уведомления в Telegram (если включено)
+  # Метрики автоматически включаются в сообщение через notify_telegram_success
   if ENV['TELEGRAM_ENABLED'] == 'true' && respond_to?(:notify_telegram_success)
     notify_telegram_success('Сборка завершена успешно', {
                               'Версия' => version_number,
@@ -282,6 +283,6 @@ lane :build do |options|
                               'Размер IPA' => "#{ipa_size_mb.round(2)}MB (#{ipa_size_gb.round(3)}GB)",
                               'IPA файл' => File.basename(expanded_ipa_path),
                               'dSYM' => File.exist?(expanded_dsym_path) ? File.basename(expanded_dsym_path) : 'не найден'
-                            })
+                            }, include_metrics: true)
   end
 end

@@ -178,10 +178,10 @@ end
 # Хук after_all выполняется после завершения любого lane
 # Используется для очистки и финализации
 after_all do |_lane|
-  # Завершение сбора метрик и отправка уведомлений (если helpers доступны)
+  # Завершение сбора метрик (метрики автоматически включаются в финальные уведомления)
+  # send_to_telegram: false, так как метрики уже включены в notify_telegram_success
   if respond_to?(:finish_metrics)
-    send_telegram = ENV['TELEGRAM_ENABLED'] == 'true'
-    finish_metrics(send_to_telegram: send_telegram, save_to_file: true)
+    finish_metrics(send_to_telegram: false, save_to_file: true)
   end
 
   # Очистка keychain после завершения
@@ -219,7 +219,8 @@ error do |lane, exception, _options|
   if respond_to?(:finish_metrics) && defined?($current_metrics) && $current_metrics
     $current_metrics.add_metric('status', 'failed')
     $current_metrics.add_metric('error', exception.message)
-    finish_metrics(send_to_telegram: ENV['TELEGRAM_ENABLED'] == 'true', save_to_file: true)
+    # Метрики не отправляются отдельно, так как они включены в notify_telegram_error
+    finish_metrics(send_to_telegram: false, save_to_file: true)
   end
 
   # Отправка уведомления об ошибке в Telegram (если helpers доступны)

@@ -191,6 +191,16 @@ lane :upload_testflight do |options|
   # ========================================================================
   # ПОДГОТОВКА К ЗАГРУЗКЕ
   # ========================================================================
+  # Отправка уведомления о начале загрузки в TestFlight (если включено)
+  if ENV['TELEGRAM_ENABLED'] == 'true' && respond_to?(:notify_telegram_stage)
+    notify_telegram_stage("Начало загрузки в TestFlight (#{is_external ? 'External' : 'Internal'})", {
+                           'Версия' => ENV['APP_VERSION'] || 'не указана',
+                           'Build' => BUILD_NUMBER.to_s,
+                           'Target' => MAIN_TARGET.to_s,
+                           'Тип' => is_external ? 'External Testers' : 'Internal Testers'
+                         })
+  end
+
   # Настройка API ключа для App Store Connect
   api_key = setup_api_key
   # Генерация changelog из git коммитов
@@ -278,6 +288,7 @@ lane :upload_testflight do |options|
     UI.success("✅ Сборка успешно загружена для external testers в группы: #{groups_array.join(', ')}")
 
     # Отправка уведомления в Telegram (если включено)
+    # Метрики автоматически включаются в сообщение через notify_telegram_success
     if ENV['TELEGRAM_ENABLED'] == 'true' && respond_to?(:notify_telegram_success)
       notify_telegram_success('Сборка загружена для External Testers', {
                                 'Версия' => ENV['APP_VERSION'] || 'не указана',
@@ -285,24 +296,26 @@ lane :upload_testflight do |options|
                                 'Target' => MAIN_TARGET.to_s,
                                 'Группы' => groups_array,
                                 'Загружено файлов' => ipa_paths.count.to_s
-                              })
+                              }, include_metrics: true)
     end
   else
     UI.success('✅ Загрузка завершена успешно (Internal Testers)')
 
     # Отправка уведомления в Telegram (если включено)
+    # Метрики автоматически включаются в сообщение через notify_telegram_success
     if ENV['TELEGRAM_ENABLED'] == 'true' && respond_to?(:notify_telegram_success)
       notify_telegram_success('Сборка загружена для Internal Testers', {
                                 'Версия' => ENV['APP_VERSION'] || 'не указана',
                                 'Build' => BUILD_NUMBER.to_s,
                                 'Target' => MAIN_TARGET.to_s,
                                 'Загружено файлов' => ipa_paths.count.to_s
-                              })
+                              }, include_metrics: true)
     end
   end
 
   # Добавление метрик о количестве загруженных файлов
   add_metric('uploaded_files_count', ipa_paths.count) if respond_to?(:add_metric)
+  add_metric('status', 'success') if respond_to?(:add_metric)
 end
 
 # Загружает IPA файл в TestFlight для External Testers
@@ -369,6 +382,16 @@ lane :upload_external_testflight do |options|
   # ========================================================================
   # ПОДГОТОВКА К ЗАГРУЗКЕ
   # ========================================================================
+  # Отправка уведомления о начале загрузки в TestFlight (если включено)
+  if ENV['TELEGRAM_ENABLED'] == 'true' && respond_to?(:notify_telegram_stage)
+    notify_telegram_stage('Начало загрузки в TestFlight (External)', {
+                           'Версия' => ENV['APP_VERSION'] || 'не указана',
+                           'Build' => BUILD_NUMBER.to_s,
+                           'Target' => MAIN_TARGET.to_s,
+                           'Группы' => groups_array
+                         })
+  end
+
   # Настройка API ключа для App Store Connect
   api_key = setup_api_key
   # Генерация changelog из git коммитов
@@ -456,6 +479,7 @@ lane :upload_external_testflight do |options|
   UI.success("✅ Сборка успешно загружена для external testers в группы: #{groups_array.join(', ')}")
 
   # Отправка уведомления в Telegram (если включено)
+  # Метрики автоматически включаются в сообщение через notify_telegram_success
   if ENV['TELEGRAM_ENABLED'] == 'true' && respond_to?(:notify_telegram_success)
     notify_telegram_success('Сборка загружена для External Testers', {
                               'Версия' => ENV['APP_VERSION'] || 'не указана',
@@ -463,11 +487,12 @@ lane :upload_external_testflight do |options|
                               'Target' => MAIN_TARGET.to_s,
                               'Группы' => groups_array,
                               'Загружено файлов' => ipa_paths.count.to_s
-                            })
+                            }, include_metrics: true)
   end
 
   # Добавление метрик о количестве загруженных файлов
   add_metric('uploaded_files_count', ipa_paths.count) if respond_to?(:add_metric)
+  add_metric('status', 'success') if respond_to?(:add_metric)
 end
 
 # ==============================================================================

@@ -2,6 +2,9 @@
 
 desc 'Upload symbols'
 lane :upload_dsyms do |options|
+  # Начало сбора метрик (если helpers доступны)
+  start_metrics('upload_dsyms') if respond_to?(:start_metrics)
+
   if UPLOAD_DSYMS_ENABLED
     UI.header('Загрузка символов (dSYM)')
   else
@@ -11,13 +14,26 @@ lane :upload_dsyms do |options|
 
   check_and_set_project_file
 
+  # Отправка уведомления о начале загрузки dSYM (если включено)
+  if ENV['TELEGRAM_ENABLED'] == 'true' && respond_to?(:notify_telegram_stage)
+    notify_telegram_stage('Начало загрузки символов (dSYM)', {
+                            'Версия' => ENV['APP_VERSION'] || 'не указана',
+                            'Build' => BUILD_NUMBER.to_s,
+                            'Target' => MAIN_TARGET.to_s
+                          })
+  end
+
   is_metrica = !HELPER_PATH.nil? && !HELPER_PATH.empty?
+  uploaded_to_metrica = false
+  uploaded_to_firebase = false
 
   if is_metrica
     UI.message("Путь к helper: #{HELPER_PATH}")
     UI.message('Загрузка dSYM в AppMetrica...')
     sh('chmod +x ./helper') if File.exist?('./helper')
     unzip_and_upload(options)
+    uploaded_to_metrica = true
+    add_metric('uploaded_to_appmetrica', true) if respond_to?(:add_metric)
   else
     UI.message('Пропуск загрузки в AppMetrica: путь к helper не настроен')
   end
@@ -37,8 +53,26 @@ lane :upload_dsyms do |options|
       UI.message("Найдено dSYM файлов: #{dsym_paths.count}")
       upload_symbols_to_crashlytics(dsym_paths: dsym_paths)
       UI.success('✅ dSYM успешно загружены в Firebase')
+      uploaded_to_firebase = true
+      add_metric('uploaded_to_firebase', true) if respond_to?(:add_metric)
+      add_metric('dsym_files_count', dsym_paths.count) if respond_to?(:add_metric)
     end
   end
+
+  # Отправка уведомления об успешной загрузке dSYM (если включено)
+  if ENV['TELEGRAM_ENABLED'] == 'true' && respond_to?(:notify_telegram_success)
+    upload_details = {
+      'Версия' => ENV['APP_VERSION'] || 'не указана',
+      'Build' => BUILD_NUMBER.to_s,
+      'Target' => MAIN_TARGET.to_s
+    }
+    upload_details['AppMetrica'] = uploaded_to_metrica ? 'да' : 'нет'
+    upload_details['Firebase'] = uploaded_to_firebase ? 'да' : 'нет'
+
+    notify_telegram_success('Загрузка символов (dSYM) завершена', upload_details)
+  end
+
+  add_metric('status', 'success') if respond_to?(:add_metric)
 end
 
 lane :unzip_and_upload do |_options|
@@ -78,3 +112,4 @@ lane :unzip_and_upload do |_options|
     end
   end
 end
+
