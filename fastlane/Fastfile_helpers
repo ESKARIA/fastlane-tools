@@ -213,13 +213,35 @@ end
 #     "Версия" => "1.2.3",
 #     "Build" => "456"
 #   })
-def format_telegram_message(title, details = {}, include_pipeline_link: true)
-  message = "<b>#{title}</b>\n"
-  message += "━━━━━━━━━━━━━━━━━━━━\n\n"
+def format_telegram_message(title, details = {}, include_pipeline_link: true, pipeline_url: nil)
+  safe_details = details || {}
 
-  # Добавление деталей
-  details.each do |key, value|
-    # Форматирование специальных значений
+  message = "<b>#{title}</b>\n"
+  message += "━━━━━━━━━━━━━━━━━━━━\n"
+
+  # Короткая сводка: target + версия + build
+  version_entry = safe_details.detect { |key, _| key.to_s.downcase.match?(/версия|version/) }
+  build_entry = safe_details.detect { |key, _| key.to_s.downcase.match?(/build|сборка/) }
+  target_entry = safe_details.detect { |key, _| key.to_s.downcase.match?(/target|таргет|scheme|схема/) }
+
+  summary_parts = []
+  summary_parts << "🎯 #{target_entry[1]}" if target_entry
+  summary_parts << "📱 v#{version_entry[1]}" if version_entry
+  summary_parts << "🔢 b#{build_entry[1]}" if build_entry
+  message += "\n#{summary_parts.join(' • ')}\n" unless summary_parts.empty?
+  message += "\n" if summary_parts.empty?
+
+  sections = {
+    main: [],
+    artifacts: [],
+    timing: [],
+    people: [],
+    errors: [],
+    misc: []
+  }
+
+  safe_details.each do |key, value|
+    normalized_key = key.to_s.downcase
     formatted_value = if value.is_a?(Float)
                         value.round(2).to_s
                       elsif value.is_a?(Array)
@@ -228,34 +250,64 @@ def format_telegram_message(title, details = {}, include_pipeline_link: true)
                         value.to_s
                       end
 
-    # Эмодзи для ключевых полей
-    emoji = case key.to_s.downcase
+    emoji = case normalized_key
             when /версия|version/
               '📱'
             when /build|сборка/
               '🔢'
             when /размер|size/
               '📦'
-            when /ipa|файл|file/
+            when /ipa|файл|file|path|путь|artifact|архив/
               '📄'
-            when /группы|groups/
+            when /группы|groups|tester|тест/
               '👥'
-            when /время|time|duration/
+            when /время|time|duration|speed/
               '⏱️'
-            when /lane/
+            when /lane|scheme|target/
               '🛣️'
-            when /ошибка|error/
+            when /ошибка|error|fail|exception/
               '❌'
             else
               '•'
             end
 
-    message += "#{emoji} <b>#{key}:</b> <code>#{formatted_value}</code>\n"
+    bucket = case normalized_key
+             when /версия|version|build|сборка|target|bundle|scheme|lane|project|app/
+               :main
+             when /ipa|d?sym|artifact|file|файл|путь|path|pkg|apk|size|размер|archive/
+               :artifacts
+             when /время|time|duration|speed/
+               :timing
+             when /group|tester|user|owner|team|команда|группа/
+               :people
+             when /ошибка|error|fail|exception|reason/
+               :errors
+             else
+               :misc
+             end
+
+    sections[bucket] << "#{emoji} <b>#{key}:</b> <code>#{formatted_value}</code>"
+  end
+
+  section_titles = {
+    main: '🧭 Контекст',
+    artifacts: '📦 Артефакты',
+    timing: '⏱️ Время',
+    people: '👥 Пользователи',
+    errors: '❌ Ошибки',
+    misc: '➕ Дополнительно'
+  }
+
+  sections.each do |bucket, lines|
+    next if lines.empty?
+
+    message += "\n<b>#{section_titles[bucket]}</b>\n"
+    lines.each { |line| message += "#{line}\n" }
   end
 
   # Добавление ссылки на pipeline
   if include_pipeline_link
-    pipeline_url = get_pipeline_url
+    pipeline_url ||= get_pipeline_url
     message += "\n🔗 <a href=\"#{pipeline_url}\">Открыть Pipeline</a>\n" if pipeline_url
   end
 
@@ -490,82 +542,42 @@ class FastlaneMetrics
 
   # Возвращает метрики в виде строки для Telegram
   def to_telegram_message
-    message = "<b>📊 Метрики: #{@lane_name}</b>\n"
-    message += "━━━━━━━━━━━━━━━━━━━━\n\n"
+    format_telegram_message(
+      "📊 Метрики: #{@lane_name}",
+      format_metrics_for_telegram,
+      include_pipeline_link: !!@metrics[:pipeline_url],
+      pipeline_url: @metrics[:pipeline_url]
+    )
+  end
 
-    # Группировка метрик для лучшей читаемости
-    context_metrics = {}
-    custom_metrics = {}
-    time_metrics = {}
+  def format_metrics_for_telegram
+    # Переводим базовые метрики в человекочитаемый вид
+    metric_details = {}
 
-    @metrics.each do |key, value|
-      case key.to_s
-      when /^(project|target|version|build_number|ci_system|pipeline|app_identifier)$/
-        context_metrics[key] = value
-      when /^(duration|time)/
-        time_metrics[key] = value
-      else
-        custom_metrics[key] = value
-      end
+    {
+      'Project' => @metrics[:project],
+      'Target' => @metrics[:target],
+      'Version' => @metrics[:version],
+      'Build' => @metrics[:build_number],
+      'CI' => @metrics[:ci_system],
+      'Pipeline ID' => @metrics[:pipeline_id],
+      'Duration (sec)' => @metrics[:duration_seconds],
+      'Duration' => @metrics[:duration_formatted],
+      'Start At' => @metrics[:start_time],
+      'End At' => @metrics[:end_time]
+    }.each do |label, value|
+      next if value.nil? || value.to_s.empty?
+
+      metric_details[label] = value
     end
 
-    # Контекстная информация
-    unless context_metrics.empty?
-      context_metrics.each do |key, value|
-        emoji = case key.to_s
-                when 'project'
-                  '📁'
-                when 'target'
-                  '🎯'
-                when 'version'
-                  '📱'
-                when 'build_number'
-                  '🔢'
-                when 'ci_system'
-                  '🔄'
-                when 'pipeline_id'
-                  '🔗'
-                else
-                  '•'
-                end
-        message += "#{emoji} <b>#{format_metric_key(key)}:</b> <code>#{value}</code>\n"
-      end
-      message += "\n"
+    # Добавляем пользовательские метрики как есть
+    custom_keys = @metrics.keys - %i[project target version build_number ci_system pipeline_id duration_seconds duration_formatted start_time end_time pipeline_url]
+    custom_keys.each do |key|
+      metric_details[format_metric_key(key)] = @metrics[key]
     end
 
-    # Временные метрики
-    unless time_metrics.empty?
-      time_metrics.each do |key, value|
-        message += "⏱️  <b>#{format_metric_key(key)}:</b> <code>#{value}</code>\n"
-      end
-      message += "\n"
-    end
-
-    # Пользовательские метрики
-    unless custom_metrics.empty?
-      custom_metrics.each do |key, value|
-        emoji = case key.to_s
-                when /size|размер/
-                  '📦'
-                when /file|файл|ipa|dsym/
-                  '📄'
-                when /status|статус/
-                  '✅'
-                when /error|ошибка/
-                  '❌'
-                when /count|количество/
-                  '🔢'
-                else
-                  '•'
-                end
-        message += "#{emoji} <b>#{format_metric_key(key)}:</b> <code>#{value}</code>\n"
-      end
-    end
-
-    # Добавление ссылки на pipeline, если доступна
-    message += "\n🔗 <a href=\"#{@metrics[:pipeline_url]}\">Открыть Pipeline</a>\n" if @metrics[:pipeline_url]
-
-    message
+    metric_details
   end
 
   # Сохраняет метрики в файл
