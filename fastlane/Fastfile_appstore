@@ -107,8 +107,6 @@ lane :check_released do |options|
       next status
     end
 
-    Spaceship::ConnectAPI.token = api_key if defined?(Spaceship::ConnectAPI) && api_key
-
     app = Spaceship::ConnectAPI::App.find(app_identifier)
 
     if app.nil?
