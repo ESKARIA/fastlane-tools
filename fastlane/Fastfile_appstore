@@ -136,8 +136,28 @@ lane :check_released do |options|
     status[:error] = e.message
     UI.important("⚠️  Ошибка при проверке релиза: #{e.message}")
   ensure
-    File.write('release_status.json', JSON.pretty_generate(status))
-    UI.message("Создан release_status.json: #{File.expand_path('release_status.json')}")
+    # Определяем путь к корню проекта (где находится fastlane/)
+    project_root = ENV['CI_PROJECT_DIR']
+    
+    unless project_root
+      # Если CI_PROJECT_DIR не установлен, определяем корень проекта
+      current_dir = Dir.pwd
+      # Если мы в fastlane/, поднимаемся на уровень выше
+      if File.basename(current_dir) == 'fastlane' || File.exist?(File.join(current_dir, 'Fastfile'))
+        project_root = current_dir
+      else
+        # Ищем директорию с Fastfile (корень проекта)
+        search_dir = current_dir
+        while search_dir != '/' && !File.exist?(File.join(search_dir, 'fastlane', 'Fastfile'))
+          search_dir = File.dirname(search_dir)
+        end
+        project_root = search_dir != '/' ? search_dir : current_dir
+      end
+    end
+    
+    release_status_path = File.join(project_root, 'release_status.json')
+    File.write(release_status_path, JSON.pretty_generate(status))
+    UI.message("Создан release_status.json: #{File.expand_path(release_status_path)}")
   end
 
   status
