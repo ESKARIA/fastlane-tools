@@ -66,6 +66,123 @@ lane :auto_release_branch do |options|
   UI.message("Старшая версия: #{version_number}")
 end
 
+desc 'Check if marketing version is released on the App Store and write release_status.json'
+lane :check_released do |options|
+  require 'json'
+  require 'time'
+  require 'spaceship'
+
+  version_string = options[:ver] || ENV['APP_VERSION']
+  identifiers = respond_to?(:get_all_app_identifiers) ? get_all_app_identifiers : APP_IDENTIFIER.to_s.split(',').map(&:strip).reject(&:empty?)
+  app_identifier = identifiers.first
+
+  status = {
+    app_identifier: app_identifier,
+    version: version_string.to_s,
+    released: false,
+    state: nil,
+    timestamp: Time.now.utc.iso8601
+  }
+
+  begin
+    if version_string.to_s.strip.empty?
+      status[:error] = 'Параметр ver не указан (пример: fastlane check_released ver:2.8.3)'
+      UI.important(status[:error])
+      next status
+    end
+
+    if app_identifier.nil? || app_identifier.empty?
+      status[:error] = 'APP_IDENTIFIER не указан'
+      UI.important(status[:error])
+      next status
+    end
+
+    UI.header("Проверка релиза #{version_string} для #{app_identifier}")
+
+    api_key = prepare_api_key_for_release_check
+
+    unless api_key
+      status[:error] = 'Не удалось настроить App Store Connect API ключ. Установите APPSTORE_KEY_CONTENT или APPSTORE_KEY_PATH.'
+      UI.important(status[:error])
+      next status
+    end
+
+    Spaceship::ConnectAPI.token = api_key if defined?(Spaceship::ConnectAPI) && api_key
+
+    app = Spaceship::ConnectAPI::App.find(app_identifier)
+
+    if app.nil?
+      status[:error] = "Приложение #{app_identifier} не найдено в App Store Connect"
+      status[:state] = 'NOT_FOUND'
+      UI.important(status[:error])
+      next status
+    end
+
+    versions = app.get_app_store_versions(filter: { versionString: version_string, platform: 'IOS' })
+    target_version = versions&.find { |v| v.version_string.to_s == version_string.to_s }
+
+    if target_version.nil?
+      status[:state] = 'NOT_FOUND'
+      UI.message("Версия #{version_string} не найдена в App Store Connect")
+      next status
+    end
+
+    state = target_version.app_store_state
+    status[:state] = state
+    status[:released] = state == 'READY_FOR_SALE' # READY_FOR_SALE считается опубликованной
+    status[:app_store_version_id] = target_version.id
+    status[:platform] = target_version.platform
+
+    UI.success("Найдена версия #{version_string}, состояние: #{state}, released: #{status[:released]}")
+  rescue StandardError => e
+    status[:error] = e.message
+    UI.important("⚠️  Ошибка при проверке релиза: #{e.message}")
+  ensure
+    File.write('release_status.json', JSON.pretty_generate(status))
+    UI.message("Создан release_status.json: #{File.expand_path('release_status.json')}")
+  end
+
+  status
+end
+
+def prepare_api_key_for_release_check
+  key_content = APPSTORE_KEY_CONTENT
+  key_path = ENV['APPSTORE_KEY_PATH'] || ENV['APP_STORE_CONNECT_KEY_PATH']
+
+  if APPSTORE_KEY_ID.to_s.empty? || APPSTORE_ISSUER_ID.to_s.empty?
+    UI.important('⚠️  APPSTORE_KEY_ID или APPSTORE_ISSUER_ID не указаны')
+    return nil
+  end
+
+  if key_content && !key_content.empty?
+    content_is_base64 = !key_content.include?('BEGIN PRIVATE KEY')
+    UI.message("Используем APPSTORE_KEY_CONTENT для авторизации (#{content_is_base64 ? 'base64' : 'PEM'})")
+
+    return app_store_connect_api_key(key_id: APPSTORE_KEY_ID,
+                                     issuer_id: APPSTORE_ISSUER_ID,
+                                     key_content: key_content,
+                                     in_house: false,
+                                     is_key_content_base64: content_is_base64)
+  end
+
+  if key_path && !key_path.empty?
+    expanded_path = File.expand_path(key_path)
+    unless File.exist?(expanded_path)
+      UI.important("⚠️  APPSTORE_KEY_PATH указан, но файл не найден: #{expanded_path}")
+      return nil
+    end
+
+    UI.message("Используем ключ App Store Connect из файла: #{expanded_path}")
+
+    return app_store_connect_api_key(key_id: APPSTORE_KEY_ID,
+                                     issuer_id: APPSTORE_ISSUER_ID,
+                                     keyfile: expanded_path,
+                                     in_house: false)
+  end
+
+  nil
+end
+
 def increment_patch_version(version)
   # Разбиваем версию на части
   major, minor, patch = version.split('.').map(&:to_i)
