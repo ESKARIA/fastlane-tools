@@ -628,20 +628,8 @@ def update_telegram_progress(stage_name, status: 'start', details: {}, error_mes
     end
   end
 
-  # Если все этапы завершены, показываем финальные метрики
-  all_stages_completed = (completed_stages.length >= all_stages.length)
-  if all_stages_completed && status == 'success'
-    message += "<b>🎉 Все этапы завершены!</b>\n\n"
-    
-    # Добавляем общие метрики, если доступны
-    if defined?($current_metrics) && $current_metrics
-      # Пытаемся получить общее время выполнения из метрик
-      if $current_metrics.metrics[:duration_formatted]
-        message += "<b>⏱️ Общее время выполнения:</b> #{$current_metrics.metrics[:duration_formatted]}\n"
-      end
-    end
-    message += "\n"
-  end
+  # Не показываем финальное сообщение здесь - оно будет отправлено отдельно
+  # через send_final_telegram_message когда все этапы завершены
 
   # Добавляем ошибку, если есть
   if status == 'error' && error_message
@@ -769,8 +757,28 @@ def notify_telegram_success(title, details = {}, include_pipeline_link: true, in
     lane_name = defined?($current_metrics) && $current_metrics ? $current_metrics.lane_name : nil
     stage_name = lane_name ? get_current_stage_name(lane_name) : title
     
-    # Обновляем список выполненных этапов (будет сохранено в update_telegram_progress)
+    # Обновляем прогресс-сообщение с текущим этапом
     update_telegram_progress(stage_name, status: 'success', details: enhanced_details)
+    
+    # Проверяем, все ли этапы завершены
+    all_stages = get_pipeline_stages
+    completed_stages = []
+    if ENV['TELEGRAM_COMPLETED_STAGES']
+      completed_stages = ENV['TELEGRAM_COMPLETED_STAGES'].split(',').map(&:strip)
+    end
+    if File.exist?(PROGRESS_COMPLETED_STAGES_FILE)
+      begin
+        file_stages = File.read(PROGRESS_COMPLETED_STAGES_FILE).strip.split(',').map(&:strip).reject(&:empty?)
+        completed_stages = (completed_stages + file_stages).uniq
+      rescue StandardError
+        # Игнорируем ошибки чтения
+      end
+    end
+    
+    # Если все этапы завершены, отправляем отдельное финальное сообщение
+    if completed_stages.length >= all_stages.length
+      send_final_telegram_message('success', enhanced_details, include_pipeline_link: include_pipeline_link)
+    end
   else
     # Старый режим: отдельные сообщения
     message = format_telegram_message("✅ #{title}", enhanced_details, include_pipeline_link: include_pipeline_link)
@@ -780,6 +788,9 @@ end
 
 # Отправляет уведомление об ошибке в Telegram
 #
+# Ошибки ВСЕГДА отправляются отдельным сообщением с максимально детальным описанием,
+# независимо от режима прогресс-сообщения.
+#
 # @param title [String] заголовок уведомления
 # @param error [Exception] ошибка
 # @param details [Hash] дополнительные детали
@@ -787,14 +798,21 @@ end
 def notify_telegram_error(title, error, details = {}, include_pipeline_link: true)
   error_details = details.dup
 
-  # Добавление информации об ошибке
+  # Полное сообщение об ошибке (без ограничений)
   error_message = error.message.to_s
-  # Ограничиваем длину сообщения об ошибке для читаемости
-  error_message = error_message[0..200] + '...' if error_message.length > 200
-  error_details['Ошибка'] = error_message
+  error_details['Сообщение об ошибке'] = error_message
 
   # Добавление типа ошибки
   error_details['Тип ошибки'] = error.class.name
+
+  # Добавление backtrace (стек вызовов) для детальной диагностики
+  if error.respond_to?(:backtrace) && error.backtrace
+    # Берем первые 20 строк backtrace для читаемости
+    backtrace_lines = error.backtrace.first(20)
+    if backtrace_lines.any?
+      error_details['Стек вызовов'] = backtrace_lines.join("\n")
+    end
+  end
 
   # Добавление времени выполнения, если доступны метрики
   if defined?($current_metrics) && $current_metrics && $current_metrics.metrics[:duration_formatted]
@@ -806,17 +824,182 @@ def notify_telegram_error(title, error, details = {}, include_pipeline_link: tru
     error_details['Lane'] = $current_metrics.lane_name
   end
 
-  # Если включен режим прогресс-сообщения, используем его
+  # Добавление информации о текущем этапе, если доступна
   if ENV['TELEGRAM_PROGRESS_MODE'] == 'true'
     lane_name = defined?($current_metrics) && $current_metrics ? $current_metrics.lane_name : nil
-    stage_name = lane_name ? get_current_stage_name(lane_name) : title
-    
-    update_telegram_progress(stage_name, status: 'error', details: error_details, error_message: error_message)
-  else
-    # Старый режим: отдельные сообщения
-    message = format_telegram_message("❌ #{title}", error_details, include_pipeline_link: include_pipeline_link)
-    send_telegram_notification(message)
+    if lane_name
+      stage_name = get_current_stage_name(lane_name)
+      error_details['Этап'] = stage_name
+    end
   end
+
+  # Добавление информации о проекте и CI/CD
+  if ENV['CI_PROJECT_NAME'] || ENV['GITHUB_REPOSITORY']
+    error_details['Проект'] = ENV['CI_PROJECT_NAME'] || ENV['GITHUB_REPOSITORY'] || 'не указан'
+  end
+
+  if ENV['CI_PIPELINE_IID'] || ENV['GITHUB_RUN_ID']
+    error_details['Pipeline ID'] = ENV['CI_PIPELINE_IID'] || ENV['GITHUB_RUN_ID'] || 'не указан'
+  end
+
+  # Добавление времени возникновения ошибки
+  error_details['Время ошибки'] = Time.now.strftime('%Y-%m-%d %H:%M:%S')
+
+  # Формируем детальное сообщение об ошибке
+  message = "<b>❌ #{title}</b>\n"
+  message += "━━━━━━━━━━━━━━━━━━━━\n\n"
+
+  # Добавляем краткую информацию
+  version_entry = error_details.detect { |key, _| key.to_s.downcase.match?(/версия|version/) }
+  build_entry = error_details.detect { |key, _| key.to_s.downcase.match?(/build|сборка/) }
+  target_entry = error_details.detect { |key, _| key.to_s.downcase.match?(/target|таргет/) }
+
+  summary_parts = []
+  summary_parts << "🎯 #{target_entry[1]}" if target_entry
+  summary_parts << "📱 v#{version_entry[1]}" if version_entry
+  summary_parts << "🔢 b#{build_entry[1]}" if build_entry
+  message += "#{summary_parts.join(' • ')}\n\n" unless summary_parts.empty?
+
+  # Добавляем основную информацию об ошибке
+  message += "<b>❌ Детали ошибки:</b>\n"
+  message += "<b>Тип:</b> <code>#{error_details['Тип ошибки']}</code>\n"
+  message += "<b>Сообщение:</b>\n<code>#{escape_html(error_details['Сообщение об ошибке'])}</code>\n\n"
+
+  # Добавляем остальные детали
+  error_details.each do |key, value|
+    # Пропускаем уже добавленные поля
+    next if key.to_s.downcase.match?(/тип ошибки|сообщение об ошибке|версия|version|build|target|таргет/)
+    
+    formatted_value = if value.is_a?(Array)
+                        value.join("\n")
+                      else
+                        value.to_s
+                      end
+    
+    # Для длинных значений (например, backtrace) используем code блок
+    if formatted_value.length > 100 || formatted_value.include?("\n")
+      message += "<b>#{key}:</b>\n<code>#{escape_html(formatted_value)}</code>\n\n"
+    else
+      message += "<b>#{key}:</b> <code>#{escape_html(formatted_value)}</code>\n"
+    end
+  end
+
+  # Добавляем ссылку на pipeline (если включено)
+  if include_pipeline_link
+    pipeline_url = get_pipeline_url
+    message += "\n🔗 <a href=\"#{pipeline_url}\">Открыть Pipeline</a>\n" if pipeline_url
+  end
+
+  # ВСЕГДА отправляем отдельное сообщение об ошибке
+  # Это важно для быстрого обнаружения и диагностики проблем
+  send_telegram_notification(message, disable_notification: false)
+end
+
+# Отправляет финальное сообщение о результате выполнения pipeline
+#
+# Отправляется отдельным сообщением когда все этапы завершены (успех или ошибка)
+#
+# @param result [String] результат: 'success' или 'error'
+# @param details [Hash] детали всех этапов
+# @param include_pipeline_link [Boolean] включать ли ссылку на pipeline
+def send_final_telegram_message(result, details = {}, include_pipeline_link: true)
+  return nil unless ENV['TELEGRAM_ENABLED'] == 'true'
+
+  bot_token = ENV['TELEGRAM_BOT_TOKEN']
+  chat_id = ENV['TELEGRAM_CHAT_ID']
+
+  return nil if bot_token.nil? || bot_token.empty? || chat_id.nil? || chat_id.empty?
+
+  # Получаем все этапы и их детали
+  all_stages = get_pipeline_stages
+  
+  # Загружаем детали всех этапов
+  all_stages_details = {}
+  if File.exist?(PROGRESS_STAGES_DETAILS_FILE)
+    begin
+      all_stages_details = JSON.parse(File.read(PROGRESS_STAGES_DETAILS_FILE))
+    rescue StandardError
+      all_stages_details = {}
+    end
+  end
+
+  # Формируем заголовок
+  if result == 'success'
+    title = "🎉 Pipeline выполнен успешно"
+    emoji = "✅"
+  else
+    title = "❌ Pipeline завершен с ошибкой"
+    emoji = "❌"
+  end
+
+  # Формируем сообщение
+  message = "<b>#{emoji} #{title}</b>\n"
+  message += "━━━━━━━━━━━━━━━━━━━━\n\n"
+
+  # Добавляем краткую информацию
+  version_entry = details.detect { |key, _| key.to_s.downcase.match?(/версия|version/) }
+  build_entry = details.detect { |key, _| key.to_s.downcase.match?(/build|сборка/) }
+  target_entry = details.detect { |key, _| key.to_s.downcase.match?(/target|таргет/) }
+
+  summary_parts = []
+  summary_parts << "🎯 #{target_entry[1]}" if target_entry
+  summary_parts << "📱 v#{version_entry[1]}" if version_entry
+  summary_parts << "🔢 b#{build_entry[1]}" if build_entry
+  message += "#{summary_parts.join(' • ')}\n\n" unless summary_parts.empty?
+
+  # Добавляем итоговый прогресс
+  message += "<b>📊 Итоговый статус этапов:</b>\n"
+  all_stages.each do |stage|
+    if all_stages_details.key?(stage)
+      message += "✅ #{stage}\n"
+    else
+      message += "❌ #{stage} (не выполнен)\n" if result == 'error'
+      message += "⏳ #{stage} (не выполнен)\n" if result == 'success'
+    end
+  end
+  message += "\n"
+
+  # Добавляем детали всех завершенных этапов
+  if all_stages_details.any?
+    message += "<b>📋 Детали всех этапов:</b>\n\n"
+    
+    all_stages.each do |stage|
+      if all_stages_details.key?(stage) && all_stages_details[stage].any?
+        message += "<b>✅ #{stage}:</b>\n"
+        all_stages_details[stage].each do |key, value|
+          message += "  • <b>#{key}:</b> <code>#{escape_html(value.to_s)}</code>\n"
+        end
+        message += "\n"
+      end
+    end
+  end
+
+  # Добавляем общее время выполнения, если доступно
+  if defined?($current_metrics) && $current_metrics && $current_metrics.metrics[:duration_formatted]
+    message += "<b>⏱️ Общее время выполнения:</b> #{$current_metrics.metrics[:duration_formatted]}\n\n"
+  end
+
+  # Добавляем ссылку на pipeline
+  if include_pipeline_link
+    pipeline_url = get_pipeline_url
+    message += "🔗 <a href=\"#{pipeline_url}\">Открыть Pipeline</a>\n" if pipeline_url
+  end
+
+  # Отправляем отдельное финальное сообщение
+  send_telegram_notification(message, disable_notification: false)
+end
+
+# Экранирует HTML специальные символы
+#
+# @param text [String] текст для экранирования
+# @return [String] экранированный текст
+def escape_html(text)
+  text.to_s
+      .gsub('&', '&amp;')
+      .gsub('<', '&lt;')
+      .gsub('>', '&gt;')
+      .gsub('"', '&quot;')
+      .gsub("'", '&#39;')
 end
 
 # ==============================================================================

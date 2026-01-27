@@ -223,12 +223,22 @@ error do |lane, exception, _options|
 
   # Отправка уведомления об ошибке в Telegram (если helpers доступны)
   if ENV['TELEGRAM_ENABLED'] == 'true' && respond_to?(:notify_telegram_error)
+    # Отправляем детальное сообщение об ошибке
     notify_telegram_error('Ошибка выполнения lane', exception, {
                             'Lane' => lane.to_s,
                             'Target' => MAIN_TARGET.to_s,
                             'Время' => Time.now.strftime('%Y-%m-%d %H:%M:%S'),
                             'Проект' => ENV['CI_PROJECT_NAME'] || ENV['GITHUB_REPOSITORY'] || 'не указан'
                           })
+    
+    # Если включен режим прогресс-сообщения, отправляем финальное сообщение с итогами
+    if ENV['TELEGRAM_PROGRESS_MODE'] == 'true' && respond_to?(:send_final_telegram_message)
+      send_final_telegram_message('error', {
+        'Lane' => lane.to_s,
+        'Target' => MAIN_TARGET.to_s,
+        'Проект' => ENV['CI_PROJECT_NAME'] || ENV['GITHUB_REPOSITORY'] || 'не указан'
+      })
+    end
   end
 end
 
