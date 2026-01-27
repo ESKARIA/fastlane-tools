@@ -4,6 +4,9 @@ Pluginfile
 fastlane/README.md
 fastlane/report.xml
 fastlane/.env*
+fastlane/.telegram_progress_message_id
+fastlane/.telegram_stages_details.json
+fastlane/.telegram_completed_stages.txt
 *.md
 !README.md
 !docs/*.md

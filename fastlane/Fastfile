@@ -180,9 +180,7 @@ end
 after_all do |_lane|
   # Завершение сбора метрик (метрики автоматически включаются в финальные уведомления)
   # send_to_telegram: false, так как метрики уже включены в notify_telegram_success
-  if respond_to?(:finish_metrics)
-    finish_metrics(send_to_telegram: false, save_to_file: true)
-  end
+  finish_metrics(send_to_telegram: false, save_to_file: true) if respond_to?(:finish_metrics)
 
   # Очистка keychain после завершения
   clear_keychain
@@ -225,7 +223,7 @@ error do |lane, exception, _options|
 
   # Отправка уведомления об ошибке в Telegram (если helpers доступны)
   if ENV['TELEGRAM_ENABLED'] == 'true' && respond_to?(:notify_telegram_error)
-    notify_telegram_error("Ошибка выполнения lane", exception, {
+    notify_telegram_error('Ошибка выполнения lane', exception, {
                             'Lane' => lane.to_s,
                             'Target' => MAIN_TARGET.to_s,
                             'Время' => Time.now.strftime('%Y-%m-%d %H:%M:%S'),
