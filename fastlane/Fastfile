@@ -44,8 +44,13 @@ APPSTORE_KEY_CONTENT        = ENV['APPSTORE_KEY_CONTENT']
 
 # Fastlane по умолчанию ожидает FASTLANE_USER для логина в Developer Portal.
 # Если задан только ACCOUNT_EMAIL, используем его как fallback.
-FASTLANE_USER               = ENV['FASTLANE_USER'] || ENV['ACCOUNT_EMAIL']
+FASTLANE_USER               = ENV['FASTLANE_USER'] || ENV['MATCH_USERNAME'] || ENV['ACCOUNT_EMAIL']
 ENV['FASTLANE_USER']        = FASTLANE_USER if FASTLANE_USER.to_s.strip.length.positive?
+ENV['MATCH_USERNAME']       = FASTLANE_USER if FASTLANE_USER.to_s.strip.length.positive?
+
+# Match ожидает FASTLANE_TEAM_ID, а у нас в .env часто хранится TEAM_ID.
+FASTLANE_TEAM_ID            = ENV['FASTLANE_TEAM_ID'] || ENV['TEAM_ID']
+ENV['FASTLANE_TEAM_ID']     = FASTLANE_TEAM_ID if FASTLANE_TEAM_ID.to_s.strip.length.positive?
 
 # Номер сборки (обычно берется из CI/CD переменной)
 BUILD_NUMBER                = ENV['CI_PIPELINE_IID']
