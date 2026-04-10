@@ -42,6 +42,11 @@ APPSTORE_ISSUER_ID          = ENV['APPSTORE_ISSUER_ID']
 # Содержимое ключа API в формате Base64
 APPSTORE_KEY_CONTENT        = ENV['APPSTORE_KEY_CONTENT']
 
+# Fastlane по умолчанию ожидает FASTLANE_USER для логина в Developer Portal.
+# Если задан только ACCOUNT_EMAIL, используем его как fallback.
+FASTLANE_USER               = ENV['FASTLANE_USER'] || ENV['ACCOUNT_EMAIL']
+ENV['FASTLANE_USER']        = FASTLANE_USER if FASTLANE_USER.to_s.strip.length.positive?
+
 # Номер сборки (обычно берется из CI/CD переменной)
 BUILD_NUMBER                = ENV['CI_PIPELINE_IID']
 # Ключ API для AppMetrica (для загрузки dSYM)
