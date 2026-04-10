@@ -214,6 +214,68 @@ end
 # УТИЛИТЫ
 # ==============================================================================
 
+# Возвращает строку с bundle identifiers, пригодную для match/nuke.
+def match_app_identifier_param
+  # Получение всех bundle identifiers
+  app_identifiers = if respond_to?(:get_all_app_identifiers)
+                      get_all_app_identifiers
+                    else
+                      APP_IDENTIFIER.to_s.split(',').map(&:strip).reject(&:empty?)
+                    end
+
+  UI.user_error!('❌ APP_IDENTIFIER не установлен или пуст') if app_identifiers.empty?
+
+  UI.message("Найдено bundle identifiers: #{app_identifiers.count}")
+  app_identifiers.each_with_index do |identifier, index|
+    UI.message("  #{index + 1}. #{identifier}")
+  end
+
+  app_identifiers.join(',')
+end
+
+# Выполняет удаление сертификатов и профилей для одного типа match.
+def nuke_match_type(type:, git_branch:, app_identifier_param:)
+  UI.important("⚠️  Удаление #{type} сертификатов и профилей")
+
+  match(type: type,
+        app_identifier: app_identifier_param,
+        git_branch: git_branch,
+        skip_confirmation: false, # Требует подтверждения
+        safe_remove_certs: false) # Небезопасное удаление
+end
+
+# Полностью удаляет development сертификаты и профили.
+#
+# ⚠️ ВНИМАНИЕ: Это необратимое действие!
+# Используется только при необходимости полностью очистить development.
+#
+# @example
+#   fastlane nuke_development
+desc 'Nuke development certificates and provisioning profiles'
+lane :nuke_development do |_options|
+  app_identifier_param = match_app_identifier_param
+
+  nuke_match_type(type: 'development',
+                  git_branch: 'development',
+                  app_identifier_param: app_identifier_param)
+end
+
+# Полностью удаляет App Store сертификаты и профили.
+#
+# ⚠️ ВНИМАНИЕ: Это необратимое действие!
+# Используется только при необходимости полностью очистить distribution.
+#
+# @example
+#   fastlane nuke_appstore
+desc 'Nuke App Store certificates and provisioning profiles'
+lane :nuke_appstore do |_options|
+  app_identifier_param = match_app_identifier_param
+
+  nuke_match_type(type: 'appstore',
+                  git_branch: 'distribution',
+                  app_identifier_param: app_identifier_param)
+end
+
 # Полностью удаляет все сертификаты и профили (разрушительная операция)
 #
 # ⚠️ ВНИМАНИЕ: Это необратимое действие!
@@ -224,32 +286,8 @@ end
 #   fastlane nuke_all
 desc 'Nuke (delete) all certificates and provisioning profiles'
 lane :nuke_all do |_options|
-  # Получение всех bundle identifiers
-  app_identifiers = if respond_to?(:get_all_app_identifiers)
-                      get_all_app_identifiers
-                    else
-                      APP_IDENTIFIER.to_s.split(',').map(&:strip).reject(&:empty?)
-                    end
-
-  UI.user_error!('❌ APP_IDENTIFIER не установлен или пуст') if app_identifiers.empty?
-
-  app_identifier_param = app_identifiers.join(',')
-
-  UI.important("⚠️  Удаление сертификатов для #{app_identifiers.count} bundle identifier(s)")
-
-  # Удаление development сертификатов и профилей
-  match(type: 'development',
-        app_identifier: app_identifier_param,
-        git_branch: 'development',
-        skip_confirmation: true,           # Пропуск подтверждения (опасно!)
-        safe_remove_certs: false)          # Небезопасное удаление (удаляет даже используемые)
-
-  # Удаление App Store сертификатов и профилей
-  match(type: 'appstore',
-        app_identifier: app_identifier_param,
-        git_branch: 'distribution',
-        skip_confirmation: true, # Пропуск подтверждения
-        safe_remove_certs: false) # Небезопасное удаление
+  nuke_development
+  nuke_appstore
 end
 
 # Полностью перегенерирует все сертификаты и профили
