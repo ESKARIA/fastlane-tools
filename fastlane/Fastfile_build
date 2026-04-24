@@ -91,7 +91,9 @@ lane :build do |options|
     notify_telegram_stage('Начало сборки приложения', {
                             'Версия' => ENV['APP_VERSION'],
                             'Build' => BUILD_NUMBER.to_s,
-                            'Target' => MAIN_TARGET.to_s
+                            'Target' => MAIN_TARGET.to_s,
+                            'Scheme' => BUILD_SCHEME.to_s,
+                            'Configuration' => BUILD_CONFIGURATION.to_s.empty? ? 'из схемы' : BUILD_CONFIGURATION.to_s
                           })
   end
 
@@ -133,6 +135,9 @@ lane :build do |options|
   UI.header('Сборка приложения')
   UI.message("Версия: #{version_number}")
   UI.message("Номер сборки: #{build_number}")
+  UI.message("Target: #{MAIN_TARGET}")
+  UI.message("Scheme: #{BUILD_SCHEME}")
+  UI.message("Configuration: #{BUILD_CONFIGURATION.to_s.empty? ? 'из схемы' : BUILD_CONFIGURATION}")
 
   # ========================================================================
   # УСТАНОВКА СЕРТИФИКАТОВ
@@ -164,8 +169,9 @@ lane :build do |options|
   end
 
   # Сборка приложения с использованием build_app action
-  build_app(
-    scheme: MAIN_TARGET,                    # Схема для сборки (обычно название target)
+  build_params = {
+    project: ENV['MAIN_PROJECT_FILE'],
+    scheme: BUILD_SCHEME,                   # По умолчанию совпадает с MAIN_TARGET для обратной совместимости
     export_options: {
       distribution: 'app-store',            # Тип дистрибуции: для App Store
       provisioningProfiles: provisioning_profiles, # Mapping всех bundle identifiers к provisioning profiles
@@ -177,7 +183,9 @@ lane :build do |options|
     build_path: DERIVED_PATH.to_s,          # Путь к derived data (промежуточные файлы)
     # Передача версии и build number в Xcode через xcargs
     xcargs: "MARKETING_VERSION=#{ENV['APP_VERSION']} CURRENT_PROJECT_VERSION=#{BUILD_NUMBER}"
-  )
+  }
+  build_params[:configuration] = BUILD_CONFIGURATION unless BUILD_CONFIGURATION.to_s.empty?
+  build_app(**build_params)
 
   # ========================================================================
   # СОХРАНЕНИЕ АРТЕФАКТОВ
@@ -280,6 +288,8 @@ lane :build do |options|
                               'Версия' => version_number,
                               'Build' => build_number.to_s,
                               'Target' => MAIN_TARGET.to_s,
+                              'Scheme' => BUILD_SCHEME.to_s,
+                              'Configuration' => BUILD_CONFIGURATION.to_s.empty? ? 'из схемы' : BUILD_CONFIGURATION.to_s,
                               'Размер IPA' => "#{ipa_size_mb.round(2)}MB (#{ipa_size_gb.round(3)}GB)",
                               'IPA файл' => File.basename(expanded_ipa_path),
                               'dSYM' => File.exist?(expanded_dsym_path) ? File.basename(expanded_dsym_path) : 'не найден'

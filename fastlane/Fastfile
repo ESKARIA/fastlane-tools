@@ -33,6 +33,10 @@ APP_IDENTIFIER              = ENV['APP_IDENTIFIER']
 MAIN_PROJECT_FILE           = ENV['MAIN_PROJECT_FILE']
 # Основной target для сборки
 MAIN_TARGET                 = ENV['MAIN_TARGET']
+# Схема Xcode для сборки. По умолчанию совпадает с target для обратной совместимости.
+BUILD_SCHEME                = ENV['BUILD_SCHEME'] || ENV['SCHEME'] || MAIN_TARGET
+# Конфигурация Xcode для сборки. Если не задана, fastlane использует настройку схемы.
+BUILD_CONFIGURATION         = ENV['BUILD_CONFIGURATION'] || ENV['CONFIGURATION']
 
 ### Ключи App Store Connect API ###
 # ID ключа API для App Store Connect
@@ -72,7 +76,8 @@ DATA_SCREEN_PATH            = './fastlane/screenshots'
 
 # Формирование имени файла для артефактов сборки
 # Формат: {TARGET}_v{VERSION}_b{BUILD_NUMBER}
-FILE_NAME                   = "#{MAIN_TARGET}_v#{ENV['APP_VERSION']}_b#{BUILD_NUMBER}"
+ARTIFACT_BASENAME           = ENV['ARTIFACT_BASENAME'] || BUILD_SCHEME
+FILE_NAME                   = "#{ARTIFACT_BASENAME}_v#{ENV['APP_VERSION']}_b#{BUILD_NUMBER}"
 # Базовый путь для хранения артефактов сборки
 ARTIFACTS_PATH              = "~/.cache/apps/#{MAIN_TARGET}/"
 
