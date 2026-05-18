@@ -172,9 +172,8 @@ lane :build do |options|
   build_params = {
     project: ENV['MAIN_PROJECT_FILE'],
     scheme: BUILD_SCHEME,                   # По умолчанию совпадает с MAIN_TARGET для обратной совместимости
-    export_method: 'app-store-connect',     # Xcode 15.3+/26: вместо устаревшего 'app-store'
     export_options: {
-      method: 'app-store-connect',          # Явно фиксируем method в exportOptions.plist
+      distribution: 'app-store',            # Тип дистрибуции: для App Store
       provisioningProfiles: provisioning_profiles, # Mapping всех bundle identifiers к provisioning profiles
       signingStyle: 'manual' # Ручная подпись через match
     },
