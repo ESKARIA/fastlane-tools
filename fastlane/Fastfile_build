@@ -168,15 +168,26 @@ lane :build do |options|
     hash[identifier] = "match AppStore #{identifier}"
   end
 
+  # Хак для Xcode 26 + fastlane 2.234.0:
+  # 1) Xcode 26 требует в exportOptions.plist значение method = 'app-store-connect'
+  #    (старое 'app-store' больше не принимается).
+  # 2) Gym в строке package_command_generator_xcode7.rb:192 жёстко перезаписывает
+  #    hash[:method] значением из Gym.config[:export_method] — наш method из
+  #    export_options туда не попадает.
+  # 3) Валидатор параметра export_method в gym 2.234.0 ещё не знает значения
+  #    'app-store-connect' и падает с FastlaneError.
+  # Решение: снять verify_block у ConfigItem(:export_method) до вызова build_app
+  # и передать export_method: 'app-store-connect' напрямую.
+  require 'gym/options'
+  gym_export_method_opt = Gym::Options.available_options.find { |opt| opt.key == :export_method }
+  gym_export_method_opt.verify_block = proc { |_| } if gym_export_method_opt
+
   # Сборка приложения с использованием build_app action
   build_params = {
     project: ENV['MAIN_PROJECT_FILE'],
     scheme: BUILD_SCHEME,                   # По умолчанию совпадает с MAIN_TARGET для обратной совместимости
-    # NB: параметр export_method оставляем дефолтным ('app-store') — валидатор gym в
-    # fastlane 2.234.0 не знает значение 'app-store-connect'. В итоговый plist уходит
-    # значение из export_options[:method], которое gym не валидирует.
+    export_method: 'app-store-connect',     # Xcode 15.3+/26 требует именно это значение (см. хак выше)
     export_options: {
-      method: 'app-store-connect',          # Xcode 15.3+/26 требует именно это значение в exportOptions.plist
       provisioningProfiles: provisioning_profiles, # Mapping всех bundle identifiers к provisioning profiles
       signingStyle: 'manual' # Ручная подпись через match
     },
