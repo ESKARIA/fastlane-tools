@@ -172,11 +172,9 @@ lane :build do |options|
   build_params = {
     project: ENV['MAIN_PROJECT_FILE'],
     scheme: BUILD_SCHEME,                   # По умолчанию совпадает с MAIN_TARGET для обратной совместимости
-    # NB: параметр export_method оставляем дефолтным ('app-store') — валидатор gym в
-    # fastlane 2.234.0 не знает значение 'app-store-connect'. В итоговый plist уходит
-    # значение из export_options[:method], которое gym не валидирует.
+    export_method: 'app-store-connect',     # Xcode 15.3+/26: вместо устаревшего 'app-store'
     export_options: {
-      method: 'app-store-connect',          # Xcode 15.3+/26 требует именно это значение в exportOptions.plist
+      method: 'app-store-connect',          # Явно фиксируем method в exportOptions.plist
       provisioningProfiles: provisioning_profiles, # Mapping всех bundle identifiers к provisioning profiles
       signingStyle: 'manual' # Ручная подпись через match
     },
