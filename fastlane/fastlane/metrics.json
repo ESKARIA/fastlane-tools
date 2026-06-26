@@ -6,5 +6,211 @@
       "duration_seconds": 52.1,
       "duration_formatted": "52.1 сек"
     }
+  },
+  {
+    "lane": "match_generate_appstore",
+    "timestamp": "2026-04-27T13:00:52+03:00",
+    "end_time": "2026-04-27T13:01:51+03:00",
+    "context": {
+      "project": "не указан",
+      "target": null,
+      "version": "1.0.0",
+      "build_number": "0",
+      "ci_system": "Local",
+      "pipeline_id": "0"
+    },
+    "metrics": {
+      "project": "не указан",
+      "version": "1.0.0",
+      "build_number": "0",
+      "ci_system": "Local",
+      "pipeline_id": "0",
+      "status": "failed",
+      "error": "{\n  \"errors\" : [ {\n    \"id\" : \"1feb6d7a-12b9-4d19-9131-e54f74e96155\",\n    \"status\" : \"409\",\n    \"code\" : \"ENTITY_ERROR\",\n    \"title\" : \"There is a problem with the request entity\",\n    \"detail\" : \"Multiple profiles found with the name 'match AppStore com.taxcom.cashdesk'.  Please remove the duplicate profiles and try again.\"\n  } ]\n}",
+      "duration_seconds": 58.94,
+      "duration_formatted": "58.9 сек"
+    }
+  },
+  {
+    "lane": "match_generate_appstore",
+    "timestamp": "2026-04-27T13:14:01+03:00",
+    "end_time": "2026-04-27T13:14:22+03:00",
+    "context": {
+      "project": "не указан",
+      "target": null,
+      "version": "1.0.0",
+      "build_number": "0",
+      "ci_system": "Local",
+      "pipeline_id": "0"
+    },
+    "metrics": {
+      "project": "не указан",
+      "version": "1.0.0",
+      "build_number": "0",
+      "ci_system": "Local",
+      "pipeline_id": "0",
+      "duration_seconds": 21.4,
+      "duration_formatted": "21.4 сек"
+    }
+  },
+  {
+    "lane": "match_generate_dev",
+    "timestamp": "2026-04-27T13:14:28+03:00",
+    "end_time": "2026-04-27T13:14:44+03:00",
+    "context": {
+      "project": "не указан",
+      "target": null,
+      "version": "1.0.0",
+      "build_number": "0",
+      "ci_system": "Local",
+      "pipeline_id": "0"
+    },
+    "metrics": {
+      "project": "не указан",
+      "version": "1.0.0",
+      "build_number": "0",
+      "ci_system": "Local",
+      "pipeline_id": "0",
+      "duration_seconds": 16.74,
+      "duration_formatted": "16.7 сек"
+    }
+  },
+  {
+    "lane": "match_generate_appstore",
+    "timestamp": "2026-04-27T13:18:20+03:00",
+    "end_time": "2026-04-27T13:19:22+03:00",
+    "context": {
+      "project": "не указан",
+      "target": null,
+      "version": "1.0.0",
+      "build_number": "0",
+      "ci_system": "Local",
+      "pipeline_id": "0"
+    },
+    "metrics": {
+      "project": "не указан",
+      "version": "1.0.0",
+      "build_number": "0",
+      "ci_system": "Local",
+      "pipeline_id": "0",
+      "status": "failed",
+      "error": "{\n  \"errors\" : [ {\n    \"id\" : \"33d06e5e-d89b-4dcc-aeea-a3794833692d\",\n    \"status\" : \"409\",\n    \"code\" : \"ENTITY_ERROR\",\n    \"title\" : \"There is a problem with the request entity\",\n    \"detail\" : \"Multiple profiles found with the name 'match AppStore com.taxcom.cashdesk'.  Please remove the duplicate profiles and try again.\"\n  } ]\n}",
+      "duration_seconds": 61.73,
+      "duration_formatted": "1 мин 2 сек"
+    }
+  },
+  {
+    "lane": "match_generate_appstore",
+    "timestamp": "2026-04-27T13:28:45+03:00",
+    "end_time": "2026-04-27T13:28:52+03:00",
+    "context": {
+      "project": "не указан",
+      "target": null,
+      "version": "1.0.0",
+      "build_number": "0",
+      "ci_system": "Local",
+      "pipeline_id": "0"
+    },
+    "metrics": {
+      "project": "не указан",
+      "version": "1.0.0",
+      "build_number": "0",
+      "ci_system": "Local",
+      "pipeline_id": "0",
+      "status": "failed",
+      "error": "To reset the certificates of your Apple account, you can use the `fastlane match nuke` feature, more information on https://docs.fastlane.tools/actions/match/",
+      "duration_seconds": 7.66,
+      "duration_formatted": "7.7 сек"
+    }
+  },
+  {
+    "lane": "match_generate_appstore",
+    "timestamp": "2026-04-27T13:30:01+03:00",
+    "end_time": "2026-04-27T13:31:08+03:00",
+    "context": {
+      "project": "не указан",
+      "target": null,
+      "version": "1.0.0",
+      "build_number": "0",
+      "ci_system": "Local",
+      "pipeline_id": "0"
+    },
+    "metrics": {
+      "project": "не указан",
+      "version": "1.0.0",
+      "build_number": "0",
+      "ci_system": "Local",
+      "pipeline_id": "0",
+      "status": "failed",
+      "error": "{\n  \"errors\" : [ {\n    \"id\" : \"0182b0d3-aaa8-40ff-9488-607f41011b17\",\n    \"status\" : \"409\",\n    \"code\" : \"ENTITY_ERROR\",\n    \"title\" : \"There is a problem with the request entity\",\n    \"detail\" : \"Multiple profiles found with the name 'match AppStore com.taxcom.cashdesk'.  Please remove the duplicate profiles and try again.\"\n  } ]\n}",
+      "duration_seconds": 66.91,
+      "duration_formatted": "1 мин 7 сек"
+    }
+  },
+  {
+    "lane": "match_generate_appstore",
+    "timestamp": "2026-04-27T13:37:16+03:00",
+    "end_time": "2026-04-27T13:37:36+03:00",
+    "context": {
+      "project": "не указан",
+      "target": null,
+      "version": "1.0.0",
+      "build_number": "0",
+      "ci_system": "Local",
+      "pipeline_id": "0"
+    },
+    "metrics": {
+      "project": "не указан",
+      "version": "1.0.0",
+      "build_number": "0",
+      "ci_system": "Local",
+      "pipeline_id": "0",
+      "duration_seconds": 19.93,
+      "duration_formatted": "19.9 сек"
+    }
+  },
+  {
+    "lane": "match_generate_appstore",
+    "timestamp": "2026-04-27T13:39:07+03:00",
+    "end_time": "2026-04-27T13:40:28+03:00",
+    "context": {
+      "project": "не указан",
+      "target": null,
+      "version": "1.0.0",
+      "build_number": "0",
+      "ci_system": "Local",
+      "pipeline_id": "0"
+    },
+    "metrics": {
+      "project": "не указан",
+      "version": "1.0.0",
+      "build_number": "0",
+      "ci_system": "Local",
+      "pipeline_id": "0",
+      "duration_seconds": 80.94,
+      "duration_formatted": "1 мин 21 сек"
+    }
+  },
+  {
+    "lane": "match_generate_dev",
+    "timestamp": "2026-04-27T13:52:36+03:00",
+    "end_time": "2026-04-27T13:53:43+03:00",
+    "context": {
+      "project": "не указан",
+      "target": null,
+      "version": "1.0.0",
+      "build_number": "0",
+      "ci_system": "Local",
+      "pipeline_id": "0"
+    },
+    "metrics": {
+      "project": "не указан",
+      "version": "1.0.0",
+      "build_number": "0",
+      "ci_system": "Local",
+      "pipeline_id": "0",
+      "duration_seconds": 67.24,
+      "duration_formatted": "1 мин 7 сек"
+    }
   }
 ]

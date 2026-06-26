@@ -16,6 +16,54 @@ require 'fileutils'
 # ==============================================================================
 
 # ==============================================================================
+# KEYCHAIN ДЛЯ ПОДПИСИ
+# ==============================================================================
+
+# Имя и пароль keychain для подписи. Пустой пароль — стандарт для CI.
+SIGNING_KEYCHAIN_NAME     = ENV['MATCH_KEYCHAIN_NAME'] || 'fastlane_tmp_keychain'
+SIGNING_KEYCHAIN_PASSWORD = ENV['MATCH_KEYCHAIN_PASSWORD'] || ''
+
+# Гарантирует наличие разблокированного keychain для подписи.
+#
+# Идемпотентно: если keychain есть — разблокирует, если нет — создаёт.
+# Keychain создаётся БЕЗ таймаута и БЕЗ блокировки при сне, поэтому не лочится
+# посреди длинной сборки (корневая причина GUI-запроса пароля). Не делаем его
+# системным default, чтобы не трогать login.keychain живого пользователя —
+# match/gym получают keychain явно через ENV[MATCH_KEYCHAIN_NAME].
+#
+# Заменяет setup_ci (который создавал keychain с timeout: 3600 и
+# lock_when_sleeps: true) и снимает необходимость постоянно его удалять.
+def ensure_signing_keychain
+  name           = SIGNING_KEYCHAIN_NAME
+  password       = SIGNING_KEYCHAIN_PASSWORD
+  keychain_path  = File.expand_path("~/Library/Keychains/#{name}-db")
+
+  if File.exist?(keychain_path)
+    UI.message("Keychain '#{name}' уже существует — разблокирую")
+    unlock_keychain(path: name, password: password)
+  else
+    UI.message("Keychain '#{name}' не найден — создаю")
+    create_keychain(
+      name: name,
+      password: password,
+      default_keychain: false,   # не трогаем системный default
+      unlock: true,
+      timeout: 0,                # без авто-блокировки по таймауту
+      lock_when_sleeps: false,   # не блокировать при сне
+      add_to_search_list: true
+    )
+  end
+
+  # На случай ранее созданного keychain принудительно снимаем авто-лок
+  # (no timeout + no lock-on-sleep): security set-keychain-settings без -t/-l.
+  sh("security set-keychain-settings #{keychain_path}")
+
+  # Сообщаем match/gym, какой keychain использовать.
+  ENV['MATCH_KEYCHAIN_NAME']     = name
+  ENV['MATCH_KEYCHAIN_PASSWORD'] = password
+end
+
+# ==============================================================================
 # LANES
 # ==============================================================================
 
@@ -142,8 +190,9 @@ lane :build do |options|
   # ========================================================================
   # УСТАНОВКА СЕРТИФИКАТОВ
   # ========================================================================
-  # Настройка CI окружения (если применимо)
-  setup_ci
+  # Подготовка keychain для подписи (идемпотентно, без авто-лока).
+  # Заменяет setup_ci — см. ensure_signing_keychain выше.
+  ensure_signing_keychain
   # Установка App Store сертификатов и provisioning profiles через match
   # Это необходимо для подписи приложения для App Store distribution
   match_install_appstore(options)

@@ -190,8 +190,9 @@ before_all do |lane, _options|
   # Раскомментируйте для автоматического обновления fastlane перед запуском
   # update_fastlane
 
-  # Очистка keychain перед запуском
-  clear_keychain
+  # Keychain для подписи больше НЕ удаляем перед каждым запуском:
+  # он создаётся/разблокируется идемпотентно в ensure_signing_keychain (Fastfile_build)
+  # и держится постоянным (без авто-лока). Ручная очистка доступна как lane clear_keychain.
 
   # Дополнительные действия на CI/CD машинах
   if ENV['CI']
@@ -215,8 +216,9 @@ after_all do |_lane|
   # send_to_telegram: false, так как метрики уже включены в notify_telegram_success
   finish_metrics(send_to_telegram: false, save_to_file: true) if respond_to?(:finish_metrics)
 
-  # Очистка keychain после завершения
-  clear_keychain
+  # Keychain для подписи НЕ удаляем после завершения — он персистентный
+  # (см. ensure_signing_keychain). Это устраняет повторное пересоздание/импорт
+  # и GUI-запрос пароля из-за авто-блокировки.
 end
 
 # ==============================================================================
