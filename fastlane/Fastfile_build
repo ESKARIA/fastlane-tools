@@ -81,7 +81,7 @@ end
 desc 'Set new marketing version'
 lane :version do |_options|
   # Обновление версии в Info.plist целевого target
-  increment_version_number_in_plist(version_number: ENV['APP_VERSION'].to_s, target: MAIN_TARGET)
+  # increment_version_number_in_plist(version_number: ENV['APP_VERSION'].to_s, target: MAIN_TARGET)
   # Обновление версии в проекте Xcode
   increment_version_number_in_xcodeproj(version_number: ENV['APP_VERSION'].to_s)
 end
