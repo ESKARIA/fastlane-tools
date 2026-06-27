@@ -64,26 +64,105 @@ def ensure_signing_keychain
 end
 
 # ==============================================================================
+# ХЕЛПЕРЫ ДЛЯ РАБОТЫ С ВЕРСИЯМИ
+# ==============================================================================
+
+# Проверяет, существует ли Info.plist для указанного таргета
+# @param target [String] название таргета
+# @param xcodeproj [String] путь к .xcodeproj файлу
+# @return [Boolean] true если Info.plist найден
+def info_plist_exists?(target:, xcodeproj:)
+  plist_path = get_info_plist_path(
+    xcodeproj: xcodeproj,
+    target: target
+  )
+
+  exists = plist_path && File.exist?(plist_path)
+  UI.message("📋 Info.plist для таргета '#{target}': #{exists ? 'найден' : 'не найден'}")
+  exists
+rescue StandardError => e
+  UI.message("⚠️  Не удалось получить путь к Info.plist для '#{target}': #{e.message}")
+  false
+end
+
+# Устанавливает версию для конкретного таргета
+# Автоматически определяет, нужно ли обновлять Info.plist
+# @param target [String] название таргета
+# @param version [String] маркетинговая версия
+# @param build [Integer, nil] номер сборки (опционально)
+def set_version_for_target(target:, version:, build: nil)
+  xcodeproj = ENV['MAIN_PROJECT_FILE']
+
+  UI.message("📦 Устанавливаю версию для таргета '#{target}'")
+  UI.message("   MARKETING_VERSION: #{version}")
+  UI.message("   CURRENT_PROJECT_VERSION: #{build}") if build
+
+  # 1. ВСЕГДА обновляем xcodeproj (это основной источник правды в новых Xcode)
+  increment_version_number_in_xcodeproj(
+    version_number: version.to_s,
+    target: target,
+    xcodeproj: xcodeproj
+  )
+  increment_build_number_in_xcodeproj(
+    build_number: BUILD_NUMBER.to_i,
+    target: target,
+    xcodeproj: xcodeproj
+  )
+
+  # 2. ОБНОВЛЯЕМ Info.plist ТОЛЬКО если он существует (для обратной совместимости)
+  if info_plist_exists?(target: target, xcodeproj: xcodeproj)
+    UI.message('   📝 Обновляю Info.plist (старый формат проекта)')
+
+    increment_version_number_in_plist(
+      version_number: version.to_s,
+      target: target,
+      xcodeproj: xcodeproj
+    )
+
+    if build
+      increment_build_number_in_plist(
+        build_number: build.to_i,
+        target: target,
+        xcodeproj: xcodeproj
+      )
+    end
+  else
+    UI.message('   ⏭️  Пропускаю Info.plist (новый формат Xcode 14+)')
+  end
+end
+
+# ==============================================================================
 # LANES
 # ==============================================================================
 
 # Устанавливает маркетинговую версию приложения
 #
 # Обновляет версию приложения в:
-#   - Info.plist файле целевого target
-#   - Проекте Xcode (xcodeproj)
+#   - Настройках сборки проекта (xcodeproj) — ВСЕГДА
+#   - Info.plist файле — ТОЛЬКО если он существует (для старых проектов)
 #
 # Требует переменную окружения: APP_VERSION
 #
 # @example
 #   export APP_VERSION="1.2.3"
+#   export MAIN_TARGET="MyApp"
 #   fastlane version
 desc 'Set new marketing version'
 lane :version do |_options|
-  # Обновление версии в Info.plist целевого target
-  # increment_version_number_in_plist(version_number: ENV['APP_VERSION'].to_s, target: MAIN_TARGET)
-  # Обновление версии в проекте Xcode
-  increment_version_number_in_xcodeproj(version_number: ENV['APP_VERSION'].to_s)
+  UI.user_error!('❌ APP_VERSION не установлен') if ENV['APP_VERSION'].to_s.empty?
+  UI.user_error!('❌ MAIN_TARGET не установлен') if MAIN_TARGET.to_s.empty?
+
+  version_to_set = ENV['APP_VERSION'].to_s
+  target_name = MAIN_TARGET.to_s
+
+  UI.header("Установка версии #{version_to_set} для таргета '#{target_name}'")
+
+  set_version_for_target(
+    target: target_name,
+    version: version_to_set
+  )
+
+  UI.success('✅ Версия установлена успешно')
 end
 
 # Собирает IPA файл для App Store
@@ -91,9 +170,9 @@ end
 # Полный процесс сборки:
 #   1. Валидация обязательных переменных окружения
 #   2. Создание директорий для артефактов
-#   3. Установка маркетинговой версии
+#   3. Установка маркетинговой версии (с проверкой Info.plist)
 #   4. Настройка API ключа App Store Connect
-#   5. Инкрементирование build number
+#   5. Инкрементирование build number (с проверкой Info.plist)
 #   6. Установка App Store сертификатов через match
 #   7. Сборка приложения с подписью для App Store
 #   8. Сохранение артефактов (IPA и dSYM)
@@ -113,6 +192,7 @@ end
 # @example
 #   export APP_VERSION="1.2.3"
 #   export CI_PIPELINE_IID="456"
+#   export MAIN_TARGET="BearOliver"
 #   fastlane build
 desc 'Build project'
 lane :build do |options|
@@ -125,10 +205,9 @@ lane :build do |options|
   # ========================================================================
   # ВАЛИДАЦИЯ ОБЯЗАТЕЛЬНЫХ ПЕРЕМЕННЫХ ОКРУЖЕНИЯ
   # ========================================================================
-  # Проверка наличия маркетинговой версии
   UI.user_error!('❌ APP_VERSION не установлен') if ENV['APP_VERSION'].nil? || ENV['APP_VERSION'].empty?
-  # Проверка наличия номера сборки
   UI.user_error!('❌ BUILD_NUMBER не установлен') if BUILD_NUMBER.nil? || BUILD_NUMBER.to_s.empty?
+  UI.user_error!('❌ MAIN_TARGET не установлен') if MAIN_TARGET.to_s.empty?
 
   # Добавление метрик о версии и build number
   add_metric('version', ENV['APP_VERSION']) if respond_to?(:add_metric)
@@ -148,36 +227,30 @@ lane :build do |options|
   # ========================================================================
   # ПОДГОТОВКА ОКРУЖЕНИЯ
   # ========================================================================
-  # Создание директорий для хранения артефактов сборки
-  # ~/.cache/apps/{TARGET}/ipa/ - для IPA файлов
   FileUtils.mkdir_p(File.expand_path(IPA_FOLDER_PATH))
-  # ~/.cache/apps/{TARGET}/dsyms/ - для dSYM файлов
   FileUtils.mkdir_p(File.expand_path(DSYM_FOLDER_PATH))
 
   # ========================================================================
-  # УПРАВЛЕНИЕ ВЕРСИЯМИ
+  # УПРАВЛЕНИЕ ВЕРСИЯМИ (С ПРОВЕРКОЙ INFO.PLIST)
   # ========================================================================
-  # Установка маркетинговой версии приложения
-  version(options)
+  # Устанавливаем версию ТОЛЬКО для конкретного таргета
+  # Автоматически определяет, нужен ли Info.plist
+  set_version_for_target(
+    target: MAIN_TARGET.to_s,
+    version: ENV['APP_VERSION'].to_s,
+    build: BUILD_NUMBER.to_i
+  )
 
-  # ========================================================================
-  # НАСТРОЙКА API КЛЮЧА APP STORE CONNECT
-  # ========================================================================
-  # Настройка API ключа для работы с App Store Connect
-  # Необходимо для некоторых операций с сертификатами
-  app_store_connect_api_key(key_id: APPSTORE_KEY_ID,
-                            issuer_id: APPSTORE_ISSUER_ID,
-                            key_content: APPSTORE_KEY_CONTENT,
-                            in_house: false,
-                            is_key_content_base64: true)
-
-  # ========================================================================
-  # УПРАВЛЕНИЕ BUILD NUMBER
-  # ========================================================================
-  # Инкрементирование build number для новой сборки
-  build_number = increment_build_number(build_number: BUILD_NUMBER.to_i)
   # Получение текущей маркетинговой версии из проекта
-  version_number = get_version_number(xcodeproj: ENV['MAIN_PROJECT_FILE'], target: MAIN_TARGET)
+  version_number = get_version_number(
+    xcodeproj: ENV['MAIN_PROJECT_FILE'],
+    target: MAIN_TARGET
+  )
+
+  build_number = get_build_number(
+    xcodeproj: ENV['MAIN_PROJECT_FILE'],
+    target: MAIN_TARGET
+  )
 
   # Вывод информации о версии и номере сборки
   UI.header('Сборка приложения')
@@ -188,22 +261,26 @@ lane :build do |options|
   UI.message("Configuration: #{BUILD_CONFIGURATION.to_s.empty? ? 'из схемы' : BUILD_CONFIGURATION}")
 
   # ========================================================================
+  # НАСТРОЙКА API КЛЮЧА APP STORE CONNECT
+  # ========================================================================
+  app_store_connect_api_key(
+    key_id: APPSTORE_KEY_ID,
+    issuer_id: APPSTORE_ISSUER_ID,
+    key_content: APPSTORE_KEY_CONTENT,
+    in_house: false,
+    is_key_content_base64: true
+  )
+
+  # ========================================================================
   # УСТАНОВКА СЕРТИФИКАТОВ
   # ========================================================================
-  # Подготовка keychain для подписи (идемпотентно, без авто-лока).
-  # Заменяет setup_ci — см. ensure_signing_keychain выше.
   ensure_signing_keychain
-  # Установка App Store сертификатов и provisioning profiles через match
-  # Это необходимо для подписи приложения для App Store distribution
   match_install_appstore(options)
 
   # ========================================================================
   # СБОРКА ПРИЛОЖЕНИЯ
   # ========================================================================
-  # Получение всех bundle identifiers приложения
-  # Поддержка нескольких bundle identifiers через запятую (2, 3 или больше)
   app_identifiers = respond_to?(:get_all_app_identifiers) ? get_all_app_identifiers : APP_IDENTIFIER.to_s.split(',').map(&:strip).reject(&:empty?)
-
   UI.user_error!('❌ APP_IDENTIFIER не установлен или пуст') if app_identifiers.empty?
 
   UI.message("Найдено bundle identifiers: #{app_identifiers.count}")
@@ -211,53 +288,44 @@ lane :build do |options|
     UI.message("  #{index + 1}. #{identifier}")
   end
 
-  # Формирование provisioningProfiles для всех идентификаторов
-  # Каждый идентификатор должен иметь соответствующий provisioning profile
   provisioning_profiles = app_identifiers.each_with_object({}) do |identifier, hash|
     hash[identifier] = "match AppStore #{identifier}"
   end
 
-  # Сборка приложения с использованием build_app action
+  # ВАЖНО: НЕ используем xcargs с MARKETING_VERSION, т.к. мы уже записали
+  # версию в xcodeproj для конкретного таргета. Иначе xcargs перезапишет
+  # версии ВСЕХ таргетов одним значением.
   build_params = {
     project: ENV['MAIN_PROJECT_FILE'],
-    scheme: BUILD_SCHEME,                   # По умолчанию совпадает с MAIN_TARGET для обратной совместимости
+    scheme: BUILD_SCHEME,
     export_options: {
-      distribution: 'app-store',            # Тип дистрибуции: для App Store
-      provisioningProfiles: provisioning_profiles, # Mapping всех bundle identifiers к provisioning profiles
-      signingStyle: 'manual' # Ручная подпись через match
+      distribution: 'app-store',
+      provisioningProfiles: provisioning_profiles,
+      signingStyle: 'manual'
     },
-    cloned_source_packages_path: 'SourcePackages', # Путь к Swift Package Manager зависимостям
-    clean: true,                            # Очистка перед сборкой для чистой сборки
-    output_name: IPA_FILE_NAME.to_s,        # Имя выходного IPA файла
-    build_path: DERIVED_PATH.to_s,          # Путь к derived data (промежуточные файлы)
-    # Передача версии и build number в Xcode через xcargs
-    xcargs: "MARKETING_VERSION=#{ENV['APP_VERSION']} CURRENT_PROJECT_VERSION=#{BUILD_NUMBER}"
+    cloned_source_packages_path: 'SourcePackages',
+    clean: true,
+    output_name: IPA_FILE_NAME.to_s,
+    build_path: DERIVED_PATH.to_s
+    # ❌ xcargs с MARKETING_VERSION УБРАН
   }
   build_params[:configuration] = BUILD_CONFIGURATION unless BUILD_CONFIGURATION.to_s.empty?
+
   build_app(**build_params)
 
   # ========================================================================
   # СОХРАНЕНИЕ АРТЕФАКТОВ
   # ========================================================================
-  # Копирование IPA файлов в директорию артефактов
-  # ~/.cache/apps/{TARGET}/ipa/
   copy_artifacts(target_path: IPA_FOLDER_PATH.to_s, artifacts: ['*.ipa', IPA_FILE_PATH.to_s])
-  # Копирование dSYM файлов в директорию символов
-  # ~/.cache/apps/{TARGET}/dsyms/
   copy_artifacts(target_path: DSYM_FOLDER_PATH.to_s, artifacts: ['*.dSYM.zip', DSYM_FILE_PATH.to_s])
-  # Копирование всех артефактов в fastlane/artifacts/ для последующей загрузки
-  # Это директория используется lanes upload_testflight и upload_external_testflight
   copy_artifacts(target_path: 'fastlane/artifacts/', artifacts: ['*.dSYM.zip', '*.ipa'])
 
   # ========================================================================
   # ВАЛИДАЦИЯ АРТЕФАКТОВ
   # ========================================================================
-  # Раскрытие путей с ~ (home directory)
   expanded_ipa_path = File.expand_path(IPA_FILE_PATH)
   expanded_dsym_path = File.expand_path(DSYM_FILE_PATH)
 
-  # Поиск IPA файла в нескольких возможных местах
-  # build_app может создать файл в разных местах в зависимости от настроек
   possible_ipa_paths = [
     expanded_ipa_path,
     File.join(Dir.pwd, IPA_FILE_NAME),
@@ -265,20 +333,16 @@ lane :build do |options|
     File.join('fastlane/artifacts', IPA_FILE_NAME)
   ].map { |p| File.expand_path(p) }.uniq
 
-  # Поиск существующего IPA файла
   found_ipa_path = possible_ipa_paths.find { |path| File.exist?(path) }
 
   unless found_ipa_path
     UI.user_error!("❌ IPA файл не найден после сборки. Проверялись пути:\n  - #{possible_ipa_paths.join("\n  - ")}")
   end
 
-  # Используем найденный путь
   expanded_ipa_path = found_ipa_path
   UI.message("✅ Найден IPA файл: #{expanded_ipa_path}")
 
-  # Проверка существования dSYM файла
   unless File.exist?(expanded_dsym_path)
-    # Поиск dSYM в других возможных местах
     possible_dsym_paths = [
       expanded_dsym_path,
       File.join(Dir.pwd, DSYM_FILE_NAME),
@@ -298,11 +362,12 @@ lane :build do |options|
     end
   end
 
-  # Получение размера IPA файла
+  # ========================================================================
+  # ПРОВЕРКА РАЗМЕРОВ
+  # ========================================================================
   ipa_size_mb = File.size(expanded_ipa_path) / (1024.0 * 1024.0)
   ipa_size_gb = ipa_size_mb / 1024.0
 
-  # Проверка размера IPA файла (лимит App Store: 4GB)
   if ipa_size_gb > 4.0
     UI.user_error!("❌ IPA файл слишком большой: #{ipa_size_gb.round(2)}GB (лимит App Store: 4GB)")
   elsif ipa_size_gb > 3.5
@@ -312,26 +377,21 @@ lane :build do |options|
   # ========================================================================
   # ЗАВЕРШЕНИЕ СБОРКИ
   # ========================================================================
-  # Вывод сообщения об успешном завершении и путей к артефактам
   UI.success('✅ Сборка завершена успешно')
   UI.message("IPA: #{expanded_ipa_path}")
   UI.message("Размер IPA: #{ipa_size_mb.round(2)}MB (#{ipa_size_gb.round(3)}GB)")
   UI.message("dSYM: #{expanded_dsym_path}")
 
-  # Вывод размера dSYM, если файл существует
   if File.exist?(expanded_dsym_path)
     dsym_size_mb = File.size(expanded_dsym_path) / (1024.0 * 1024.0)
     UI.message("Размер dSYM: #{dsym_size_mb.round(2)}MB")
     add_metric('dsym_size_mb', dsym_size_mb.round(2)) if respond_to?(:add_metric)
   end
 
-  # Добавление метрик о размере IPA
   add_metric('ipa_size_mb', ipa_size_mb.round(2)) if respond_to?(:add_metric)
   add_metric('ipa_size_gb', ipa_size_gb.round(3)) if respond_to?(:add_metric)
   add_metric('status', 'success') if respond_to?(:add_metric)
 
-  # Отправка уведомления в Telegram (если включено)
-  # Метрики автоматически включаются в сообщение через notify_telegram_success
   if ENV['TELEGRAM_ENABLED'] == 'true' && respond_to?(:notify_telegram_success)
     notify_telegram_success('Сборка завершена успешно', {
                               'Версия' => version_number,
