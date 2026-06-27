@@ -532,8 +532,14 @@ end
 def tag_commit(version_number, build_number, options)
   # Проверка, нужно ли создавать тег
   need_tags = options[:tags] ? true : false
-  # Формирование имени тега в формате v{VERSION}-build-{BUILD}
-  tag_name = "v#{version_number}-build-#{build_number}"
+  # Опциональный префикс тега (per-pack/per-target). Нужен, когда несколько
+  # таргетов релизятся одной версией в одном пайплайне (моно-репо): без префикса
+  # все джобы создали бы одинаковый v{VERSION}-build-{BUILD} → коллизия тега.
+  # Источник: options[:tag_prefix] или ENV['TAG_PREFIX']. По умолчанию пусто —
+  # формат v{VERSION}-build-{BUILD} (обратная совместимость).
+  prefix = (options[:tag_prefix] || ENV['TAG_PREFIX']).to_s.strip
+  base_name = "v#{version_number}-build-#{build_number}"
+  tag_name = prefix.empty? ? base_name : "#{prefix}/#{base_name}"
   UI.message("Тег для создания: #{tag_name}")
   # Выход, если теги не требуются
   return unless need_tags

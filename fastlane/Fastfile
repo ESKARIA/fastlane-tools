@@ -96,8 +96,17 @@ DATA_SCREEN_PATH            = './fastlane/screenshots'
 # Формат: {TARGET}_v{VERSION}_b{BUILD_NUMBER}
 ARTIFACT_BASENAME           = ENV['ARTIFACT_BASENAME'] || BUILD_SCHEME
 FILE_NAME                   = "#{ARTIFACT_BASENAME}_v#{ENV['APP_VERSION']}_b#{BUILD_NUMBER}"
-# Базовый путь для хранения артефактов сборки
-ARTIFACTS_PATH              = "~/.cache/apps/#{MAIN_TARGET}/"
+# Базовый путь для хранения артефактов сборки.
+# По умолчанию — кэш в $HOME (обратная совместимость со старыми проектами).
+# Можно переопределить через ENV['ARTIFACTS_PATH'] (например, на repo-local
+# 'fastlane/artifacts/'), чтобы артефакты были видны механизму CI-артефактов и
+# не засоряли HOME раннера. Должен оканчиваться на '/'.
+ARTIFACTS_PATH              = if ENV['ARTIFACTS_PATH'].to_s.strip.empty?
+                                "~/.cache/apps/#{MAIN_TARGET}/"
+                              else
+                                path = ENV['ARTIFACTS_PATH'].strip
+                                path.end_with?('/') ? path : "#{path}/"
+                              end
 
 # Имена файлов артефактов
 IPA_FILE_NAME               = "#{FILE_NAME}.ipa"
@@ -111,8 +120,16 @@ DSYM_FOLDER_PATH            = "#{ARTIFACTS_PATH}dsyms/"
 IPA_FILE_PATH               = IPA_FOLDER_PATH.to_s + IPA_FILE_NAME.to_s
 DSYM_FILE_PATH              = DSYM_FOLDER_PATH.to_s + DSYM_FILE_NAME.to_s
 
-# Путь к helper скрипту для загрузки символов
-HELPER_PATH                 = './helper'
+# Путь к helper-бинарю AppMetrica для загрузки dSYM.
+# По умолчанию './helper' (обратная совместимость). Переопределяется через
+# ENV['HELPER_PATH'] — например, если helper лежит не в корне репо, а в
+# 'fastlane/helper'. Если файл по этому пути отсутствует, ветка AppMetrica
+# в upload_dsyms пропускается (без ошибки).
+HELPER_PATH                 = if ENV['HELPER_PATH'].to_s.strip.empty?
+                                './helper'
+                              else
+                                ENV['HELPER_PATH'].strip
+                              end
 # Флаг включения/выключения загрузки dSYM файлов
 UPLOAD_DSYMS                = ENV['UPLOAD_DSYMS']
 # Проверка, включена ли загрузка dSYM (по умолчанию включена, если не 'false')

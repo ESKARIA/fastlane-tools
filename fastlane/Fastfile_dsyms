@@ -23,19 +23,30 @@ lane :upload_dsyms do |options|
                           })
   end
 
-  is_metrica = !HELPER_PATH.nil? && !HELPER_PATH.empty?
+  # AppMetrica включаем ТОЛЬКО когда реально есть и helper-бинарь, и ключ.
+  # Раньше гейт был по HELPER_PATH ('./helper' — константа, всегда непустая),
+  # из-за чего ветка AppMetrica запускалась всегда и падала с user_error
+  # (helper не найден / APPMETRICA_KEY пуст) даже при firebase-only загрузке.
+  helper_present = File.exist?(HELPER_PATH)
+  metrica_key_present = !APPMETRICA_KEY.to_s.strip.empty?
+  is_metrica = helper_present && metrica_key_present
   uploaded_to_metrica = false
   uploaded_to_firebase = false
 
   if is_metrica
     UI.message("Путь к helper: #{HELPER_PATH}")
     UI.message('Загрузка dSYM в AppMetrica...')
-    sh('chmod +x ./helper') if File.exist?('./helper')
+    sh("chmod +x #{HELPER_PATH}") if File.exist?(HELPER_PATH)
     unzip_and_upload(options)
     uploaded_to_metrica = true
     add_metric('uploaded_to_appmetrica', true) if respond_to?(:add_metric)
   else
-    UI.message('Пропуск загрузки в AppMetrica: путь к helper не настроен')
+    reason = if !helper_present
+               "helper-бинарь не найден (#{HELPER_PATH})"
+             else
+               'APPMETRICA_KEY не задан'
+             end
+    UI.message("Пропуск загрузки в AppMetrica: #{reason}")
   end
 
   firebase = options[:firebase] ? true : false
