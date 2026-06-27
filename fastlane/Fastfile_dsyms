@@ -43,21 +43,36 @@ lane :upload_dsyms do |options|
     UI.message('Загрузка dSYM в Firebase Crashlytics...')
     require 'find'
     dsym_paths = []
-    
-    # Расширяем поиск, включая стандартные директории артефактов
-    search_paths = [
-      '.',
-      File.expand_path(DSYM_FOLDER_PATH) rescue nil,
-      File.expand_path('fastlane/artifacts') rescue nil
-    ].compact.uniq
-    
+
+    # Формируем список путей для поиска
+    search_paths = []
+    search_paths << '.'
+
+    begin
+      dsym_folder = File.expand_path(DSYM_FOLDER_PATH)
+      search_paths << dsym_folder if dsym_folder && !dsym_folder.empty?
+    rescue StandardError
+      # DSYM_FOLDER_PATH не определен или невалиден
+    end
+
+    begin
+      artifacts_folder = File.expand_path('fastlane/artifacts')
+      search_paths << artifacts_folder if artifacts_folder && !artifacts_folder.empty?
+    rescue StandardError
+      # fastlane/artifacts не существует
+    end
+
+    search_paths.uniq!
+
+    # Ищем файлы во всех путях
     search_paths.each do |search_path|
       next unless File.exist?(search_path)
+
       Find.find(search_path) do |path|
         dsym_paths << path if path.end_with?('.dSYM.zip')
       end
     end
-    
+
     dsym_paths.uniq!
 
     if dsym_paths.empty?
@@ -95,22 +110,37 @@ lane :unzip_and_upload do |_options|
 
   dsym_paths = []
   UI.message('Поиск *.dSYM.zip файлов...')
-  
-  # Расширяем поиск, включая стандартные директории артефактов
-  search_paths = [
-    '.',
-    File.expand_path(DSYM_FOLDER_PATH) rescue nil,
-    File.expand_path('fastlane/artifacts') rescue nil
-  ].compact.uniq
-  
+
+  # Формируем список путей для поиска
+  search_paths = []
+  search_paths << '.'
+
+  begin
+    dsym_folder = File.expand_path(DSYM_FOLDER_PATH)
+    search_paths << dsym_folder if dsym_folder && !dsym_folder.empty?
+  rescue StandardError
+    # DSYM_FOLDER_PATH не определен или невалиден
+  end
+
+  begin
+    artifacts_folder = File.expand_path('fastlane/artifacts')
+    search_paths << artifacts_folder if artifacts_folder && !artifacts_folder.empty?
+  rescue StandardError
+    # fastlane/artifacts не существует
+  end
+
+  search_paths.uniq!
+
+  # Ищем файлы во всех путях
   search_paths.each do |search_path|
     next unless File.exist?(search_path)
+
     UI.message("Ищем в: #{search_path}")
     Find.find(search_path) do |path|
       dsym_paths << path if path.end_with?('.dSYM.zip')
     end
   end
-  
+
   dsym_paths.uniq!
 
   if dsym_paths.empty?
