@@ -104,11 +104,18 @@ FILE_NAME                   = "#{ARTIFACT_BASENAME}_v#{ENV['APP_VERSION']}_b#{BU
 # а валидация ищет в <root>/fastlane/FASTLANE/artifacts (лишний сегмент) → «IPA не
 # найден». Поэтому относительные пути из ENV привязываем к корню проекта.
 def fastlane_tools_project_root
-  if defined?(FastlaneCore::FastlaneFolder) && FastlaneCore::FastlaneFolder.path
-    File.expand_path('..', FastlaneCore::FastlaneFolder.path)
-  else
-    Dir.pwd
-  end
+  # В CI корень проекта известен точно — берём его (GitLab CI_PROJECT_DIR /
+  # GitHub GITHUB_WORKSPACE). Это надёжнее FastlaneCore::FastlaneFolder.path,
+  # который в репо с вложенной папкой fastlane/fastlane/ (её плодит metrics.json)
+  # возвращает путь на 1-2 уровня глубже и уводит относительные ARTIFACTS_PATH/
+  # HELPER_PATH в несуществующий каталог (…/fastlane/fastlane/fastlane/…).
+  ci_root = ENV['CI_PROJECT_DIR'] || ENV['GITHUB_WORKSPACE']
+  return File.expand_path(ci_root) if ci_root && !ci_root.strip.empty?
+
+  # Локально fastlane исполняет Fastfile с Dir.pwd = папкой fastlane/.
+  # Корень проекта — её родитель (если basename == 'fastlane'), иначе сам Dir.pwd.
+  pwd = Dir.pwd
+  File.basename(pwd) == 'fastlane' ? File.expand_path('..', pwd) : pwd
 end
 
 # Разворачивает путь в абсолютный: '~' → HOME, абсолютный — как есть,
