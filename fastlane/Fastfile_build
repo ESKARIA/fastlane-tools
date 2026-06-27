@@ -325,9 +325,20 @@ lane :build do |options|
   # ========================================================================
   # СОХРАНЕНИЕ АРТЕФАКТОВ
   # ========================================================================
+  # IPA → ARTIFACTS_PATH/ipa/, dSYM → ARTIFACTS_PATH/dsyms/. Это единственное
+  # каноническое место хранения; именно его передаёт механизм CI-артефактов.
   copy_artifacts(target_path: IPA_FOLDER_PATH.to_s, artifacts: ['*.ipa', IPA_FILE_PATH.to_s])
   copy_artifacts(target_path: DSYM_FOLDER_PATH.to_s, artifacts: ['*.dSYM.zip', DSYM_FILE_PATH.to_s])
-  copy_artifacts(target_path: 'fastlane/artifacts/', artifacts: ['*.dSYM.zip', '*.ipa'])
+
+  # Дополнительная копия в repo-local fastlane/artifacts/ нужна ТОЛЬКО когда
+  # ARTIFACTS_PATH вынесен за пределы рабочей копии (напр. ~/.cache): иначе
+  # CI-артефакты и find_ipa_files('artifacts') не увидят сборку. Если ARTIFACTS_PATH
+  # уже внутри fastlane/artifacts/ (дефолт) — копия избыточна и создаёт дубли
+  # IPA/dSYM (двойная заливка в TestFlight, раздутый артефакт), поэтому пропускаем.
+  ci_artifacts_dir = File.expand_path('fastlane/artifacts', fastlane_tools_project_root)
+  unless File.expand_path(ARTIFACTS_PATH.to_s).start_with?(ci_artifacts_dir)
+    copy_artifacts(target_path: 'fastlane/artifacts/', artifacts: ['*.dSYM.zip', '*.ipa'])
+  end
 
   # ========================================================================
   # ВАЛИДАЦИЯ АРТЕФАКТОВ
