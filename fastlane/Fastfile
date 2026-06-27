@@ -121,14 +121,14 @@ def expand_under_project_root(path)
 end
 
 # Базовый путь для хранения артефактов сборки.
-# По умолчанию — кэш в $HOME (обратная совместимость со старыми проектами).
-# Можно переопределить через ENV['ARTIFACTS_PATH'] (например, на repo-local
-# 'fastlane/artifacts/'), чтобы артефакты были видны механизму CI-артефактов и
-# не засоряли HOME раннера. Относительный путь привязывается к корню проекта;
-# результат всегда абсолютный и оканчивается на '/'.
+# По умолчанию — repo-local 'fastlane/artifacts/' (видно механизму CI-артефактов,
+# HOME раннера не засоряется). Можно переопределить через ENV['ARTIFACTS_PATH']
+# (в т.ч. на абсолютный путь или '~/...'). Относительный путь привязывается к
+# корню проекта; результат всегда абсолютный и оканчивается на '/'.
+# Прежний дефолт '~/.cache/apps/<TARGET>/' при необходимости задаётся явно через ENV.
 ARTIFACTS_PATH              = begin
   raw = ENV['ARTIFACTS_PATH'].to_s.strip
-  raw = "~/.cache/apps/#{MAIN_TARGET}/" if raw.empty?
+  raw = 'fastlane/artifacts/' if raw.empty?
   resolved = expand_under_project_root(raw) # делает путь абсолютным (~, rel→root)
   resolved.end_with?('/') ? resolved : "#{resolved}/"
 end
@@ -146,13 +146,12 @@ IPA_FILE_PATH               = IPA_FOLDER_PATH.to_s + IPA_FILE_NAME.to_s
 DSYM_FILE_PATH              = DSYM_FOLDER_PATH.to_s + DSYM_FILE_NAME.to_s
 
 # Путь к helper-бинарю AppMetrica для загрузки dSYM.
-# По умолчанию 'helper' в корне проекта. Переопределяется через ENV['HELPER_PATH']
-# — например 'fastlane/helper', если бинарь лежит в папке fastlane/. Относительный
-# путь привязывается к корню проекта (как и ARTIFACTS_PATH), поэтому File.exist? и
-# sh видят один и тот же абсолютный путь. Если файла нет — ветка AppMetrica в
-# upload_dsyms пропускается без ошибки.
+# По умолчанию 'fastlane/helper'. Переопределяется через ENV['HELPER_PATH'].
+# Относительный путь привязывается к корню проекта (как и ARTIFACTS_PATH), поэтому
+# File.exist? и sh видят один и тот же абсолютный путь. Если файла нет — ветка
+# AppMetrica в upload_dsyms пропускается без ошибки.
 HELPER_PATH                 = expand_under_project_root(
-  ENV['HELPER_PATH'].to_s.strip.empty? ? 'helper' : ENV['HELPER_PATH'].strip
+  ENV['HELPER_PATH'].to_s.strip.empty? ? 'fastlane/helper' : ENV['HELPER_PATH'].strip
 )
 # Флаг включения/выключения загрузки dSYM файлов
 UPLOAD_DSYMS                = ENV['UPLOAD_DSYMS']
