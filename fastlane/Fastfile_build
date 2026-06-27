@@ -72,16 +72,24 @@ end
 # @param xcodeproj [String] путь к .xcodeproj файлу
 # @return [Boolean] true если Info.plist найден
 def info_plist_exists?(target:, xcodeproj:)
+  # Используем get_info_plist_path из fastlane-plugin-versioning
   plist_path = get_info_plist_path(
     xcodeproj: xcodeproj,
     target: target
   )
 
-  exists = plist_path && File.exist?(plist_path)
-  UI.message("📋 Info.plist для таргета '#{target}': #{exists ? 'найден' : 'не найден'}")
+  # Проверяем, что путь не nil и не пустой
+  if plist_path.nil? || plist_path.to_s.strip.empty?
+    UI.message("📋 Info.plist для таргета '#{target}': не найден (путь пустой)")
+    return false
+  end
+
+  # Проверяем существование файла
+  exists = File.exist?(plist_path)
+  UI.message("📋 Info.plist для таргета '#{target}': #{exists ? 'найден' : 'не найден'} по пути #{plist_path}")
   exists
 rescue StandardError => e
-  UI.message("⚠️  Не удалось получить путь к Info.plist для '#{target}': #{e.message}")
+  UI.message("⚠️  Не удалось получить путь к Info.plist для '#{target}': #{e.class} - #{e.message}")
   false
 end
 
@@ -242,12 +250,13 @@ lane :build do |options|
   )
 
   # Получение текущей маркетинговой версии из проекта
-  version_number = get_version_number(
+  # ИСПОЛЬЗУЕМ actions из fastlane-plugin-versioning (поддерживают target)
+  version_number = get_version_number_from_xcodeproj(
     xcodeproj: ENV['MAIN_PROJECT_FILE'],
     target: MAIN_TARGET
   )
 
-  build_number = get_build_number(
+  build_number = get_build_number_from_xcodeproj(
     xcodeproj: ENV['MAIN_PROJECT_FILE'],
     target: MAIN_TARGET
   )
