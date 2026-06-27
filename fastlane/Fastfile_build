@@ -104,7 +104,7 @@ def set_version_for_target(target:, version:, build: nil)
     xcodeproj: xcodeproj
   )
   increment_build_number_in_xcodeproj(
-    build_number: BUILD_NUMBER.to_i,
+    build_number: BUILD_NUMBER.to_s,
     target: target,
     xcodeproj: xcodeproj
   )
