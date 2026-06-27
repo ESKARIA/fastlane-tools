@@ -5,12 +5,12 @@ lane :upload_dsyms do |options|
   # Начало сбора метрик (если helpers доступны)
   start_metrics('upload_dsyms') if respond_to?(:start_metrics)
 
-  if UPLOAD_DSYMS_ENABLED
-    UI.header('Загрузка символов (dSYM)')
-  else
+  unless UPLOAD_DSYMS_ENABLED
     UI.message('⚠️  Загрузка dSYM отключена (UPLOAD_DSYMS=false)')
-    return
+    next # Используем next вместо return
   end
+
+  UI.header('Загрузка символов (dSYM)')
 
   check_and_set_project_file
 
@@ -43,9 +43,22 @@ lane :upload_dsyms do |options|
     UI.message('Загрузка dSYM в Firebase Crashlytics...')
     require 'find'
     dsym_paths = []
-    Find.find('.') do |path|
-      dsym_paths << path if path.end_with?('.dSYM.zip')
+    
+    # Расширяем поиск, включая стандартные директории артефактов
+    search_paths = [
+      '.',
+      File.expand_path(DSYM_FOLDER_PATH) rescue nil,
+      File.expand_path('fastlane/artifacts') rescue nil
+    ].compact.uniq
+    
+    search_paths.each do |search_path|
+      next unless File.exist?(search_path)
+      Find.find(search_path) do |path|
+        dsym_paths << path if path.end_with?('.dSYM.zip')
+      end
     end
+    
+    dsym_paths.uniq!
 
     if dsym_paths.empty?
       UI.message('⚠️  Не найдено dSYM файлов для загрузки в Firebase')
@@ -82,13 +95,27 @@ lane :unzip_and_upload do |_options|
 
   dsym_paths = []
   UI.message('Поиск *.dSYM.zip файлов...')
-  Find.find('.') do |path|
-    dsym_paths << path if path.end_with?('.dSYM.zip')
+  
+  # Расширяем поиск, включая стандартные директории артефактов
+  search_paths = [
+    '.',
+    File.expand_path(DSYM_FOLDER_PATH) rescue nil,
+    File.expand_path('fastlane/artifacts') rescue nil
+  ].compact.uniq
+  
+  search_paths.each do |search_path|
+    next unless File.exist?(search_path)
+    UI.message("Ищем в: #{search_path}")
+    Find.find(search_path) do |path|
+      dsym_paths << path if path.end_with?('.dSYM.zip')
+    end
   end
+  
+  dsym_paths.uniq!
 
   if dsym_paths.empty?
     UI.message('⚠️  Не найдено dSYM.zip файлов')
-    return
+    next # Используем next вместо return
   end
 
   UI.message("Найдено dSYM.zip файлов: #{dsym_paths.count}")
@@ -112,5 +139,3 @@ lane :unzip_and_upload do |_options|
     end
   end
 end
-
-
