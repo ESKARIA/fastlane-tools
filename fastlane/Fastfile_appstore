@@ -374,13 +374,20 @@ lane :update_metadata_year do |_options|
   SHELL
 end
 
-desc 'Заливает ТОЛЬКО метаданные в App Store Connect. Если редактируемой версии нет — создаёт draft-версию и заполняет её текстами.'
+desc 'Заливает ТОЛЬКО метаданные одного приложения в App Store Connect. Если редактируемой версии нет — создаёт draft-версию и заполняет её текстами.'
 # Использование:
-#   fastlane upload_metadata                 # версия берётся из ENV['APP_VERSION']
-#   fastlane upload_metadata ver:2.0.0       # явная версия
+#   fastlane upload_metadata                            # версия из ENV['APP_VERSION']
+#   fastlane upload_metadata ver:2.0.0                  # явная версия
+#   fastlane upload_metadata ver:2.0.0 app_identifier:com.x metadata_path:./fastlane/metadata/bear
 #
 # Бинарь и скриншоты НЕ трогаются (skip_binary_upload / skip_screenshots).
-# Путь к метаданным берётся из Deliverfile (DELIVER_METADATA_PATH per pack).
+# Параметры (если не переданы опцией — берутся из окружения/Deliverfile):
+#   ver            — APP_VERSION
+#   app_identifier — первый из APP_IDENTIFIER
+#   metadata_path  — DELIVER_METADATA_PATH (иначе дефолт deliver ./fastlane/metadata)
+#
+# ВАЖНО для монорепо: metadata_path должен указывать на папку ОДНОГО пака
+# (внутри — папки локалей ru/en-US/…), а не на корень со всеми паками.
 lane :upload_metadata do |options|
   version_string = (options[:ver] || ENV['APP_VERSION']).to_s.strip
   UI.user_error!('❌ Версия не указана. Передайте ver:X.Y.Z или установите APP_VERSION') if version_string.empty?
@@ -388,14 +395,17 @@ lane :upload_metadata do |options|
   api_key = prepare_api_key_for_release_check
   UI.user_error!('❌ Не удалось настроить App Store Connect API ключ. Установите APPSTORE_KEY_CONTENT или APPSTORE_KEY_PATH.') unless api_key
 
-  app_identifier = get_primary_app_identifier
+  app_identifier = (options[:app_identifier] || get_primary_app_identifier).to_s.strip
+  metadata_path = (options[:metadata_path] || ENV['DELIVER_METADATA_PATH']).to_s.strip
+
   UI.header("Заливка метаданных #{version_string} для #{app_identifier}")
+  UI.message("metadata_path: #{metadata_path.empty? ? '(из Deliverfile/дефолт)' : metadata_path}")
 
   # Гарантируем наличие редактируемой версии в App Store Connect.
   # deliver не создаёт версию сам — без этого шага он падает с «No editable version».
   ensure_editable_app_store_version(app_identifier: app_identifier, version_string: version_string)
 
-  deliver(
+  deliver_args = {
     app_identifier: app_identifier,
     app_version: version_string,
     skip_binary_upload: true,
@@ -408,7 +418,12 @@ lane :upload_metadata do |options|
     force: true, # без интерактивной проверки HTML-превью
     run_precheck_before_submit: false,
     precheck_include_in_app_purchases: false
-  )
+  }
+  # Явный per-pack путь перекрывает Deliverfile — иначе deliver возьмёт корень
+  # ./fastlane/metadata и упадёт на папках паков как на «неизвестных локалях».
+  deliver_args[:metadata_path] = metadata_path unless metadata_path.empty?
+
+  deliver(deliver_args)
 
   UI.success("✅ Метаданные версии #{version_string} загружены для #{app_identifier}")
 end
