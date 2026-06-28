@@ -31,7 +31,11 @@ def ensure_dsym_artifact
   #    ВАЖНО: пути из lane_context/DERIVED_PATH относительные — резолвим их
   #    относительно КОРНЯ проекта, а не cwd (у fastlane cwd = папка fastlane/),
   #    иначе архив и DerivedData ищутся в несуществующем …/fastlane/build.
-  gym_zip = (lane_context[SharedValues::DSYM_OUTPUT_PATH] rescue nil)
+  gym_zip = begin
+    lane_context[SharedValues::DSYM_OUTPUT_PATH]
+  rescue StandardError
+    nil
+  end
   gym_zip = expand_under_project_root(gym_zip) if gym_zip
   if gym_zip && File.exist?(gym_zip)
     FileUtils.cp(gym_zip, out_zip)
@@ -40,7 +44,11 @@ def ensure_dsym_artifact
   end
 
   # 2) Ищем *.dSYM в архиве сборки, затем — в DerivedData.
-  archive = (lane_context[SharedValues::XCODEBUILD_ARCHIVE] rescue nil)
+  archive = begin
+    lane_context[SharedValues::XCODEBUILD_ARCHIVE]
+  rescue StandardError
+    nil
+  end
   archive = expand_under_project_root(archive) if archive
   dsym_sources = []
   dsym_sources = Dir.glob(File.join(archive, 'dSYMs', '*.dSYM')) if archive && Dir.exist?(File.join(archive, 'dSYMs'))
@@ -191,7 +199,7 @@ def set_version_for_target(target:, version:, build: nil)
 
     if build
       increment_build_number_in_plist(
-        build_number: build.to_i,
+        build_number: BUILD_NUMBER.to_s,
         target: target,
         xcodeproj: xcodeproj
       )
