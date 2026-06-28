@@ -1,5 +1,40 @@
 # frozen_string_literal: true
 
+# Диагностика: документирует, что реально лежит в путях поиска dSYM на момент
+# запуска lane. Нужна для отладки кейса «артефакты скачались, но *.dSYM.zip не
+# найден» — печатает cwd, ожидаемое имя/путь dSYM и фактическое содержимое
+# каждого search_path (только релевантные *.zip/*.dSYM*/*.ipa, с ограничением).
+def dump_dsym_search_context(search_paths)
+  require 'find'
+  UI.header('🔎 Диагностика поиска dSYM')
+  UI.message("cwd: #{Dir.pwd}")
+  UI.message("ARTIFACTS_PATH: #{defined?(ARTIFACTS_PATH) ? ARTIFACTS_PATH : '—'}")
+  UI.message("DSYM_FOLDER_PATH: #{defined?(DSYM_FOLDER_PATH) ? DSYM_FOLDER_PATH : '—'}")
+  UI.message("Ожидаемое имя dSYM: #{defined?(DSYM_FILE_NAME) ? DSYM_FILE_NAME : '—'}")
+  UI.message("Ожидаемый путь dSYM: #{defined?(DSYM_FILE_PATH) ? File.expand_path(DSYM_FILE_PATH) : '—'}")
+
+  search_paths.each do |search_path|
+    unless File.exist?(search_path)
+      UI.important("  ✗ путь не существует: #{search_path}")
+      next
+    end
+
+    matches = []
+    total = 0
+    Find.find(search_path) do |path|
+      next if File.directory?(path)
+
+      total += 1
+      matches << path if path =~ /\.(dSYM(\.zip)?|zip|ipa)$/i
+      Find.prune if matches.size >= 50
+    end
+
+    UI.message("  ✓ #{search_path} — всего файлов: #{total}, релевантных: #{matches.size}")
+    matches.first(50).each { |m| UI.message("      • #{m}") }
+  end
+  UI.message('🔎 Конец диагностики поиска dSYM')
+end
+
 desc 'Upload symbols'
 lane :upload_dsyms do |options|
   # Начало сбора метрик (если helpers доступны)
@@ -74,6 +109,7 @@ lane :upload_dsyms do |options|
     end
 
     search_paths.uniq!
+    dump_dsym_search_context(search_paths)
 
     # Ищем файлы во всех путях
     search_paths.each do |search_path|
@@ -141,6 +177,7 @@ lane :unzip_and_upload do |_options|
   end
 
   search_paths.uniq!
+  dump_dsym_search_context(search_paths)
 
   # Ищем файлы во всех путях
   search_paths.each do |search_path|
