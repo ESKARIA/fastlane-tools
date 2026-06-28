@@ -2,6 +2,63 @@
 
 require 'fileutils'
 
+# Гарантирует наличие dSYM-артефакта в DSYM_FOLDER_PATH после сборки.
+#
+# Зачем: gym (build_app) НЕ всегда кладёт `<name>.app.dSYM.zip` рядом с IPA —
+# особенно для extension-схем (iMessage), где dSYM лежат внутри .xcarchive, но
+# gym их не зипует. Тогда `copy_artifacts(... '*.dSYM.zip' ...)` копирует пустоту
+# и стадия upload_dsyms не находит символы. Здесь, если в DSYM_FOLDER_PATH пусто,
+# достаём dSYM напрямую: сначала из gym DSYM_OUTPUT_PATH, затем из dSYMs архива,
+# затем из DerivedData — и зипуем в DSYM_FILE_PATH.
+def ensure_dsym_artifact
+  require 'tmpdir'
+  require 'shellwords'
+
+  dsym_dir = File.expand_path(DSYM_FOLDER_PATH)
+  FileUtils.mkdir_p(dsym_dir)
+
+  existing = Dir.glob(File.join(dsym_dir, '*.dSYM.zip'))
+  unless existing.empty?
+    UI.message("✅ dSYM-артефакт уже на месте (#{existing.size} шт.) — фоллбэк не нужен")
+    return
+  end
+
+  UI.important('⚠️  dSYM.zip не попал в артефакты от gym — достаём dSYM вручную')
+
+  out_zip = File.expand_path(DSYM_FILE_PATH)
+
+  # 1) gym мог сделать zip и записать путь в lane_context.
+  gym_zip = (lane_context[SharedValues::DSYM_OUTPUT_PATH] rescue nil)
+  if gym_zip && File.exist?(gym_zip)
+    FileUtils.cp(gym_zip, out_zip)
+    UI.success("✅ dSYM скопирован из gym DSYM_OUTPUT_PATH: #{gym_zip}")
+    return
+  end
+
+  # 2) Ищем *.dSYM в архиве сборки, затем — в DerivedData.
+  archive = (lane_context[SharedValues::XCODEBUILD_ARCHIVE] rescue nil)
+  dsym_sources = []
+  dsym_sources = Dir.glob(File.join(archive, 'dSYMs', '*.dSYM')) if archive && Dir.exist?(File.join(archive, 'dSYMs'))
+  dsym_sources = Dir.glob(File.join(File.expand_path(DERIVED_PATH), '**', '*.dSYM')) if dsym_sources.empty?
+
+  if dsym_sources.empty?
+    UI.important('⚠️  Не найдено ни одного *.dSYM (ни в архиве, ни в DerivedData).')
+    UI.important('   Проверьте, что для Release задан DEBUG_INFORMATION_FORMAT = dwarf-with-dsym.')
+    return
+  end
+
+  UI.message("Найдено dSYM: #{dsym_sources.size}. Зипуем в #{out_zip}")
+  dsym_sources.each { |d| UI.message("  • #{d}") }
+
+  # Стейджим все .dSYM в temp и зипуем их как top-level записи (без абсолютных путей).
+  Dir.mktmpdir('dsyms') do |staging|
+    dsym_sources.uniq { |d| File.basename(d) }.each { |d| FileUtils.cp_r(d, staging) }
+    FileUtils.rm_f(out_zip)
+    Dir.chdir(staging) { sh("zip -r -q #{out_zip.shellescape} .") }
+  end
+  UI.success("✅ dSYM собран вручную: #{out_zip}")
+end
+
 # ==============================================================================
 # Fastfile_build - Сборка iOS приложений
 # ==============================================================================
@@ -329,6 +386,9 @@ lane :build do |options|
   # каноническое место хранения; именно его передаёт механизм CI-артефактов.
   copy_artifacts(target_path: IPA_FOLDER_PATH.to_s, artifacts: ['*.ipa', IPA_FILE_PATH.to_s])
   copy_artifacts(target_path: DSYM_FOLDER_PATH.to_s, artifacts: ['*.dSYM.zip', DSYM_FILE_PATH.to_s])
+
+  # gym для extension-схем часто не зипует dSYM — гарантируем артефакт вручную.
+  ensure_dsym_artifact
 
   # Дополнительная копия в repo-local fastlane/artifacts/ нужна ТОЛЬКО когда
   # ARTIFACTS_PATH вынесен за пределы рабочей копии (напр. ~/.cache): иначе
