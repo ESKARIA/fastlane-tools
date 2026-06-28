@@ -120,8 +120,10 @@ lane :upload_dsyms do |options|
       end
     end
 
-    # Дедуп по абсолютному пути — один zip находится и по '.', и по absolute path.
-    dsym_paths = dsym_paths.uniq { |p| File.expand_path(p) }
+    # Абсолютизируем + дедупим. upload_symbols_to_crashlytics резолвит
+    # относительные пути от КОРНЯ проекта (stickers/), а cwd здесь — fastlane/,
+    # поэтому './artifacts/...' не находится. Передаём абсолютные пути.
+    dsym_paths = dsym_paths.map { |p| File.expand_path(p) }.uniq
 
     if dsym_paths.empty?
       UI.message('⚠️  Не найдено dSYM файлов для загрузки в Firebase')
