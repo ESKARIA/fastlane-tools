@@ -103,7 +103,10 @@ def mac_generate_match(type:, git_branch:, installer: false)
     force_for_new_devices: true,
     include_all_certificates: true,
     force_for_new_certificates: true,
-    clone_branch_directly: true,
+    # clone_branch_directly НЕ используем в режиме генерации: на первом прогоне
+    # ветки git_branch ещё нет, и match должен её создать (с этим флагом он бы
+    # упал на `git clone -b <branch>`). После первого прогона ветка существует,
+    # и install-лейны клонируют её напрямую (clone_branch_directly: true).
     readonly: false,
     fail_on_name_taken: true,
     force: true,
