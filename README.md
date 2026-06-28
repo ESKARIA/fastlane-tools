@@ -80,6 +80,44 @@ fastlane upload_external_testflight groups:"External Public Beta"
 fastlane pass_to_review
 ```
 
+### Сборка и публикация macOS
+
+Для macOS-приложений используются отдельные lanes под платформой `mac`
+(вызываются с префиксом `mac`). Они зеркалят iOS-пайплайн, но собирают `.pkg`,
+подписывают его installer-сертификатом и грузят с платформой `osx`. Сертификаты
+и профили хранятся в отдельных ветках match: `macos_development` и
+`macos_distribution`.
+
+```bash
+# Сертификаты macOS (development и App Store + installer-сертификат)
+fastlane mac match_generate_dev
+fastlane mac match_generate_appstore   # выпускает и mac_installer_distribution
+fastlane mac match_install_appstore    # установка на CI/новой машине (readonly)
+
+# Сборка .pkg для App Store
+fastlane mac build
+
+# Загрузка в TestFlight (авто Internal/External по EXTERNAL_TESTFLIGHT_GROUPS)
+fastlane mac upload_testflight
+fastlane mac upload_testflight external:true groups:"External Public Beta"
+
+# Загрузка в App Store Connect (submit:true — сразу на рецензирование)
+fastlane mac upload_appstore
+fastlane mac upload_appstore submit:true
+```
+
+Переменные окружения те же, что и для iOS (`APP_IDENTIFIER`, `APPSTORE_KEY_*`,
+`MATCH_GIT_URL`, `MATCH_PASSWORD`, `MAIN_PROJECT_FILE`/`MAIN_TARGET`/`BUILD_SCHEME`,
+`APP_VERSION`, `CI_PIPELINE_IID`). Дополнительно (опционально):
+
+```bash
+# Имя installer-сертификата для подписи .pkg
+export MAC_INSTALLER_CERT="3rd Party Mac Developer Installer"
+# Переопределение веток match для macOS (по умолчанию macos_development/macos_distribution)
+export MACOS_MATCH_DEV_BRANCH="macos_development"
+export MACOS_MATCH_DIST_BRANCH="macos_distribution"
+```
+
 ### Дополнительные команды
 
 ```bash
@@ -158,7 +196,8 @@ fastlane-tools/
 ├── fastlane/
 │   ├── Fastfile                 # Главный файл конфигурации
 │   ├── Fastfile_match          # Управление сертификатами
-│   ├── Fastfile_build          # Сборка приложений
+│   ├── Fastfile_build          # Сборка приложений (iOS)
+│   ├── Fastfile_macos          # Сборка и публикация macOS (platform :mac)
 │   ├── Fastfile_upload         # Загрузка в TestFlight
 │   ├── Fastfile_appstore       # Работа с App Store
 │   ├── Fastfile_dsyms         # Загрузка символов

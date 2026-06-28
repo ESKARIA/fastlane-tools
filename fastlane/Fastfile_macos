@@ -1,0 +1,520 @@
+# frozen_string_literal: true
+
+require 'fileutils'
+
+# ==============================================================================
+# Fastfile_macos - Сборка и публикация macOS приложений
+# ==============================================================================
+# Зеркало iOS-пайплайна (Fastfile_match / Fastfile_build / Fastfile_upload),
+# но для macOS. Все лейны живут под `platform :mac`, поэтому вызываются как
+# `fastlane mac <lane>` и не конфликтуют с общими (iOS) лейнами.
+#
+# Отличия macOS от iOS, которые здесь учтены:
+#   - Артефакт App Store — это .pkg (а не .ipa).
+#   - Для подписи .pkg нужен сертификат "3rd Party Mac Developer Installer"
+#     (match type :mac_installer_distribution).
+#   - Экспорт gym/build_app идёт с export_method 'app-store' и платформой macOS.
+#   - Заливка в TestFlight/App Store идёт с app_platform/platform 'osx'.
+#
+# Ветки match для macOS держим отдельно от iOS:
+#   - macos_development  — development сертификаты и профили
+#   - macos_distribution — App Store + installer сертификаты и профили
+#
+# Переменные окружения (как и в iOS): APP_IDENTIFIER, APPSTORE_KEY_ID,
+# APPSTORE_ISSUER_ID, APPSTORE_KEY_CONTENT, MATCH_GIT_URL, MATCH_PASSWORD,
+# MAIN_PROJECT_FILE/MAIN_TARGET/BUILD_SCHEME, APP_VERSION, CI_PIPELINE_IID.
+# Доп. (опционально):
+#   - MAC_INSTALLER_CERT  — имя installer-сертификата (по умолчанию
+#                           "3rd Party Mac Developer Installer").
+#   - EXTERNAL_TESTFLIGHT_GROUPS — группы external testers (как в iOS).
+# ==============================================================================
+
+# ==============================================================================
+# КОНСТАНТЫ И ПУТИ К АРТЕФАКТАМ
+# ==============================================================================
+
+# Ветки git-репозитория match для macOS (отдельно от iOS development/distribution).
+MACOS_MATCH_DEV_BRANCH     = ENV['MACOS_MATCH_DEV_BRANCH']     || 'macos_development'
+MACOS_MATCH_DIST_BRANCH    = ENV['MACOS_MATCH_DIST_BRANCH']    || 'macos_distribution'
+
+# Имя installer-сертификата для подписи .pkg. По умолчанию App Store installer.
+MAC_INSTALLER_CERT_NAME    = ENV['MAC_INSTALLER_CERT'] || '3rd Party Mac Developer Installer'
+
+# Имя .pkg-файла и каталоги артефактов. Базируемся на общих FILE_NAME/ARTIFACTS_PATH
+# из главного Fastfile (доступны на момент импорта модуля).
+def mac_pkg_file_name
+  "#{FILE_NAME}.pkg"
+end
+
+def mac_pkg_folder_path
+  "#{ARTIFACTS_PATH}pkg/"
+end
+
+def mac_pkg_file_path
+  "#{mac_pkg_folder_path}#{mac_pkg_file_name}"
+end
+
+# ==============================================================================
+# ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ (общие для match/build/upload)
+# ==============================================================================
+
+# Возвращает массив bundle identifiers (переиспользуем общий helper, если есть).
+def mac_app_identifiers
+  identifiers = if respond_to?(:get_all_app_identifiers)
+                  get_all_app_identifiers
+                else
+                  APP_IDENTIFIER.to_s.split(',').map(&:strip).reject(&:empty?)
+                end
+  UI.user_error!('❌ APP_IDENTIFIER не установлен или пуст') if identifiers.empty?
+  identifiers
+end
+
+# Настраивает App Store Connect API ключ (как в iOS-модулях).
+def mac_setup_api_key
+  app_store_connect_api_key(
+    key_id: APPSTORE_KEY_ID,
+    issuer_id: APPSTORE_ISSUER_ID,
+    key_content: APPSTORE_KEY_CONTENT,
+    in_house: false,
+    is_key_content_base64: true
+  )
+end
+
+# Генерация сертификатов и профилей macOS через match (режим записи).
+#
+# @param type [String] 'development' или 'appstore'
+# @param git_branch [String] ветка match
+# @param installer [Boolean] добавить ли mac_installer_distribution сертификат
+def mac_generate_match(type:, git_branch:, installer: false)
+  raise 'Has no APP_IDENTIFIER' unless APP_IDENTIFIER
+  raise 'Has no APPSTORE_KEY_CONTENT' unless APPSTORE_KEY_CONTENT
+
+  app_identifiers = mac_app_identifiers
+  UI.message("Найдено bundle identifiers для macOS match: #{app_identifiers.count}")
+  app_identifiers.each_with_index { |id, i| UI.message("  #{i + 1}. #{id}") }
+
+  api_key = mac_setup_api_key
+
+  params = {
+    type: type,
+    app_identifier: app_identifiers.join(','),
+    api_key: api_key,
+    platform: 'macos',                  # ← ключевое отличие от iOS
+    force_for_new_devices: true,
+    include_all_certificates: true,
+    force_for_new_certificates: true,
+    clone_branch_directly: true,
+    readonly: false,
+    fail_on_name_taken: true,
+    force: true,
+    verbose: true,
+    generate_apple_certs: true,
+    keychain_name: ENV['MATCH_KEYCHAIN_NAME'],
+    keychain_password: ENV['MATCH_KEYCHAIN_PASSWORD'],
+    git_branch: git_branch
+  }
+  # Для App Store дополнительно выпускаем installer-сертификат для подписи .pkg.
+  params[:additional_cert_types] = ['mac_installer_distribution'] if installer
+
+  match(**params)
+end
+
+# Установка существующих сертификатов/профилей macOS из match (readonly).
+#
+# @param type [String] 'development' или 'appstore'
+# @param git_branch [String] ветка match
+# @param installer [Boolean] установить ли mac_installer_distribution сертификат
+def mac_install_match(type:, git_branch:, installer: false)
+  app_identifiers = mac_app_identifiers
+  UI.message("Установка macOS сертификатов для bundle identifiers: #{app_identifiers.count}")
+  app_identifiers.each_with_index { |id, i| UI.message("  #{i + 1}. #{id}") }
+
+  params = {
+    type: type,
+    app_identifier: app_identifiers.join(','),
+    platform: 'macos',
+    include_all_certificates: true,
+    clone_branch_directly: true,
+    fail_on_name_taken: true,
+    readonly: true,
+    force: false,
+    verbose: true,
+    keychain_name: ENV['MATCH_KEYCHAIN_NAME'],
+    keychain_password: ENV['MATCH_KEYCHAIN_PASSWORD'],
+    git_branch: git_branch
+  }
+  params[:additional_cert_types] = ['mac_installer_distribution'] if installer
+
+  match(**params)
+end
+
+# ==============================================================================
+# LANES
+# ==============================================================================
+
+platform :mac do
+  # ============================================================================
+  # MATCH: ГЕНЕРАЦИЯ
+  # ============================================================================
+
+  desc 'macOS: сгенерировать development сертификаты и профили'
+  lane :match_generate_dev do |_options|
+    mac_generate_match(type: 'development', git_branch: MACOS_MATCH_DEV_BRANCH)
+  end
+
+  desc 'macOS: сгенерировать App Store сертификаты, installer-сертификат и профили'
+  lane :match_generate_appstore do |_options|
+    mac_generate_match(type: 'appstore', git_branch: MACOS_MATCH_DIST_BRANCH, installer: true)
+  end
+
+  # ============================================================================
+  # MATCH: УСТАНОВКА
+  # ============================================================================
+
+  desc 'macOS: установить development сертификаты и профили (readonly)'
+  lane :match_install_dev do |_options|
+    mac_install_match(type: 'development', git_branch: MACOS_MATCH_DEV_BRANCH)
+  end
+
+  desc 'macOS: установить App Store сертификаты, installer-сертификат и профили (readonly)'
+  lane :match_install_appstore do |_options|
+    mac_install_match(type: 'appstore', git_branch: MACOS_MATCH_DIST_BRANCH, installer: true)
+  end
+
+  # ============================================================================
+  # MATCH: УДАЛЕНИЕ
+  # ============================================================================
+
+  desc 'macOS: удалить (nuke) development сертификаты и профили'
+  lane :nuke_development do |_options|
+    match_nuke(type: 'development',
+               app_identifier: mac_app_identifiers.join(','),
+               platform: 'macos',
+               git_branch: MACOS_MATCH_DEV_BRANCH,
+               api_key: mac_setup_api_key,
+               skip_confirmation: false)
+  end
+
+  desc 'macOS: удалить (nuke) App Store сертификаты и профили'
+  lane :nuke_appstore do |_options|
+    match_nuke(type: 'appstore',
+               app_identifier: mac_app_identifiers.join(','),
+               platform: 'macos',
+               git_branch: MACOS_MATCH_DIST_BRANCH,
+               api_key: mac_setup_api_key,
+               skip_confirmation: false)
+  end
+
+  # ============================================================================
+  # СБОРКА (.pkg для App Store)
+  # ============================================================================
+
+  desc 'macOS: собрать .pkg для App Store (версия, подпись через match, артефакт)'
+  lane :build do |options|
+    check_and_set_project_file
+    start_metrics('build') if respond_to?(:start_metrics)
+
+    # ----- Валидация -----
+    UI.user_error!('❌ APP_VERSION не установлен') if ENV['APP_VERSION'].to_s.empty?
+    UI.user_error!('❌ BUILD_NUMBER не установлен') if BUILD_NUMBER.to_s.empty?
+    UI.user_error!('❌ MAIN_TARGET не установлен') if MAIN_TARGET.to_s.empty?
+
+    add_metric('version', ENV['APP_VERSION']) if respond_to?(:add_metric)
+    add_metric('build_number', BUILD_NUMBER.to_s) if respond_to?(:add_metric)
+    add_metric('platform', 'macos') if respond_to?(:add_metric)
+
+    if ENV['TELEGRAM_ENABLED'] == 'true' && respond_to?(:notify_telegram_stage)
+      notify_telegram_stage('Начало сборки macOS приложения', {
+                              'Версия' => ENV['APP_VERSION'],
+                              'Build' => BUILD_NUMBER.to_s,
+                              'Target' => MAIN_TARGET.to_s,
+                              'Scheme' => BUILD_SCHEME.to_s,
+                              'Платформа' => 'macOS'
+                            })
+    end
+
+    # ----- Каталоги артефактов -----
+    FileUtils.mkdir_p(File.expand_path(mac_pkg_folder_path))
+
+    # ----- Версия (тот же helper, что и в iOS-сборке) -----
+    set_version_for_target(
+      target: MAIN_TARGET.to_s,
+      version: ENV['APP_VERSION'].to_s,
+      build: BUILD_NUMBER.to_i
+    )
+
+    version_number = get_version_number_from_xcodeproj(xcodeproj: ENV['MAIN_PROJECT_FILE'], target: MAIN_TARGET)
+    build_number   = get_build_number_from_xcodeproj(xcodeproj: ENV['MAIN_PROJECT_FILE'], target: MAIN_TARGET)
+
+    UI.header('Сборка macOS приложения')
+    UI.message("Версия: #{version_number}")
+    UI.message("Номер сборки: #{build_number}")
+    UI.message("Target: #{MAIN_TARGET}")
+    UI.message("Scheme: #{BUILD_SCHEME}")
+    UI.message("Installer cert: #{MAC_INSTALLER_CERT_NAME}")
+
+    # ----- API ключ + сертификаты -----
+    mac_setup_api_key
+    ensure_signing_keychain if respond_to?(:ensure_signing_keychain)
+    mac_install_match(type: 'appstore', git_branch: MACOS_MATCH_DIST_BRANCH, installer: true)
+
+    # ----- Сборка через gym -----
+    app_identifiers = mac_app_identifiers
+    provisioning_profiles = app_identifiers.each_with_object({}) do |identifier, hash|
+      hash[identifier] = "match AppStore #{identifier}"
+    end
+
+    build_params = {
+      project: ENV['MAIN_PROJECT_FILE'],
+      scheme: BUILD_SCHEME,
+      export_method: 'app-store',
+      export_options: {
+        method: 'app-store',
+        provisioningProfiles: provisioning_profiles,
+        installerSigningCertificate: MAC_INSTALLER_CERT_NAME,
+        signingStyle: 'manual'
+      },
+      cloned_source_packages_path: 'SourcePackages',
+      clean: true,
+      output_name: mac_pkg_file_name,
+      output_directory: mac_pkg_folder_path,
+      build_path: DERIVED_PATH.to_s
+    }
+    build_params[:configuration] = BUILD_CONFIGURATION unless BUILD_CONFIGURATION.to_s.empty?
+
+    build_app(**build_params)
+
+    # ----- Копия в repo-local fastlane/artifacts/ (если artifacts вынесены наружу) -----
+    ci_artifacts_dir = File.expand_path('fastlane/artifacts', fastlane_tools_project_root)
+    unless File.expand_path(ARTIFACTS_PATH.to_s).start_with?(ci_artifacts_dir)
+      copy_artifacts(target_path: 'fastlane/artifacts/', artifacts: ['*.pkg'])
+    end
+
+    # ----- Валидация артефакта -----
+    expanded_pkg_path = File.expand_path(mac_pkg_file_path)
+    possible_pkg_paths = [
+      expanded_pkg_path,
+      File.join(Dir.pwd, mac_pkg_file_name),
+      File.join(mac_pkg_folder_path, mac_pkg_file_name),
+      File.join('fastlane/artifacts', mac_pkg_file_name)
+    ].map { |p| File.expand_path(p) }.uniq
+
+    found_pkg_path = possible_pkg_paths.find { |path| File.exist?(path) }
+    unless found_pkg_path
+      UI.user_error!("❌ .pkg не найден после сборки. Проверялись пути:\n  - #{possible_pkg_paths.join("\n  - ")}")
+    end
+
+    pkg_size_mb = File.size(found_pkg_path) / (1024.0 * 1024.0)
+    UI.success('✅ Сборка macOS завершена успешно')
+    UI.message("PKG: #{found_pkg_path}")
+    UI.message("Размер PKG: #{pkg_size_mb.round(2)}MB")
+
+    add_metric('pkg_size_mb', pkg_size_mb.round(2)) if respond_to?(:add_metric)
+    add_metric('status', 'success') if respond_to?(:add_metric)
+
+    if ENV['TELEGRAM_ENABLED'] == 'true' && respond_to?(:notify_telegram_success)
+      notify_telegram_success('Сборка macOS завершена успешно', {
+                                'Версия' => version_number,
+                                'Build' => build_number.to_s,
+                                'Target' => MAIN_TARGET.to_s,
+                                'Платформа' => 'macOS',
+                                'Размер PKG' => "#{pkg_size_mb.round(2)}MB",
+                                'PKG файл' => File.basename(found_pkg_path)
+                              }, include_metrics: true)
+    end
+  end
+
+  # ============================================================================
+  # ЗАГРУЗКА В TESTFLIGHT
+  # ============================================================================
+
+  desc 'macOS: загрузить .pkg в TestFlight (авто Internal/External по EXTERNAL_TESTFLIGHT_GROUPS)'
+  lane :upload_testflight do |options|
+    require 'find'
+    check_and_set_project_file
+
+    # ----- Тип загрузки -----
+    force_external = options[:external] == true
+    has_external_groups = !ENV['EXTERNAL_TESTFLIGHT_GROUPS'].to_s.empty?
+    is_external = force_external || has_external_groups
+
+    groups_array = []
+    if is_external
+      external_groups = options[:groups] || ENV['EXTERNAL_TESTFLIGHT_GROUPS'] || 'External Public Beta'
+      groups_array = external_groups.to_s.split(',').map(&:strip)
+      if groups_array.empty? || groups_array.first.empty?
+        UI.user_error!('Для external testers укажите группы: groups:"GroupName" или EXTERNAL_TESTFLIGHT_GROUPS')
+      end
+      UI.header('macOS → TestFlight (External Testers)')
+      UI.message("Группы: #{groups_array.join(', ')}")
+    else
+      UI.header('macOS → TestFlight (Internal Testers)')
+    end
+
+    if ENV['TELEGRAM_ENABLED'] == 'true' && respond_to?(:notify_telegram_stage)
+      notify_telegram_stage("Начало загрузки macOS в TestFlight (#{is_external ? 'External' : 'Internal'})", {
+                              'Версия' => ENV['APP_VERSION'] || 'не указана',
+                              'Build' => BUILD_NUMBER.to_s,
+                              'Target' => MAIN_TARGET.to_s,
+                              'Платформа' => 'macOS'
+                            })
+    end
+
+    api_key = mac_setup_api_key
+    changelog = respond_to?(:get_changelog_from_git) ? get_changelog_from_git : nil
+    app_identifier = mac_app_identifiers.first
+    pkg_path = mac_find_pkg
+
+    UI.message("Загружаем: #{pkg_path}")
+
+    testflight_params = {
+      api_key: api_key,
+      app_platform: 'osx',                          # ← macOS
+      app_identifier: app_identifier,
+      pkg: pkg_path,                                # ← .pkg вместо .ipa
+      changelog: changelog,
+      distribute_external: is_external,
+      skip_waiting_for_build_processing: false,
+      expire_previous_builds: false,
+      reject_build_waiting_for_review: true
+    }
+    testflight_params[:groups] = groups_array if is_external
+
+    mac_upload_with_retry(testflight_params, pkg_path)
+
+    if is_external
+      UI.success("✅ macOS сборка загружена для external testers: #{groups_array.join(', ')}")
+    else
+      UI.success('✅ macOS сборка загружена (Internal Testers)')
+    end
+
+    if ENV['TELEGRAM_ENABLED'] == 'true' && respond_to?(:notify_telegram_success)
+      notify_telegram_success("macOS сборка загружена (#{is_external ? 'External' : 'Internal'})", {
+                                'Версия' => ENV['APP_VERSION'] || 'не указана',
+                                'Build' => BUILD_NUMBER.to_s,
+                                'Target' => MAIN_TARGET.to_s,
+                                'Платформа' => 'macOS',
+                                'Группы' => is_external ? groups_array : 'Internal'
+                              }, include_metrics: true)
+    end
+
+    add_metric('status', 'success') if respond_to?(:add_metric)
+  end
+
+  # ============================================================================
+  # ЗАГРУЗКА И ОТПРАВКА В APP STORE
+  # ============================================================================
+
+  desc 'macOS: загрузить .pkg в App Store Connect (deliver, опц. submit:true для рецензии)'
+  lane :upload_appstore do |options|
+    check_and_set_project_file
+
+    api_key = mac_setup_api_key
+    app_identifier = mac_app_identifiers.first
+    pkg_path = mac_find_pkg
+    submit = options[:submit] == true || options[:submit].to_s == 'true'
+
+    UI.header('macOS → App Store Connect (deliver)')
+    UI.message("PKG: #{pkg_path}")
+    UI.message("Submit for review: #{submit}")
+
+    deliver_params = {
+      api_key: api_key,
+      app_identifier: app_identifier,
+      platform: 'osx',                              # ← macOS
+      pkg: pkg_path,
+      submit_for_review: submit,
+      automatic_release: submit,
+      force: true,                                  # без HTML-подтверждения
+      skip_screenshots: true,
+      skip_metadata: !submit,                       # метаданные шлём только при отправке на ревью
+      precheck_include_in_app_purchases: false,
+      run_precheck_before_submit: false
+    }
+
+    if submit
+      deliver_params[:submission_information] = {
+        export_compliance_uses_encryption: false,
+        export_compliance_is_exempt: false,
+        content_rights_contains_third_party_content: false,
+        content_rights_has_rights: false,
+        add_id_info_uses_idfa: false
+      }
+    end
+
+    deliver(**deliver_params)
+    UI.success("✅ macOS .pkg загружен в App Store Connect#{submit ? ' и отправлен на рецензирование' : ''}")
+
+    if ENV['TELEGRAM_ENABLED'] == 'true' && respond_to?(:notify_telegram_success)
+      notify_telegram_success('macOS загружено в App Store', {
+                                'Версия' => ENV['APP_VERSION'] || 'не указана',
+                                'Build' => BUILD_NUMBER.to_s,
+                                'Target' => MAIN_TARGET.to_s,
+                                'Платформа' => 'macOS',
+                                'Отправлено на ревью' => submit ? 'да' : 'нет'
+                              }, include_metrics: true)
+    end
+  end
+end
+
+# ==============================================================================
+# ВНУТРЕННИЕ ХЕЛПЕРЫ ЗАГРУЗКИ (вне platform-блока — обычные методы)
+# ==============================================================================
+
+# Ищет собранный .pkg: сначала по ожидаемому имени, затем любой .pkg в артефактах.
+def mac_find_pkg
+  require 'find'
+
+  candidates = [
+    File.expand_path(mac_pkg_file_path),
+    File.expand_path(File.join('fastlane/artifacts', mac_pkg_file_name)),
+    File.expand_path(File.join(mac_pkg_folder_path, mac_pkg_file_name))
+  ].uniq
+  found = candidates.find { |p| File.exist?(p) }
+  return found if found
+
+  # Фоллбэк: любой .pkg в каталогах артефактов.
+  search_dirs = [mac_pkg_folder_path, 'fastlane/artifacts', ARTIFACTS_PATH.to_s].uniq
+  search_dirs.each do |dir|
+    expanded = File.expand_path(dir)
+    next unless File.directory?(expanded)
+
+    Find.find(expanded) do |path|
+      return path if path.end_with?('.pkg')
+    end
+  end
+
+  UI.user_error!("❌ Не найден .pkg для загрузки. Проверены: #{(candidates + search_dirs).join(', ')}")
+end
+
+# Загрузка в TestFlight с retry и идемпотентной обработкой «уже загружено».
+def mac_upload_with_retry(testflight_params, pkg_path)
+  do_upload = proc { testflight(**testflight_params) }
+  already_done = lambda do |e|
+    msg = e.message.to_s.downcase
+    msg.include?('already submitted for review') ||
+      msg.include?('cannot add internal group') ||
+      msg.include?('builds cannot be assigned') ||
+      msg.include?('build already exists')
+  end
+
+  if respond_to?(:retry_with_backoff)
+    begin
+      retry_with_backoff(max_retries: 3, delay: 5.0) { do_upload.call }
+    rescue StandardError => e
+      raise e unless already_done.call(e)
+
+      UI.success("✅ Сборка уже загружена и обработана: #{e.message}")
+    end
+  else
+    begin
+      do_upload.call
+    rescue StandardError => e
+      raise e unless already_done.call(e)
+
+      UI.success("✅ Сборка уже загружена и обработана: #{e.message}")
+    end
+  end
+
+  add_metric('uploaded_pkg', pkg_path) if respond_to?(:add_metric)
+end
