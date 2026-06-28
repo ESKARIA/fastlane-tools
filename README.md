@@ -78,6 +78,12 @@ fastlane upload_external_testflight groups:"External Public Beta"
 
 # Отправка на рецензирование в App Store
 fastlane pass_to_review
+
+# Заливка ТОЛЬКО метаданных (без бинаря и скриншотов).
+# Если редактируемой версии в App Store Connect нет — создаёт draft-версию
+# и заполняет её текстами. Путь к метаданным берётся из Deliverfile.
+fastlane upload_metadata ver:2.0.0     # явная версия
+fastlane upload_metadata               # версия из ENV['APP_VERSION']
 ```
 
 ### Сборка и публикация macOS
