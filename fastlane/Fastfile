@@ -211,7 +211,8 @@ import_from_git(
   path: 'fastlane/Fastfile_match', # Используется любой другой Fastfile кроме Fastfile для избежания рекурсии
   # version: [">= 1.0.0"], # Ограничение версии, если нужно
   dependencies: [
-    'fastlane/Fastfile_build',        # Сборка приложений
+    'fastlane/Fastfile_build',        # Сборка приложений (iOS)
+    'fastlane/Fastfile_macos',        # Сборка и публикация macOS приложений (platform :mac)
     'fastlane/Fastfile_tests',        # Запуск тестов
     'fastlane/Fastfile_dsyms',        # Загрузка символов
     'fastlane/Fastfile_upload',       # Загрузка в TestFlight
