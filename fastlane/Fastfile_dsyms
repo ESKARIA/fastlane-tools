@@ -120,7 +120,8 @@ lane :upload_dsyms do |options|
       end
     end
 
-    dsym_paths.uniq!
+    # Дедуп по абсолютному пути — один zip находится и по '.', и по absolute path.
+    dsym_paths = dsym_paths.uniq { |p| File.expand_path(p) }
 
     if dsym_paths.empty?
       UI.message('⚠️  Не найдено dSYM файлов для загрузки в Firebase')
@@ -153,6 +154,7 @@ end
 lane :unzip_and_upload do |_options|
   require 'fileutils'
   require 'find'
+  require 'shellwords'
   check_and_set_project_file
 
   dsym_paths = []
@@ -189,7 +191,9 @@ lane :unzip_and_upload do |_options|
     end
   end
 
-  dsym_paths.uniq!
+  # Дедуп по АБСОЛЮТНОМУ пути: один и тот же zip находится и по '.', и по
+  # absolute DSYM_FOLDER_PATH — без этого он распаковывается/заливается дважды.
+  dsym_paths = dsym_paths.uniq { |p| File.expand_path(p) }
 
   if dsym_paths.empty?
     UI.message('⚠️  Не найдено dSYM.zip файлов')
@@ -202,12 +206,12 @@ lane :unzip_and_upload do |_options|
     if File.exist?(zip_file)
       UI.message("Обработка: #{zip_file}")
       UI.message('Распаковка архива...')
-      sh("unzip -o -q #{zip_file}") # -q для тихого режима
+      sh("unzip -o -q #{zip_file.shellescape}") # -q для тихого режима; имя с пробелами → shellescape
       UI.message('Распаковка завершена')
 
       if File.exist?(HELPER_PATH)
         UI.message('Загрузка dSYM через helper скрипт...')
-        sh("#{HELPER_PATH} -k #{APPMETRICA_KEY} -v")
+        sh("#{HELPER_PATH.shellescape} -k #{APPMETRICA_KEY.to_s.shellescape} -v")
         UI.success("✅ dSYM загружен: #{zip_file}")
       else
         UI.user_error!("Helper скрипт не найден: #{HELPER_PATH}")
