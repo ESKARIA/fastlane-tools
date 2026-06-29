@@ -263,9 +263,10 @@ end
 #   - APPSTORE_KEY_ID, APPSTORE_ISSUER_ID, APPSTORE_KEY_CONTENT: API ключи
 #
 # Результат:
-#   - IPA файл: ~/.cache/apps/{TARGET}/ipa/{TARGET}_v{VERSION}_b{BUILD}.ipa
-#   - dSYM файл: ~/.cache/apps/{TARGET}/dsyms/{TARGET}_v{VERSION}_b{BUILD}.app.dSYM.zip
-#   - Артефакты также копируются в fastlane/artifacts/ для последующей загрузки
+#   - IPA файл: fastlane/artifacts/{TARGET}_v{VERSION}_b{BUILD}.ipa
+#   - dSYM файл: fastlane/artifacts/{TARGET}_v{VERSION}_b{BUILD}.app.dSYM.zip
+#   - Лежат плоско в рабочей директории проекта; между job-ами передаются через
+#     механизм CI-артефактов (без выноса в ~/.cache)
 #
 # @example
 #   export APP_VERSION="1.2.3"
@@ -395,8 +396,9 @@ lane :build do |options|
   # ========================================================================
   # СОХРАНЕНИЕ АРТЕФАКТОВ
   # ========================================================================
-  # IPA → ARTIFACTS_PATH/ipa/, dSYM → ARTIFACTS_PATH/dsyms/. Это единственное
-  # каноническое место хранения; именно его передаёт механизм CI-артефактов.
+  # IPA и dSYM кладём плоско в ARTIFACTS_PATH (по умолчанию fastlane/artifacts/).
+  # Это единственное каноническое место хранения; именно его (плоским глобом
+  # *.ipa / *.dSYM.zip) передаёт механизм CI-артефактов между job-ами.
   copy_artifacts(target_path: IPA_FOLDER_PATH.to_s, artifacts: ['*.ipa', IPA_FILE_PATH.to_s])
   copy_artifacts(target_path: DSYM_FOLDER_PATH.to_s, artifacts: ['*.dSYM.zip', DSYM_FILE_PATH.to_s])
 

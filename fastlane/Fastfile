@@ -144,9 +144,16 @@ end
 IPA_FILE_NAME               = "#{FILE_NAME}.ipa"
 DSYM_FILE_NAME              = "#{FILE_NAME}.app.dSYM.zip"
 
-# Полные пути к директориям артефактов
-IPA_FOLDER_PATH             = "#{ARTIFACTS_PATH}ipa/"
-DSYM_FOLDER_PATH            = "#{ARTIFACTS_PATH}dsyms/"
+# Полные пути к директориям артефактов.
+# IPA и dSYM храним ПЛОСКО прямо в ARTIFACTS_PATH (по умолчанию fastlane/artifacts/),
+# БЕЗ подпапок ipa//dsyms/. Артефакты живут в рабочей директории проекта и
+# передаются между job-ами CI через механизм artifacts (без выноса в ~/.cache).
+# Плоский layout обязателен: shared-gitlab-ci основных проектов собирает артефакты
+# плоским глобом (fastlane/artifacts/*.ipa, fastlane/artifacts/*.dSYM.zip) и
+# подпапки не видит; стикеры собирают всю fastlane/artifacts/ рекурсивно — им плоско
+# тоже подходит.
+IPA_FOLDER_PATH             = ARTIFACTS_PATH.dup
+DSYM_FOLDER_PATH            = ARTIFACTS_PATH.dup
 
 # Полные пути к файлам артефактов
 IPA_FILE_PATH               = IPA_FOLDER_PATH.to_s + IPA_FILE_NAME.to_s
