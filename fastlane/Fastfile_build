@@ -209,18 +209,19 @@ def set_version_for_target(target:, version:, build: nil)
   end
 end
 
-# Синхронизирует CURRENT_PROJECT_VERSION остальных таргетов проекта (расширения,
-# watch app, tests) с build number главного таргета.
+# Синхронизирует CURRENT_PROJECT_VERSION и MARKETING_VERSION остальных таргетов
+# проекта (расширения, watch app, tests) с главным таргетом.
 #
-# Зачем: set_version_for_target бампит build number ТОЛЬКО для MAIN_TARGET.
-# Если в проекте есть встроенные таргеты (widget extension, watch app), их
-# CURRENT_PROJECT_VERSION остаётся на исходном значении (обычно "1") навсегда,
-# а у главного приложения растёт с каждой сборкой. Apple при архивации/экспорте
-# требует совпадения CFBundleVersion расширения и содержащего его приложения —
-# рассинхрон приводит к сбою IDEDistributionMethodManager внутри Xcode и
-# необъяснимому `exportOptionsPlist error for key "method" expected one {}`,
-# хотя сам plist корректен.
-def sync_build_number_for_other_targets(xcodeproj:, main_target:, build:)
+# Зачем: set_version_for_target бампит ОБЕ версии ТОЛЬКО для MAIN_TARGET.
+# Встроенные таргеты (widget extension, watch app) остаются на исходных
+# значениях (build "1", marketing "1.0") навсегда, а у главного приложения обе
+# растут с каждым релизом. Apple при архивации/экспорте требует совпадения
+# CFBundleVersion И CFBundleShortVersionString расширения с содержащим его
+# приложением — рассинхрон любого из двух приводит к сбою
+# IDEDistributionMethodManager внутри Xcode и необъяснимому
+# `exportOptionsPlist error for key "method" expected one {}`, хотя сам plist
+# корректен.
+def sync_build_number_for_other_targets(xcodeproj:, main_target:, version:, build:)
   require 'xcodeproj'
 
   # Xcodeproj (обычный Ruby-код) резолвит относительные пути через Dir.pwd,
@@ -232,8 +233,9 @@ def sync_build_number_for_other_targets(xcodeproj:, main_target:, build:)
 
     target.build_configurations.each do |config|
       config.build_settings['CURRENT_PROJECT_VERSION'] = build.to_s
+      config.build_settings['MARKETING_VERSION'] = version.to_s
     end
-    UI.message("   🔄 CURRENT_PROJECT_VERSION таргета '#{target.name}' синхронизирован на #{build}")
+    UI.message("   🔄 Таргет '#{target.name}' синхронизирован: версия #{version}, build #{build}")
   end
   project.save
 end
@@ -349,11 +351,13 @@ lane :build do |options|
     build: BUILD_NUMBER.to_i
   )
 
-  # Держим встроенные таргеты (расширения, watch app) в синхроне по build number —
-  # иначе Apple отклоняет архив/экспорт из-за рассинхрона CFBundleVersion.
+  # Держим встроенные таргеты (расширения, watch app) в синхроне по версии и
+  # build number — иначе Apple отклоняет архив/экспорт из-за рассинхрона
+  # CFBundleVersion/CFBundleShortVersionString.
   sync_build_number_for_other_targets(
     xcodeproj: ENV['MAIN_PROJECT_FILE'],
     main_target: MAIN_TARGET.to_s,
+    version: ENV['APP_VERSION'].to_s,
     build: BUILD_NUMBER.to_i
   )
 
