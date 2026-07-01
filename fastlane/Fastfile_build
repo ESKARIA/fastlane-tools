@@ -223,7 +223,10 @@ end
 def sync_build_number_for_other_targets(xcodeproj:, main_target:, build:)
   require 'xcodeproj'
 
-  project = Xcodeproj::Project.open(xcodeproj)
+  # Xcodeproj (обычный Ruby-код) резолвит относительные пути через Dir.pwd,
+  # который у fastlane равен папке fastlane/, а не корню проекта — приводим
+  # к абсолютному пути так же, как это делает ensure_dsym_artifact.
+  project = Xcodeproj::Project.open(expand_under_project_root(xcodeproj))
   project.targets.each do |target|
     next if target.name == main_target
 
