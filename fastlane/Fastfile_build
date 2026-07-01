@@ -379,7 +379,6 @@ lane :build do |options|
     project: ENV['MAIN_PROJECT_FILE'],
     scheme: BUILD_SCHEME,
     export_options: {
-      distribution: 'app-store',
       provisioningProfiles: provisioning_profiles,
       signingStyle: 'manual'
     },
