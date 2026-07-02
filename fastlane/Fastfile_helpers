@@ -19,7 +19,27 @@ require 'fileutils'
 # RETRY ЛОГИКА
 # ==============================================================================
 
+# Подстроки ошибок TestFlight/App Store Connect, которые фактически означают,
+# что операция уже выполнена (сборка уже загружена/отправлена/распределена),
+# и поэтому не должны считаться сбоем и повторяться.
+#
+# Список — объединение (union) вариантов, ранее продублированных в:
+#   - retry_with_backoff (этот файл)
+#   - upload_testflight / upload_external_testflight (Fastfile_upload)
+#   - mac_upload_with_retry (Fastfile_macos)
+NON_RETRYABLE_TESTFLIGHT_ERRORS = [
+  'already submitted for review',
+  'cannot add internal group',
+  'builds cannot be assigned',
+  'already distributed',
+  'build already exists'
+].freeze
+
 # Выполняет блок кода с повторными попытками при ошибках
+#
+# Повторяет попытки при ЛЮБЫХ ошибках (не только сетевых) — сетевые ошибки
+# логируются с отдельной пометкой, но задержка и лимит попыток одинаковы для
+# всех типов ошибок, кроме признанных «уже выполнено» (см. NON_RETRYABLE_TESTFLIGHT_ERRORS).
 #
 # @param max_retries [Integer] максимальное количество попыток (по умолчанию 3)
 # @param delay [Float] задержка между попытками в секундах (по умолчанию 5)
@@ -41,17 +61,8 @@ def retry_with_backoff(max_retries: 3, delay: 5.0, retryable_errors: [StandardEr
   rescue *retryable_errors => e
     error_message = e.message.to_s.downcase
 
-    # Ошибки, которые не требуют повторной попытки (считаются успехом)
-    non_retryable_errors = [
-      'already submitted for review',
-      'cannot add internal group to a build',
-      'builds cannot be assigned to this internal group',
-      'already distributed',
-      'build already exists'
-    ]
-
     # Если ошибка указывает на то, что операция уже выполнена, считаем успехом
-    if non_retryable_errors.any? { |msg| error_message.include?(msg) }
+    if NON_RETRYABLE_TESTFLIGHT_ERRORS.any? { |msg| error_message.include?(msg) }
       UI.success("✅ Операция уже выполнена: #{e.message}")
       return true
     end
@@ -98,6 +109,61 @@ def network_error?(error)
 
   error_message = error.message.downcase
   network_error_messages.any? { |msg| error_message.include?(msg) }
+end
+
+# Выполняет загрузку в TestFlight с retry-логикой и идемпотентной обработкой
+# ошибок «уже выполнено» (см. NON_RETRYABLE_TESTFLIGHT_ERRORS).
+#
+# Общая логика, ранее продублированная в upload_testflight / upload_external_testflight
+# (Fastfile_upload) и mac_upload_with_retry (Fastfile_macos):
+#   - если доступен retry_with_backoff — используется он (повтор с задержкой на любых ошибках,
+#     кроме признанных «уже выполнено», которые сразу считаются успехом);
+#   - если retry_with_backoff недоступен — testflight выполняется один раз без повторов,
+#     но с той же обработкой «уже выполнено» ошибок.
+#
+# @param testflight_params [Hash] параметры для action `testflight`
+# @param max_retries [Integer] максимальное количество попыток (по умолчанию 3)
+# @param delay [Float] задержка между попытками в секундах (по умолчанию 5)
+# @return [Boolean] true, если загрузка выполнена успешно (в т.ч. если она уже была выполнена ранее)
+# @raise [StandardError] если ошибка не входит в список «уже выполнено»
+def upload_with_testflight_retry(testflight_params, max_retries: 3, delay: 5.0)
+  upload_success = false
+
+  already_done = lambda do |e|
+    error_message = e.message.to_s.downcase
+    NON_RETRYABLE_TESTFLIGHT_ERRORS.any? { |msg| error_message.include?(msg) }
+  end
+
+  if respond_to?(:retry_with_backoff)
+    begin
+      # retry_with_backoff может вернуть true сам по себе (кейс «уже выполнено»),
+      # не выполнив блок до конца — поэтому используем и возвращаемое значение,
+      # и флаг, выставляемый внутри блока при обычном успехе.
+      result = retry_with_backoff(max_retries: max_retries, delay: delay) do
+        testflight(**testflight_params)
+        upload_success = true
+      end
+      upload_success ||= (result == true)
+    rescue StandardError => e
+      raise e unless already_done.call(e)
+
+      UI.success("✅ Сборка уже загружена и обработана: #{e.message}")
+      upload_success = true
+    end
+  else
+    # Если retry логика недоступна, выполняем без повторов
+    begin
+      testflight(**testflight_params)
+      upload_success = true
+    rescue StandardError => e
+      raise e unless already_done.call(e)
+
+      UI.success("✅ Сборка уже загружена и обработана: #{e.message}")
+      upload_success = true
+    end
+  end
+
+  upload_success
 end
 
 # ==============================================================================

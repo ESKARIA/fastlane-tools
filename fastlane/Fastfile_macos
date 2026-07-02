@@ -491,32 +491,14 @@ def mac_find_pkg
 end
 
 # Загрузка в TestFlight с retry и идемпотентной обработкой «уже загружено».
+#
+# Тонкая обёртка над общим хелпером upload_with_testflight_retry (Fastfile_helpers).
 def mac_upload_with_retry(testflight_params, pkg_path)
-  do_upload = proc { testflight(**testflight_params) }
-  already_done = lambda do |e|
-    msg = e.message.to_s.downcase
-    msg.include?('already submitted for review') ||
-      msg.include?('cannot add internal group') ||
-      msg.include?('builds cannot be assigned') ||
-      msg.include?('build already exists')
-  end
-
-  if respond_to?(:retry_with_backoff)
-    begin
-      retry_with_backoff(max_retries: 3, delay: 5.0) { do_upload.call }
-    rescue StandardError => e
-      raise e unless already_done.call(e)
-
-      UI.success("✅ Сборка уже загружена и обработана: #{e.message}")
-    end
+  if respond_to?(:upload_with_testflight_retry)
+    upload_with_testflight_retry(testflight_params)
   else
-    begin
-      do_upload.call
-    rescue StandardError => e
-      raise e unless already_done.call(e)
-
-      UI.success("✅ Сборка уже загружена и обработана: #{e.message}")
-    end
+    # Фоллбэк на случай отсутствия общего хелпера: без retry, без обработки «уже выполнено»
+    testflight(**testflight_params)
   end
 
   add_metric('uploaded_pkg', pkg_path) if respond_to?(:add_metric)

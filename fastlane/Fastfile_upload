@@ -240,48 +240,15 @@ lane :upload_testflight do |options|
     # Добавляем группы только для external testers
     testflight_params[:groups] = groups_array if is_external
 
-    # Загрузка в TestFlight с retry логикой (если доступна)
-    upload_success = false
-    if respond_to?(:retry_with_backoff)
-      begin
-        # retry_with_backoff может вернуть true сам по себе (кейс «уже выполнено»),
-        # не выполнив блок до конца — поэтому используем и возвращаемое значение,
-        # и флаг, выставляемый внутри блока при обычном успехе.
-        result = retry_with_backoff(max_retries: 3, delay: 5.0) do
-          testflight(**testflight_params)
-          upload_success = true
-        end
-        upload_success ||= (result == true)
-      rescue StandardError => e
-        # Если ошибка связана с тем, что сборка уже загружена/отправлена, считаем успехом
-        error_msg = e.message.to_s.downcase
-        if error_msg.include?('already submitted for review') ||
-           error_msg.include?('cannot add internal group') ||
-           error_msg.include?('builds cannot be assigned')
-          UI.success("✅ Сборка уже загружена и обработана: #{e.message}")
-          upload_success = true
-        else
-          raise e
-        end
-      end
-    else
-      # Если retry логика недоступна, выполняем без повторов
-      begin
+    # Загрузка в TestFlight с retry логикой и обработкой «уже выполнено»
+    upload_success =
+      if respond_to?(:upload_with_testflight_retry)
+        upload_with_testflight_retry(testflight_params)
+      else
+        # Фоллбэк на случай отсутствия общего хелпера: без retry, без обработки «уже выполнено»
         testflight(**testflight_params)
-        upload_success = true
-      rescue StandardError => e
-        # Обработка ошибок для случая без retry
-        error_msg = e.message.to_s.downcase
-        if error_msg.include?('already submitted for review') ||
-           error_msg.include?('cannot add internal group') ||
-           error_msg.include?('builds cannot be assigned')
-          UI.success("✅ Сборка уже загружена и обработана: #{e.message}")
-          upload_success = true
-        else
-          raise e
-        end
+        true
       end
-    end
 
     UI.user_error!("❌ Не удалось загрузить сборку: #{full_ipa_path}") unless upload_success
 
@@ -436,48 +403,15 @@ lane :upload_external_testflight do |options|
       ipa: full_ipa_path
     }
 
-    # Загрузка в TestFlight с retry логикой (если доступна)
-    upload_success = false
-    if respond_to?(:retry_with_backoff)
-      begin
-        # retry_with_backoff может вернуть true сам по себе (кейс «уже выполнено»),
-        # не выполнив блок до конца — поэтому используем и возвращаемое значение,
-        # и флаг, выставляемый внутри блока при обычном успехе.
-        result = retry_with_backoff(max_retries: 3, delay: 5.0) do
-          testflight(**testflight_params)
-          upload_success = true
-        end
-        upload_success ||= (result == true)
-      rescue StandardError => e
-        # Если ошибка связана с тем, что сборка уже загружена/отправлена, считаем успехом
-        error_msg = e.message.to_s.downcase
-        if error_msg.include?('already submitted for review') ||
-           error_msg.include?('cannot add internal group') ||
-           error_msg.include?('builds cannot be assigned')
-          UI.success("✅ Сборка уже загружена и обработана: #{e.message}")
-          upload_success = true
-        else
-          raise e
-        end
-      end
-    else
-      # Если retry логика недоступна, выполняем без повторов
-      begin
+    # Загрузка в TestFlight с retry логикой и обработкой «уже выполнено»
+    upload_success =
+      if respond_to?(:upload_with_testflight_retry)
+        upload_with_testflight_retry(testflight_params)
+      else
+        # Фоллбэк на случай отсутствия общего хелпера: без retry, без обработки «уже выполнено»
         testflight(**testflight_params)
-        upload_success = true
-      rescue StandardError => e
-        # Обработка ошибок для случая без retry
-        error_msg = e.message.to_s.downcase
-        if error_msg.include?('already submitted for review') ||
-           error_msg.include?('cannot add internal group') ||
-           error_msg.include?('builds cannot be assigned')
-          UI.success("✅ Сборка уже загружена и обработана: #{e.message}")
-          upload_success = true
-        else
-          raise e
-        end
+        true
       end
-    end
 
     UI.user_error!("❌ Не удалось загрузить сборку: #{full_ipa_path}") unless upload_success
 
