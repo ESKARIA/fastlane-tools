@@ -146,8 +146,10 @@ fastlane build
 - `MAIN_TARGET` - название target
 
 **Результат:**
-- IPA файл: `~/.cache/apps/{TARGET}/ipa/{TARGET}_v{VERSION}_b{BUILD}.ipa`
-- dSYM файл: `~/.cache/apps/{TARGET}/dsyms/{TARGET}_v{VERSION}_b{BUILD}.app.dSYM.zip`
+- IPA и dSYM кладутся плоско в каталог `ARTIFACTS_PATH` (по умолчанию `fastlane/artifacts/`
+  в корне проекта, переопределяется через `ENV['ARTIFACTS_PATH']`):
+  - IPA файл: `fastlane/artifacts/{TARGET}_v{VERSION}_b{BUILD}.ipa`
+  - dSYM файл: `fastlane/artifacts/{TARGET}_v{VERSION}_b{BUILD}.app.dSYM.zip`
 
 **Особенности:**
 - Поддержка нескольких bundle identifiers (через запятую)
@@ -620,5 +622,5 @@ fastlane build
 
 ---
 
-**Версия документации:** 2.0  
-**Последнее обновление:** 2024
+**Версия документации:** 3.1.0  
+**Последнее обновление:** 02.07.2026

@@ -242,6 +242,23 @@ import_from_git(
 )
 ```
 
+**Рекомендация:** пинуйте версию тегом (например, `version:` или `branch:` на теге
+`v3.1.0`), чтобы обновления `main` не ломали ваш пайплайн незаметно:
+
+```ruby
+import_from_git(
+  url: 'git@github.com:ESKARIA/fastlane-tools.git',
+  branch: 'v3.1.0',
+  path: 'fastlane/Fastfile_match',
+  dependencies: [
+    'fastlane/Fastfile_build',
+    'fastlane/Fastfile_upload',
+    'fastlane/Fastfile_appstore',
+    'fastlane/Fastfile_helpers'
+  ]
+)
+```
+
 ## 📝 Лицензия
 
 Этот проект предназначен для внутреннего использования ESKARIA.
@@ -255,8 +272,8 @@ import_from_git(
 
 ---
 
-**Версия:** 3.0  
-**Последнее обновление:** 27.01.2026
+**Версия:** 3.1.0  
+**Последнее обновление:** 02.07.2026
 
 ## 🆕 Что нового в версии 3.0
 
