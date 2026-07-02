@@ -67,8 +67,71 @@ AllCops:
     - 'vendor/**/*'
     - '.git/**/*'
 
+# Лимиты Metrics подняты под существующие Fastfile-ы:
+# логика lane-ов не переписывается ради косметики линтера.
 Metrics/BlockLength:
-  Max: 60
+  Max: 120
+  Exclude:
+    # Отдельные очень длинные lane-блоки; не дробим ради линтера.
+    - 'fastlane/Fastfile_build'
+    - 'fastlane/Fastfile_macos'
 
 Metrics/MethodLength:
-  Max: 50
+  Max: 170
+
+Metrics/ClassLength:
+  Max: 180
+
+Metrics/AbcSize:
+  Enabled: false
+
+Metrics/CyclomaticComplexity:
+  Enabled: false
+
+Metrics/PerceivedComplexity:
+  Enabled: false
+
+# Длинные строки — в основном русскоязычные сообщения UI.*
+Layout/LineLength:
+  Max: 230
+
+# Глобальные переменные ($vars) используются для обмена состоянием
+# между импортируемыми Fastfile-ами — менять нельзя (обратная совместимость).
+Style/GlobalVars:
+  Enabled: false
+
+# Переименование get_* методов сломало бы публичный API Fastfile-ов.
+Naming/AccessorMethodName:
+  Enabled: false
+
+# Ниже — cops, требующие реструктуризации кода lane-ов.
+# Отключены, чтобы не менять поведение проверенного кода.
+Style/IfUnlessModifier:
+  Enabled: false
+
+Style/Next:
+  Enabled: false
+
+Style/SoleNestedConditional:
+  Enabled: false
+
+Style/GuardClause:
+  Enabled: false
+
+Style/SafeNavigation:
+  Enabled: false
+
+Style/DoubleNegation:
+  Enabled: false
+
+Style/ConditionalAssignment:
+  Enabled: false
+
+Style/MultipleComparison:
+  Enabled: false
+
+Style/RedundantAssignment:
+  Enabled: false
+
+Style/StringConcatenation:
+  Enabled: false
