@@ -99,7 +99,7 @@ def mac_generate_match(type:, git_branch:, installer: false)
     type: type,
     app_identifier: app_identifiers.join(','),
     api_key: api_key,
-    platform: 'macos',                  # ← ключевое отличие от iOS
+    platform: 'macos', # ← ключевое отличие от iOS
     force_for_new_devices: true,
     include_all_certificates: true,
     force_for_new_certificates: true,
@@ -213,7 +213,7 @@ platform :mac do
   # ============================================================================
 
   desc 'macOS: собрать .pkg для App Store (версия, подпись через match, артефакт)'
-  lane :build do |options|
+  lane :build do |_options|
     check_and_set_project_file
     start_metrics('build') if respond_to?(:start_metrics)
 

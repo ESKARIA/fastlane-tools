@@ -40,7 +40,9 @@ lane :auto_release_branch do |options|
   release_branch_name = "release/#{version}"
 
   # Проверяем, существует ли ветка
-  branch_exists = sh("git branch --list #{release_branch_name}").strip
+  # Значение сейчас не используется (создание ветки закомментировано ниже),
+  # но вызов sh оставлен как есть ради полной обратной совместимости.
+  branch_exists = sh("git branch --list #{release_branch_name}").strip # rubocop:disable Lint/UselessAssignment
 
   # # Если ветка не существует, создаем её
   # sh("git branch #{branch_name}") if branch_exists.empty?
@@ -140,7 +142,7 @@ lane :check_released do |options|
   ensure
     # Определяем путь к корню проекта (где находится fastlane/)
     project_root = ENV['CI_PROJECT_DIR']
-    
+
     unless project_root
       # Если CI_PROJECT_DIR не установлен, определяем корень проекта
       current_dir = Dir.pwd
@@ -150,13 +152,11 @@ lane :check_released do |options|
       else
         # Ищем директорию с Fastfile (корень проекта)
         search_dir = current_dir
-        while search_dir != '/' && !File.exist?(File.join(search_dir, 'fastlane', 'Fastfile'))
-          search_dir = File.dirname(search_dir)
-        end
+        search_dir = File.dirname(search_dir) while search_dir != '/' && !File.exist?(File.join(search_dir, 'fastlane', 'Fastfile'))
         project_root = search_dir != '/' ? search_dir : current_dir
       end
     end
-    
+
     release_status_path = File.join(project_root, 'release_status.json')
     File.write(release_status_path, JSON.pretty_generate(status))
     UI.message("Создан release_status.json: #{File.expand_path(release_status_path)}")
@@ -222,12 +222,12 @@ end
 
 lane :pass_to_review do |_options| # rubocop:disable Lint/UnderscorePrefixedVariableName
   check_and_set_project_file
-  
+
   # ========================================================================
   # ВАЛИДАЦИЯ ОБЯЗАТЕЛЬНЫХ ПЕРЕМЕННЫХ
   # ========================================================================
   raise 'BUILD_NUMBER не установлен' if BUILD_NUMBER.nil? || BUILD_NUMBER.to_s.empty?
-  
+
   # Настройка API ключа App Store Connect
   app_store_connect_api_key(key_id: APPSTORE_KEY_ID,
                             issuer_id: APPSTORE_ISSUER_ID,
@@ -236,31 +236,31 @@ lane :pass_to_review do |_options| # rubocop:disable Lint/UnderscorePrefixedVari
                             is_key_content_base64: true)
 
   app_identifier = respond_to?(:get_primary_app_identifier) ? get_primary_app_identifier : ENV['APP_IDENTIFIER'].split(',').first
-  
+
   UI.header('Отправка на рецензирование в App Store')
-  
+
   # ========================================================================
   # ПРОВЕРКА СУЩЕСТВОВАНИЯ СБОРКИ В TESTFLIGHT
   # ========================================================================
   testflight_version = nil
   testflight_build = nil
-  
+
   begin
     UI.message('Проверка существования сборки в TestFlight...')
     latest_testflight_build_number(app_identifier: app_identifier)
-    
+
     testflight_version = lane_context[SharedValues::LATEST_TESTFLIGHT_VERSION]
     testflight_build = lane_context[SharedValues::LATEST_TESTFLIGHT_BUILD_NUMBER]
-    
+
     if testflight_version.nil? || testflight_build.nil?
       UI.user_error!("❌ Не найдено сборок в TestFlight для приложения #{app_identifier}")
     end
-    
-    UI.success("✅ Найдена сборка в TestFlight:")
+
+    UI.success('✅ Найдена сборка в TestFlight:')
     UI.message("   Версия: #{testflight_version}")
     UI.message("   Build: #{testflight_build}")
     UI.message("   Текущий build для отправки: #{BUILD_NUMBER}")
-    
+
     # Предупреждение, если build number не совпадает
     if testflight_build.to_s != BUILD_NUMBER.to_s
       UI.important("⚠️  Build number в TestFlight (#{testflight_build}) не совпадает с текущим (#{BUILD_NUMBER})")
@@ -274,7 +274,7 @@ lane :pass_to_review do |_options| # rubocop:disable Lint/UnderscorePrefixedVari
   # ОТПРАВКА НА РЕЦЕНЗИРОВАНИЕ
   # ========================================================================
   UI.message('Отправка приложения на рецензирование...')
-  
+
   begin
     deliver(app_version: testflight_version || lane_context[SharedValues::LATEST_TESTFLIGHT_VERSION],
             build_number: testflight_build || BUILD_NUMBER,
@@ -304,7 +304,7 @@ lane :pass_to_review do |_options| # rubocop:disable Lint/UnderscorePrefixedVari
               export_compliance_contains_proprietary_cryptography: false,
               export_compliance_available_on_french_store: false
             })
-    
+
     UI.success('✅ Приложение успешно отправлено на рецензирование')
   rescue StandardError => e
     UI.user_error!("❌ Ошибка при отправке на рецензирование: #{e.message}")
@@ -317,7 +317,7 @@ lane :pass_to_review do |_options| # rubocop:disable Lint/UnderscorePrefixedVari
     merge_and_delete_release_branch(_options)
   rescue StandardError => e
     UI.important("⚠️  Ошибка при объединении release ветки: #{e.message}")
-    UI.important("Приложение отправлено на рецензирование, но ветка не была объединена")
+    UI.important('Приложение отправлено на рецензирование, но ветка не была объединена')
     raise
   end
 end
@@ -508,7 +508,7 @@ def beta_version_number
   begin
     # Попытка получить версию из TestFlight
     latest_testflight_build_number(app_identifier: app_identifier)
-    beta_version = lane_context[SharedValues::LATEST_TESTFLIGHT_VERSION] if lane_context[SharedValues::LATEST_TESTFLIGHT_VERSION] # rubocop:disable Layout/LineLength
+    beta_version = lane_context[SharedValues::LATEST_TESTFLIGHT_VERSION] if lane_context[SharedValues::LATEST_TESTFLIGHT_VERSION]
   rescue StandardError => e
     UI.message("Не удалось найти бета версию в TestFlight. Установлено значение по умолчанию: #{beta_version}")
     UI.error("Ошибка: #{e.message}")
@@ -528,7 +528,7 @@ def release_version_number
     app_store_build_number(app_identifier: app_identifier)
     release_version = lane_context[SharedValues::LATEST_VERSION] if lane_context[SharedValues::LATEST_VERSION]
   rescue StandardError => e
-    UI.message("Не удалось найти релизную версию в App Store Connect. Установлено значение по умолчанию: #{release_version}") # rubocop:disable Layout/LineLength
+    UI.message("Не удалось найти релизную версию в App Store Connect. Установлено значение по умолчанию: #{release_version}")
     UI.error("Ошибка: #{e.message}")
   end
 

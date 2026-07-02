@@ -83,7 +83,7 @@ def generate_match(type:, git_branch:)
         generate_apple_certs: true,         # Генерировать сертификаты в Apple Developer Portal
         keychain_name: ENV['MATCH_KEYCHAIN_NAME'],         # Целевой keychain (см. ensure_signing_keychain)
         keychain_password: ENV['MATCH_KEYCHAIN_PASSWORD'], # Пароль keychain (пустой на CI)
-        git_branch: git_branch)             # Ветка git репозитория для хранения сертификатов
+        git_branch: git_branch) # Ветка git репозитория для хранения сертификатов
 end
 
 # Устанавливает существующие сертификаты и профили из match репозитория
@@ -135,7 +135,7 @@ def match_install(type:, git_branch:)
         verbose: true,                       # Подробный вывод информации
         keychain_name: ENV['MATCH_KEYCHAIN_NAME'],         # Целевой keychain (см. ensure_signing_keychain)
         keychain_password: ENV['MATCH_KEYCHAIN_PASSWORD'], # Пароль keychain (пустой на CI)
-        git_branch: git_branch)              # Ветка git репозитория
+        git_branch: git_branch) # Ветка git репозитория
 end
 
 # ==============================================================================

@@ -26,7 +26,7 @@ default_platform(:ios)
 
 # Идентификатор приложения (Bundle Identifier)
 # Пример: com.company.appname
-APP_IDENTIFIER              = ENV['APP_IDENTIFIER']
+APP_IDENTIFIER = ENV['APP_IDENTIFIER']
 
 def infer_app_version_from_ci_branch
   branch_name = ENV['CI_COMMIT_BRANCH'] || ENV['CI_COMMIT_REF_NAME']
@@ -133,7 +133,7 @@ end
 # (в т.ч. на абсолютный путь или '~/...'). Относительный путь привязывается к
 # корню проекта; результат всегда абсолютный и оканчивается на '/'.
 # Прежний дефолт '~/.cache/apps/<TARGET>/' при необходимости задаётся явно через ENV.
-ARTIFACTS_PATH              = begin
+ARTIFACTS_PATH = begin
   raw = ENV['ARTIFACTS_PATH'].to_s.strip
   raw = 'fastlane/artifacts/' if raw.empty?
   resolved = expand_under_project_root(raw) # делает путь абсолютным (~, rel→root)
@@ -320,14 +320,14 @@ error do |lane, exception, _options|
                             'Время' => Time.now.strftime('%Y-%m-%d %H:%M:%S'),
                             'Проект' => ENV['CI_PROJECT_NAME'] || ENV['GITHUB_REPOSITORY'] || 'не указан'
                           })
-    
+
     # Если включен режим прогресс-сообщения, отправляем финальное сообщение с итогами
     if ENV['TELEGRAM_PROGRESS_MODE'] == 'true' && respond_to?(:send_final_telegram_message)
       send_final_telegram_message('error', {
-        'Lane' => lane.to_s,
-        'Target' => MAIN_TARGET.to_s,
-        'Проект' => ENV['CI_PROJECT_NAME'] || ENV['GITHUB_REPOSITORY'] || 'не указан'
-      })
+                                    'Lane' => lane.to_s,
+                                    'Target' => MAIN_TARGET.to_s,
+                                    'Проект' => ENV['CI_PROJECT_NAME'] || ENV['GITHUB_REPOSITORY'] || 'не указан'
+                                  })
     end
   end
 end

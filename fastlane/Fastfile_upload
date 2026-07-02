@@ -196,11 +196,11 @@ lane :upload_testflight do |options|
   # Отправка уведомления о начале загрузки в TestFlight (если включено)
   if ENV['TELEGRAM_ENABLED'] == 'true' && respond_to?(:notify_telegram_stage)
     notify_telegram_stage("Начало загрузки в TestFlight (#{is_external ? 'External' : 'Internal'})", {
-                           'Версия' => ENV['APP_VERSION'] || 'не указана',
-                           'Build' => BUILD_NUMBER.to_s,
-                           'Target' => MAIN_TARGET.to_s,
-                           'Тип' => is_external ? 'External Testers' : 'Internal Testers'
-                         })
+                            'Версия' => ENV['APP_VERSION'] || 'не указана',
+                            'Build' => BUILD_NUMBER.to_s,
+                            'Target' => MAIN_TARGET.to_s,
+                            'Тип' => is_external ? 'External Testers' : 'Internal Testers'
+                          })
   end
 
   # Настройка API ключа для App Store Connect
@@ -391,11 +391,11 @@ lane :upload_external_testflight do |options|
   # Отправка уведомления о начале загрузки в TestFlight (если включено)
   if ENV['TELEGRAM_ENABLED'] == 'true' && respond_to?(:notify_telegram_stage)
     notify_telegram_stage('Начало загрузки в TestFlight (External)', {
-                           'Версия' => ENV['APP_VERSION'] || 'не указана',
-                           'Build' => BUILD_NUMBER.to_s,
-                           'Target' => MAIN_TARGET.to_s,
-                           'Группы' => groups_array
-                         })
+                            'Версия' => ENV['APP_VERSION'] || 'не указана',
+                            'Build' => BUILD_NUMBER.to_s,
+                            'Target' => MAIN_TARGET.to_s,
+                            'Группы' => groups_array
+                          })
   end
 
   # Настройка API ключа для App Store Connect

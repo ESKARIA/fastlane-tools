@@ -343,7 +343,7 @@ def edit_telegram_message(message_id, message, bot_token: nil, chat_id: nil, par
   chat_id ||= ENV['TELEGRAM_CHAT_ID']
 
   if bot_token.nil? || bot_token.empty? || chat_id.nil? || chat_id.empty?
-    UI.important("⚠️  Не удалось обновить сообщение: отсутствуют bot_token или chat_id")
+    UI.important('⚠️  Не удалось обновить сообщение: отсутствуют bot_token или chat_id')
     return false
   end
 
@@ -374,13 +374,13 @@ def edit_telegram_message(message_id, message, bot_token: nil, chat_id: nil, par
       response_body = response.body
       UI.important("⚠️  Не удалось обновить сообщение в Telegram: #{response.code}")
       UI.message("Ответ: #{response_body}")
-      
+
       # Если сообщение не найдено (возможно, было удалено), возвращаем false
       # чтобы создать новое сообщение
       if response_body.to_s.include?('message not found') || response_body.to_s.include?('message to edit not found')
-        UI.important("⚠️  Сообщение не найдено (возможно, было удалено). Будет создано новое.")
+        UI.important('⚠️  Сообщение не найдено (возможно, было удалено). Будет создано новое.')
       end
-      
+
       false
     end
   rescue StandardError => e
@@ -458,7 +458,7 @@ def save_progress_message_id(message_id)
     FileUtils.mkdir_p(File.dirname(file_path))
     File.write(file_path, message_id.to_s)
     UI.message("💾 Сохранен message_id в файл #{file_path}: #{message_id}")
-    
+
     # Также сохраняем в относительный путь для совместимости
     FileUtils.mkdir_p(File.dirname(PROGRESS_MESSAGE_ID_FILE))
     File.write(PROGRESS_MESSAGE_ID_FILE, message_id.to_s)
@@ -476,13 +476,13 @@ def get_pipeline_stages
   if ENV['CI_PIPELINE_SOURCE'] || ENV['CI_PROJECT_URL']
     # Стандартные этапы для iOS сборки
     stages = ['Сборка проекта', 'Загрузка dSYM', 'Загрузка в TestFlight']
-    
+
     # Можно добавить дополнительные этапы на основе переменных CI
     # Например, если есть этап проверки релиза
     if ENV['CI_JOB_STAGE'] == 'check_released' || ENV['CI_JOB_STAGE'] == 'set_tag'
       stages << 'Проверка релиза'
     end
-    
+
     return stages
   end
 
@@ -513,7 +513,7 @@ end
 # @return [String] отформатированный прогресс-бар
 def format_stages_progress(stages, completed_stages = [], current_stage = nil)
   progress_lines = []
-  
+
   stages.each do |stage|
     if completed_stages.include?(stage)
       progress_lines << "✅ #{stage}"
@@ -523,7 +523,7 @@ def format_stages_progress(stages, completed_stages = [], current_stage = nil)
       progress_lines << "⏳ #{stage}"
     end
   end
-  
+
   progress_lines.join("\n")
 end
 
@@ -548,24 +548,24 @@ def update_telegram_progress(stage_name, status: 'start', details: {}, error_mes
   # ВАЖНО: Сначала пытаемся получить message_id ДО формирования сообщения
   # Это гарантирует, что мы обновим существующее сообщение, а не создадим новое
   message_id = get_progress_message_id
-  
+
   if message_id
     UI.message("✅ Найден существующий message_id: #{message_id} - будет обновлено существующее сообщение")
   else
-    UI.message("ℹ️  message_id не найден - будет создано новое сообщение (только для первого этапа)")
+    UI.message('ℹ️  message_id не найден - будет создано новое сообщение (только для первого этапа)')
   end
 
   # Получаем все этапы
   all_stages = get_pipeline_stages
-  
+
   # Определяем выполненные этапы на основе сохраненного состояния
   completed_stages = []
-  
+
   # Сначала пытаемся получить из переменной окружения (для одного job)
   if ENV['TELEGRAM_COMPLETED_STAGES']
     completed_stages = ENV['TELEGRAM_COMPLETED_STAGES'].split(',').map(&:strip)
   end
-  
+
   # Затем пытаемся получить из файла (для разных job'ов в CI/CD)
   if File.exist?(PROGRESS_COMPLETED_STAGES_FILE)
     begin
@@ -580,7 +580,7 @@ def update_telegram_progress(stage_name, status: 'start', details: {}, error_mes
   if status == 'success'
     completed_stages << stage_name unless completed_stages.include?(stage_name)
     ENV['TELEGRAM_COMPLETED_STAGES'] = completed_stages.join(',')
-    
+
     # Сохраняем в файл
     begin
       FileUtils.mkdir_p(File.dirname(PROGRESS_COMPLETED_STAGES_FILE))
@@ -588,12 +588,12 @@ def update_telegram_progress(stage_name, status: 'start', details: {}, error_mes
     rescue StandardError => e
       UI.important("⚠️  Не удалось сохранить выполненные этапы в файл: #{e.message}")
     end
-    
-    current_stage = nil  # Этап завершен, текущего этапа нет
+
+    current_stage = nil # Этап завершен, текущего этапа нет
   elsif status == 'start'
-    current_stage = stage_name  # Этап начался
+    current_stage = stage_name # Этап начался
   else
-    current_stage = nil  # Ошибка или другой статус
+    current_stage = nil # Ошибка или другой статус
   end
 
   # Формируем заголовок
@@ -602,7 +602,7 @@ def update_telegram_progress(stage_name, status: 'start', details: {}, error_mes
   elsif status == 'success'
     title = "✅ #{stage_name} завершен"
   else
-    title = "🚀 Pipeline выполняется"
+    title = '🚀 Pipeline выполняется'
   end
 
   # Формируем прогресс-бар
@@ -644,6 +644,7 @@ def update_telegram_progress(stage_name, status: 'start', details: {}, error_mes
     stage_details = {}
     details.each do |key, value|
       next if key.to_s.downcase.match?(/версия|version|build|target|lane/)
+
       formatted_value = if value.is_a?(Float)
                           value.round(2).to_s
                         elsif value.is_a?(Array)
@@ -653,11 +654,11 @@ def update_telegram_progress(stage_name, status: 'start', details: {}, error_mes
                         end
       stage_details[key] = formatted_value
     end
-    
+
     # Сохраняем детали этапа только если есть что сохранить
     if stage_details.any?
       all_stages_details[stage_name] = stage_details
-      
+
       # Сохраняем в файл
       begin
         FileUtils.mkdir_p(File.dirname(PROGRESS_STAGES_DETAILS_FILE))
@@ -671,7 +672,7 @@ def update_telegram_progress(stage_name, status: 'start', details: {}, error_mes
   # Добавляем детали всех завершенных этапов
   if all_stages_details.any?
     message += "<b>📋 Детали этапов:</b>\n\n"
-    
+
     all_stages.each do |stage|
       if all_stages_details.key?(stage) && all_stages_details[stage].any?
         message += "<b>✅ #{stage}:</b>\n"
@@ -710,7 +711,7 @@ def update_telegram_progress(stage_name, status: 'start', details: {}, error_mes
       UI.message("📝 Обновлено прогресс-сообщение (ID: #{message_id})")
       return message_id
     else
-      UI.important("⚠️  Не удалось обновить сообщение, попробуем создать новое")
+      UI.important('⚠️  Не удалось обновить сообщение, попробуем создать новое')
       # Если не удалось обновить, попробуем создать новое
       message_id = nil
     end
@@ -741,21 +742,21 @@ def update_telegram_progress(stage_name, status: 'start', details: {}, error_mes
       if response.code == '200'
         result = JSON.parse(response.body)
         new_message_id = result['result']['message_id']
-        
+
         # ВАЖНО: Сохраняем message_id сразу после создания сообщения
         # Это гарантирует, что следующий этап сможет обновить это же сообщение
         save_progress_message_id(new_message_id)
-        
+
         UI.success("📝 Создано новое прогресс-сообщение (ID: #{new_message_id})")
-        UI.message("💾 message_id сохранен для использования в следующих этапах")
-        
+        UI.message('💾 message_id сохранен для использования в следующих этапах')
+
         # Проверяем, что файл действительно создан
         if File.exist?(PROGRESS_MESSAGE_ID_FILE)
           UI.success("✅ Файл #{PROGRESS_MESSAGE_ID_FILE} успешно создан")
         else
           UI.important("⚠️  Файл #{PROGRESS_MESSAGE_ID_FILE} не найден после сохранения!")
         end
-        
+
         new_message_id
       else
         UI.important("⚠️  Не удалось создать сообщение в Telegram: #{response.code}")
@@ -777,15 +778,15 @@ end
 def notify_telegram_stage(title, details = {}, include_pipeline_link: true)
   # Если включен режим прогресс-сообщения, используем его
   if ENV['TELEGRAM_PROGRESS_MODE'] == 'true'
-    UI.message("🔄 Режим прогресс-сообщения: обновляем существующее сообщение для этапа")
+    UI.message('🔄 Режим прогресс-сообщения: обновляем существующее сообщение для этапа')
     lane_name = defined?($current_metrics) && $current_metrics ? $current_metrics.lane_name : nil
     stage_name = lane_name ? get_current_stage_name(lane_name) : title
-    
+
     # Обновляем прогресс-сообщение (НЕ создаем новое!)
     update_telegram_progress(stage_name, status: 'start', details: details)
   else
     # Старый режим: отдельные сообщения
-    UI.message("📨 Старый режим: отправляем отдельное сообщение для этапа")
+    UI.message('📨 Старый режим: отправляем отдельное сообщение для этапа')
     enhanced_details = details.dup
     if defined?($current_metrics) && $current_metrics && $current_metrics.lane_name
       enhanced_details['Lane'] = $current_metrics.lane_name unless enhanced_details.key?('Lane')
@@ -826,6 +827,7 @@ def notify_telegram_success(title, details = {}, include_pipeline_link: true, in
     metrics_data.each do |key, value|
       # Пропускаем уже добавленные поля и базовые поля, которые уже есть в details
       next if enhanced_details.key?(key) || key == 'Lane' || key == 'Duration'
+
       # Добавляем только полезные метрики
       if key.match?(/size|размер|ipa|dsym|uploaded|status|error/i)
         enhanced_details[key] = value
@@ -835,13 +837,13 @@ def notify_telegram_success(title, details = {}, include_pipeline_link: true, in
 
   # Если включен режим прогресс-сообщения, используем его
   if ENV['TELEGRAM_PROGRESS_MODE'] == 'true'
-    UI.message("🔄 Режим прогресс-сообщения: обновляем существующее сообщение")
+    UI.message('🔄 Режим прогресс-сообщения: обновляем существующее сообщение')
     lane_name = defined?($current_metrics) && $current_metrics ? $current_metrics.lane_name : nil
     stage_name = lane_name ? get_current_stage_name(lane_name) : title
-    
+
     # Обновляем прогресс-сообщение с текущим этапом (НЕ создаем новое!)
     update_telegram_progress(stage_name, status: 'success', details: enhanced_details)
-    
+
     # Проверяем, все ли этапы завершены
     all_stages = get_pipeline_stages
     completed_stages = []
@@ -856,19 +858,19 @@ def notify_telegram_success(title, details = {}, include_pipeline_link: true, in
         # Игнорируем ошибки чтения
       end
     end
-    
+
     UI.message("📊 Завершено этапов: #{completed_stages.length}/#{all_stages.length}")
-    
+
     # Если все этапы завершены, отправляем отдельное финальное сообщение
     if completed_stages.length >= all_stages.length
-      UI.message("🎉 Все этапы завершены! Отправляем финальное сообщение...")
+      UI.message('🎉 Все этапы завершены! Отправляем финальное сообщение...')
       send_final_telegram_message('success', enhanced_details, include_pipeline_link: include_pipeline_link)
     else
-      UI.message("⏳ Еще остались незавершенные этапы, финальное сообщение будет отправлено позже")
+      UI.message('⏳ Еще остались незавершенные этапы, финальное сообщение будет отправлено позже')
     end
   else
     # Старый режим: отдельные сообщения
-    UI.message("📨 Старый режим: отправляем отдельное сообщение")
+    UI.message('📨 Старый режим: отправляем отдельное сообщение')
     message = format_telegram_message("✅ #{title}", enhanced_details, include_pipeline_link: include_pipeline_link)
     send_telegram_notification(message)
   end
@@ -982,13 +984,13 @@ def notify_telegram_error(title, error, details = {}, include_pipeline_link: tru
   error_details.each do |key, value|
     # Пропускаем уже добавленные поля
     next if key.to_s.downcase.match?(/тип ошибки|сообщение об ошибке|версия|version|build|target|таргет/)
-    
+
     formatted_value = if value.is_a?(Array)
                         value.join("\n")
                       else
                         value.to_s
                       end
-    
+
     # Для длинных значений (например, backtrace) используем code блок
     if formatted_value.length > 100 || formatted_value.include?("\n")
       message += "<b>#{key}:</b>\n<code>#{escape_html(formatted_value)}</code>\n\n"
@@ -1025,7 +1027,7 @@ def send_final_telegram_message(result, details = {}, include_pipeline_link: tru
 
   # Получаем все этапы и их детали
   all_stages = get_pipeline_stages
-  
+
   # Загружаем детали всех этапов
   all_stages_details = {}
   if File.exist?(PROGRESS_STAGES_DETAILS_FILE)
@@ -1038,11 +1040,11 @@ def send_final_telegram_message(result, details = {}, include_pipeline_link: tru
 
   # Формируем заголовок
   if result == 'success'
-    title = "🎉 Pipeline выполнен успешно"
-    emoji = "✅"
+    title = '🎉 Pipeline выполнен успешно'
+    emoji = '✅'
   else
-    title = "❌ Pipeline завершен с ошибкой"
-    emoji = "❌"
+    title = '❌ Pipeline завершен с ошибкой'
+    emoji = '❌'
   end
 
   # Формируем сообщение
@@ -1075,7 +1077,7 @@ def send_final_telegram_message(result, details = {}, include_pipeline_link: tru
   # Добавляем детали всех завершенных этапов
   if all_stages_details.any?
     message += "<b>📋 Детали всех этапов:</b>\n\n"
-    
+
     all_stages.each do |stage|
       if all_stages_details.key?(stage) && all_stages_details[stage].any?
         message += "<b>✅ #{stage}:</b>\n"
