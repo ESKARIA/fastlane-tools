@@ -874,6 +874,31 @@ def notify_telegram_success(title, details = {}, include_pipeline_link: true, in
   end
 end
 
+# Маскирует секреты в произвольном тексте перед отправкой во внешние системы (Telegram).
+#
+# Заменяет:
+#   - значения известных секретных ENV-переменных (если они заданы), встречающиеся в тексте;
+#   - строки, похожие на Telegram bot token (формат "123456789:AAExxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx").
+#
+# @param text [String] исходный текст
+# @return [String] текст с замаскированными секретами
+def sanitize_secrets(text)
+  sanitized = text.to_s
+
+  secret_env_keys = %w[TELEGRAM_BOT_TOKEN APPSTORE_KEY_CONTENT MATCH_PASSWORD APPMETRICA_KEY]
+  secret_env_keys.each do |key|
+    value = ENV[key]
+    next if value.nil? || value.to_s.strip.empty?
+
+    sanitized = sanitized.gsub(value, '***')
+  end
+
+  # Telegram bot token: "123456789:AAExxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+  sanitized = sanitized.gsub(/[0-9]{6,10}:[A-Za-z0-9_-]{30,}/, '***')
+
+  sanitized
+end
+
 # Отправляет уведомление об ошибке в Telegram
 #
 # Ошибки ВСЕГДА отправляются отдельным сообщением с максимально детальным описанием,
@@ -886,8 +911,8 @@ end
 def notify_telegram_error(title, error, details = {}, include_pipeline_link: true)
   error_details = details.dup
 
-  # Полное сообщение об ошибке (без ограничений)
-  error_message = error.message.to_s
+  # Полное сообщение об ошибке (без ограничений), с маскировкой секретов
+  error_message = sanitize_secrets(error.message.to_s)
   error_details['Сообщение об ошибке'] = error_message
 
   # Добавление типа ошибки
@@ -898,7 +923,7 @@ def notify_telegram_error(title, error, details = {}, include_pipeline_link: tru
     # Берем первые 20 строк backtrace для читаемости
     backtrace_lines = error.backtrace.first(20)
     if backtrace_lines.any?
-      error_details['Стек вызовов'] = backtrace_lines.join("\n")
+      error_details['Стек вызовов'] = sanitize_secrets(backtrace_lines.join("\n"))
     end
   end
 

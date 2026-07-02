@@ -215,7 +215,9 @@ lane :unzip_and_upload do |_options|
 
       if File.exist?(HELPER_PATH)
         UI.message('Загрузка dSYM через helper скрипт...')
-        sh("#{HELPER_PATH.shellescape} -k #{APPMETRICA_KEY.to_s.shellescape} -v")
+        # APPMETRICA_KEY передаётся в CLI-аргументе -k — команда не логируется (log: false),
+        # чтобы секрет не попадал в вывод fastlane.
+        sh("#{HELPER_PATH.shellescape} -k #{APPMETRICA_KEY.to_s.shellescape} -v", log: false)
         UI.success("✅ dSYM загружен: #{zip_file}")
       else
         UI.user_error!("Helper скрипт не найден: #{HELPER_PATH}")
