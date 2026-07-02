@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require 'shellwords'
+
 lane :auto_release_branch do |options|
   raise 'Has no APPSTORE_KEY_CONTENT' unless APPSTORE_KEY_CONTENT
 
@@ -43,7 +45,7 @@ lane :auto_release_branch do |options|
   # # Если ветка не существует, создаем её
   # sh("git branch #{branch_name}") if branch_exists.empty?
 
-  sh("echo \"VERSION=#{version}, TIMESTAMP=$(date '+%Y-%m-%d %H:%M:%S')\" >> last_update.txt")
+  sh("echo \"VERSION=#{Shellwords.escape(version.to_s)}, TIMESTAMP=$(date '+%Y-%m-%d %H:%M:%S')\" >> last_update.txt")
   update_metadata_year(options)
   sh("git add '*.txt' && git add '**/*.txt'") # Добавляем все файлы .txt включая вложенные в папках в staged
 
@@ -479,21 +481,21 @@ lane :merge_and_delete_release_branch do |_options|
 
   # Переключение на целевую ветку
   UI.message("Switching to target branch #{target_branch}")
-  sh("git checkout #{target_branch}")
-  sh("git pull origin #{target_branch}") # Обновление целевой ветки до актуального состояния
+  sh("git checkout #{Shellwords.escape(target_branch)}")
+  sh("git pull origin #{Shellwords.escape(target_branch)}") # Обновление целевой ветки до актуального состояния
 
   # Слияние релизной ветки в целевую ветку
   UI.message("Merging #{release_branch} into #{target_branch}")
-  sh("git merge --no-ff #{release_branch}")
+  sh("git merge --no-ff #{Shellwords.escape(release_branch)}")
 
   # Отправка изменений в удалённый репозиторий
   UI.message("Pushing merged changes to origin/#{target_branch}")
-  sh("git push origin #{target_branch}")
+  sh("git push origin #{Shellwords.escape(target_branch)}")
 
   # Удаление релизной ветки локально и в удалённом репозитории
   UI.message("Deleting release branch #{release_branch}")
-  sh("git branch -d #{release_branch}") # Удаление локальной ветки
-  sh("git push origin --delete #{release_branch}") # Удаление ветки в удалённом репозитории
+  sh("git branch -d #{Shellwords.escape(release_branch)}") # Удаление локальной ветки
+  sh("git push origin --delete #{Shellwords.escape(release_branch)}") # Удаление ветки в удалённом репозитории
 
   UI.message("Release branch #{release_branch} has been merged into #{target_branch} and deleted.")
 end

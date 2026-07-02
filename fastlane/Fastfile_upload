@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require 'shellwords'
+
 # ==============================================================================
 # Fastfile_upload - Загрузка сборок в TestFlight
 # ==============================================================================
@@ -41,7 +43,7 @@ def get_changelog_from_git
 
   # Получение хэша коммита последнего тега
   begin
-    commit_of_last_tag = sh("git rev-list -n 1 #{last_tag}").strip
+    commit_of_last_tag = sh("git rev-list -n 1 #{Shellwords.escape(last_tag)}").strip
   rescue StandardError
     # Если не удалось получить хэш тега, используем первый коммит в истории
     UI.message('Не удалось получить хэш коммита тега, используется хэш первого коммита')

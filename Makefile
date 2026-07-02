@@ -8,6 +8,6 @@ default:
 		exit 1; \
 	fi; \
 	echo "📱 Добавляем устройство с UDID=$(DEVICE_UDID)"; \
-	fastlane run register_device udid:$(DEVICE_UDID) name:NewDevice; \
+	fastlane run register_device udid:"$(DEVICE_UDID)" name:NewDevice; \
 	echo "♻️ Перегенерация provisioning профилей..."; \
 	fastlane $(MATCH_LANE)

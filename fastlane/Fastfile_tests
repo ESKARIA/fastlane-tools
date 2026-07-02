@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require 'shellwords'
+
 # ==============================================================================
 # Fastfile_tests - Запуск тестов
 # ==============================================================================
@@ -52,7 +54,7 @@ lane :tests do |options|
   # Валидация схемы в проекте
   begin
     # Попытка получить информацию о схеме (будет ошибка, если схема не существует)
-    schemes = sh("xcodebuild -list -project #{ENV['MAIN_PROJECT_FILE']} -json | jq -r '.project.schemes[]' | grep -E '^#{test_target_scheme}$'", log: false)
+    schemes = sh("xcodebuild -list -project #{Shellwords.escape(ENV['MAIN_PROJECT_FILE'].to_s)} -json | jq -r '.project.schemes[]' | grep -E #{Shellwords.escape("^#{Regexp.escape(test_target_scheme.to_s)}$")}", log: false)
     if schemes.strip.empty?
       UI.important("⚠️  Схема '#{test_target_scheme}' не найдена в проекте. Проверьте правильность названия.")
     end
