@@ -18,6 +18,9 @@ jobs:
       - name: Run RuboCop
         run: |
           bundle exec rubocop
+      - name: Run RSpec
+        run: |
+          bundle exec rspec
       - name: Syntax check Fastfile*
         run: |
           find fastlane -name 'Fastfile*' -print0 | xargs -0 -n1 ruby -c
