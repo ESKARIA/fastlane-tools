@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require 'shellwords'
+
 # Диагностика: документирует, что реально лежит в путях поиска dSYM на момент
 # запуска lane. Нужна для отладки кейса «артефакты скачались, но *.dSYM.zip не
 # найден» — печатает cwd, ожидаемое имя/путь dSYM и фактическое содержимое
@@ -71,7 +73,7 @@ lane :upload_dsyms do |options|
   if is_metrica
     UI.message("Путь к helper: #{HELPER_PATH}")
     UI.message('Загрузка dSYM в AppMetrica...')
-    sh("chmod +x #{HELPER_PATH}") if File.exist?(HELPER_PATH)
+    sh("chmod +x #{Shellwords.escape(HELPER_PATH)}") if File.exist?(HELPER_PATH)
     unzip_and_upload(options)
     uploaded_to_metrica = true
     add_metric('uploaded_to_appmetrica', true) if respond_to?(:add_metric)
