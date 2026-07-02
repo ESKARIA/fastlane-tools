@@ -22,7 +22,7 @@ lane :auto_release_branch do |options|
   release_version = release_version_number # Функция для получения версии из релиза
 
   # 3. Сравниваем версии
-  highest_version = [beta_version, release_version].max
+  highest_version = [beta_version, release_version].max_by { |v| Gem::Version.new(v) }
   UI.message("Старшая версия: #{highest_version}")
 
   if Gem::Version.new(highest_version) < Gem::Version.new(minimal_version)
