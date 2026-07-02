@@ -1,6 +1,5 @@
 **/.DS_Store
 fastlane/.env
-Pluginfile
 fastlane/README.md
 fastlane/report.xml
 fastlane/.env*
@@ -11,3 +10,5 @@ fastlane/.telegram_completed_stages.txt
 !README.md
 !docs/*.md
 fastlane/*.md
+fastlane/fastlane/
+metrics.json
