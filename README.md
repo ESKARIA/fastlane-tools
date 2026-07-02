@@ -1,283 +1,353 @@
-# 🚀 Fastlane Tools
+# Fastlane Tools
 
-Набор модульных инструментов для автоматизации процессов разработки и публикации iOS приложений с помощью Fastlane.
+Общий набор Fastlane-лейнов для iOS/macOS-проектов ESKARIA: сборка, подпись через
+`match`, загрузка в TestFlight и App Store, загрузка dSYM в AppMetrica/Firebase
+Crashlytics, Telegram-уведомления о статусе сборки (в т.ч. режим одного
+обновляемого прогресс-сообщения) и сбор метрик выполнения лейнов.
 
-## 📋 Описание
+Репозиторий подключается к проекту-потребителю через `import_from_git` —
+своего Fastfile с нуля писать не нужно, только минимальный конфиг с
+переменными окружения проекта. Обновления пайплайна поставляются как
+изменения `fastlane-tools`; версии фиксируются git-тегами (`vX.Y.Z`), поэтому
+обновление не ломает существующие пайплайны, пока вы явно не смените тег.
 
-Этот репозиторий содержит готовые к использованию Fastfile модули для:
+## Оглавление
 
-- ✅ Управления сертификатами и provisioning profiles через `match`
-- ✅ Сборки IPA файлов для App Store
-- ✅ Загрузки сборок в TestFlight (internal и external testers)
-- ✅ Публикации приложений в App Store
-- ✅ Загрузки символов (dSYM) в AppMetrica и Firebase Crashlytics
-- ✅ Telegram уведомлений о статусе сборок с режимом прогресс-сообщений
-- ✅ Сбора метрик выполнения lanes
-- ✅ Сохранения и накопления деталей всех этапов в одном сообщении
+- [Быстрый старт: подключение к своему проекту](#быстрый-старт-подключение-к-своему-проекту)
+- [Переменные окружения](#переменные-окружения)
+- [Основные lane-ы](#основные-lane-ы)
+- [Пример CI (GitLab CI)](#пример-ci-gitlab-ci)
+- [Обновление версий](#обновление-версий)
+- [Документация и требования](#документация-и-требования)
 
-## 🚀 Быстрый старт
+## Быстрый старт: подключение к своему проекту
 
-### 1. Установка
+### 1. Gemfile и Pluginfile проекта-потребителя
+
+В корне вашего iOS/macOS-проекта создайте (или дополните) `Gemfile`:
+
+```ruby
+source 'https://rubygems.org'
+
+gem 'fastlane'
+gem 'rubyzip'
+
+plugins_path = File.join(File.dirname(__FILE__), 'fastlane', 'Pluginfile')
+eval_gemfile(plugins_path) if File.exist?(plugins_path)
+```
+
+И `fastlane/Pluginfile`:
+
+```ruby
+gem 'fastlane-plugin-telegram'
+gem 'fastlane-plugin-versioning'
+```
+
+`fastlane-plugin-versioning` обязателен — лейны `build`/`version` используют его
+экшены (`get_version_number_from_xcodeproj`, `increment_build_number_in_xcodeproj`
+и т.д.). `fastlane-plugin-telegram` нужен, если планируете Telegram-уведомления
+(`TELEGRAM_ENABLED=true`); можно оставить в Pluginfile даже без включённых
+уведомлений — лишним не будет.
+
+Установите зависимости:
 
 ```bash
-# Клонируйте репозиторий или используйте import_from_git
-git clone git@github.com:ESKARIA/fastlane-tools.git
-
-# Установите зависимости
 bundle install
 ```
 
-### 2. Настройка переменных окружения
+### 2. Минимальный `fastlane/Fastfile` проекта
+
+```ruby
+# frozen_string_literal: true
+
+default_platform(:ios)
+
+import_from_git(
+  url: 'git@github.com:ESKARIA/fastlane-tools.git',
+  branch: 'v3.1.0', # пин на тег — обязательно для предсказуемых обновлений
+  path: 'fastlane/Fastfile_match', # любой файл кроме Fastfile — во избежание рекурсивного импорта
+  dependencies: [
+    'fastlane/Fastfile_build',        # сборка iOS
+    'fastlane/Fastfile_macos',        # сборка и публикация macOS (platform :mac)
+    'fastlane/Fastfile_tests',        # запуск тестов
+    'fastlane/Fastfile_dsyms',        # загрузка символов
+    'fastlane/Fastfile_upload',       # загрузка в TestFlight
+    'fastlane/Fastfile_appstore',     # работа с App Store
+    'fastlane/Fastfile_create_app',   # создание приложения в App Store Connect
+    'fastlane/Fastfile_helpers'       # retry-логика, Telegram, метрики
+  ]
+)
+```
+
+Если macOS-пайплайн вам не нужен, `Fastfile_macos` из `dependencies` можно
+убрать — на iOS-лейны это не влияет.
+
+### 3. Минимальный набор обязательных переменных окружения
 
 ```bash
 export APP_IDENTIFIER="com.company.appname"
 export MAIN_TARGET="AppName"
-export APP_VERSION="1.2.3"
-export CI_PIPELINE_IID="123"
+export APP_VERSION="1.2.3"            # или ветка beta/1.2.3 / release/1.2.3 — версия определится автоматически
+export CI_PIPELINE_IID="123"          # номер сборки (в GitLab CI подставляется автоматически)
 export APPSTORE_KEY_ID="ABC123XYZ"
 export APPSTORE_ISSUER_ID="12345678-1234-1234-1234-123456789012"
-export APPSTORE_KEY_CONTENT="$(cat key.p8 | base64)"
+export APPSTORE_KEY_CONTENT="$(cat AuthKey_ABC123XYZ.p8 | base64)"
+export MATCH_PASSWORD="пароль-шифрования-match-репозитория"
+export MATCH_GIT_URL="git@github.com:your-org/certificates.git"
 ```
 
-### 3. Первая сборка
+`MATCH_GIT_URL`, `MATCH_PASSWORD`, `MATCH_USERNAME` — стандартные переменные
+плагина/экшена `match` (не объявляются в коде `fastlane-tools`, но
+обязательны для его работы: без git-репозитория сертификатов `match`
+генерировать/устанавливать профили не сможет).
+
+### 4. Первая проверка
 
 ```bash
-# Генерация сертификатов
-fastlane match_generate_appstore
+# Список всех доступных lane-ов (проверяет, что import_from_git отработал)
+bundle exec fastlane lanes
 
-# Сборка приложения
-fastlane build
+# Установка сертификатов App Store из match-репозитория (readonly)
+bundle exec fastlane match_install_appstore
 
-# Загрузка в TestFlight
-fastlane upload_testflight
+# Если сертификатов ещё нет — сгенерировать
+bundle exec fastlane match_generate_appstore
 ```
 
-## 📖 Основные команды
+Если `fastlane lanes` показывает лейны `build`, `upload_testflight`,
+`match_install_appstore` и т.д. — подключение выполнено верно.
 
-### Управление сертификатами
+## Переменные окружения
 
-```bash
-# Генерация App Store сертификатов
-fastlane match_generate_appstore
+Все секреты (ключи API, пароли match, токены Telegram) передаются только
+через переменные CI/CD (protected/masked variables), не хранятся в репозитории
+проекта.
 
-# Установка сертификатов
-fastlane match_install_appstore
+### Обязательные
+
+| Переменная | Назначение |
+|---|---|
+| `APP_IDENTIFIER` | Bundle identifier приложения. Поддерживает несколько через запятую: `com.app.main,com.app.widget` |
+| `MAIN_TARGET` | Название основного target для сборки |
+| `APP_VERSION` | Маркетинговая версия (`1.2.3`). Если пусто, а сборка идёт из ветки `beta/1.2.3` или `release/1.2.3` — версия извлекается из имени ветки автоматически |
+| `CI_PIPELINE_IID` | Номер сборки (используется как build number). В GitLab CI подставляется платформой автоматически |
+| `APPSTORE_KEY_ID` | Key ID ключа App Store Connect API |
+| `APPSTORE_ISSUER_ID` | Issuer ID App Store Connect API |
+| `APPSTORE_KEY_CONTENT` | Содержимое `.p8`-ключа в Base64 |
+| `MATCH_PASSWORD` | Пароль шифрования match-репозитория с сертификатами |
+| `MATCH_GIT_URL` | URL git-репозитория, в котором `match` хранит сертификаты и профили (стандартная переменная `match`, а не `fastlane-tools`) |
+
+### Опциональные
+
+| Переменная | Значение по умолчанию | Назначение |
+|---|---|---|
+| `MAIN_PROJECT_FILE` | `{MAIN_TARGET}.xcodeproj` | Путь к `.xcodeproj`, если имя не совпадает с target |
+| `BUILD_SCHEME` / `SCHEME` | значение `MAIN_TARGET` | Xcode-схема для сборки/тестов |
+| `BUILD_CONFIGURATION` / `CONFIGURATION` | берётся из схемы | Конфигурация сборки (Release/Debug) |
+| `ARTIFACTS_PATH` | `fastlane/artifacts/` (в корне проекта) | Каталог для IPA/dSYM/.pkg. Относительный путь резолвится от корня проекта (не от `fastlane/`), `~` разворачивается в HOME |
+| `ARTIFACT_BASENAME` | значение `BUILD_SCHEME` | Базовое имя файлов артефактов: `{ARTIFACT_BASENAME}_v{APP_VERSION}_b{BUILD_NUMBER}` |
+| `HELPER_PATH` / `APPMETRICA_HELPER_PATH` | `fastlane/helper` | Путь к helper-бинарю AppMetrica для загрузки dSYM |
+| `APPMETRICA_KEY` | — | Ключ AppMetrica. Загрузка в AppMetrica включается только если заданы и ключ, и helper-бинарь по `HELPER_PATH` |
+| `UPLOAD_DSYMS` | `true` (включено) | `false` отключает лейн `upload_dsyms` целиком |
+| `EXTERNAL_TESTFLIGHT_GROUPS` | — | Если задано, `upload_testflight` автоматически грузит для external testers в указанные группы (через запятую) |
+| `TAG_PREFIX` | — | Префикс git-тега в `tagging` (`{prefix}/v{VERSION}-build-{BUILD}`), полезно для монорепо с несколькими таргетами |
+| `MATCH_USERNAME` / `ACCOUNT_EMAIL` | — | Логин Apple ID для `match`/Developer Portal (`FASTLANE_USER` берётся из первого непустого) |
+| `TEAM_ID` / `FASTLANE_TEAM_ID` | — | Apple Developer Team ID |
+| `MATCH_KEYCHAIN_NAME` | `fastlane_tmp_keychain` | Имя постоянного keychain для подписи на CI |
+| `MATCH_KEYCHAIN_PASSWORD` | `''` (пусто) | Пароль keychain для подписи |
+| `TELEGRAM_ENABLED` | `false` | Включает уведомления в Telegram на всех этапах |
+| `TELEGRAM_BOT_TOKEN` | — | Токен Telegram-бота |
+| `TELEGRAM_CHAT_ID` | — | Chat ID для отправки уведомлений |
+| `TELEGRAM_PROGRESS_MODE` | `false` | Одно обновляемое сообщение вместо серии отдельных. Требует передачи файлов `.telegram_progress_message_id` и др. между job'ами CI (см. [TELEGRAM_NOTIFICATIONS.md](./TELEGRAM_NOTIFICATIONS.md)) |
+| `APPSTORE_KEY_PATH` / `APP_STORE_CONNECT_KEY_PATH` | — | Путь к файлу `.p8`, альтернатива `APPSTORE_KEY_CONTENT` (используется, например, в `check_released`/`upload_metadata`) |
+| `DELIVER_METADATA_PATH` | Deliverfile / `./fastlane/metadata` | Путь к метаданным одного пака (для монорепо с несколькими приложениями) |
+| `MACOS_MATCH_DEV_BRANCH` | `macos_development` | Ветка match-репозитория с development-сертификатами macOS |
+| `MACOS_MATCH_DIST_BRANCH` | `macos_distribution` | Ветка match-репозитория с distribution-сертификатами macOS |
+| `MAC_INSTALLER_CERT` | `3rd Party Mac Developer Installer` | Имя installer-сертификата для подписи `.pkg` |
+| `CI` | — | Если задано (стандартно на CI-раннерах), выполняется дополнительная инициализация: `clear_derived_data`, настройка API-ключа в `before_all` |
+
+## Основные lane-ы
+
+### Сертификаты (`match`)
+
+| Lane | Что делает |
+|---|---|
+| `match_generate_dev` | Генерирует development-сертификаты и профили (ветка `development`) |
+| `match_generate_appstore` | Генерирует App Store сертификаты и профили (ветка `distribution`) |
+| `match_install_dev` | Устанавливает development-сертификаты локально/на CI (readonly) |
+| `match_install_appstore` | Устанавливает App Store сертификаты локально/на CI (readonly) |
+| `reset_all_profiles` | Полностью перегенерирует development и appstore сертификаты |
+| `nuke_development` / `nuke_appstore` / `nuke_all` | Необратимое удаление сертификатов и профилей |
+
+### Сборка
+
+| Lane | Что делает |
+|---|---|
+| `version` | Устанавливает `APP_VERSION` в xcodeproj (и Info.plist, если он ещё используется) для `MAIN_TARGET` |
+| `build` | Полный цикл: версия → build number → сертификаты → `build_app` → сохранение IPA/dSYM в `ARTIFACTS_PATH`, синхронизация версии встроенных таргетов (extensions/watch app) |
+
+### Загрузка в TestFlight (`Fastfile_upload`)
+
+| Lane | Что делает |
+|---|---|
+| `upload_testflight` | Автоопределяет internal/external по `EXTERNAL_TESTFLIGHT_GROUPS`/параметру `external:true`. Параметр `groups:"Group1,Group2"` — группы external testers |
+| `upload_external_testflight groups:"..."` | Явная загрузка для external testers, changelog берётся из git-коммитов с последнего тега |
+| `tagging tags:true` | Создаёт git-тег `v{APP_VERSION}-build-{BUILD_NUMBER}` (или с `TAG_PREFIX`) |
+
+### App Store (`Fastfile_appstore`)
+
+| Lane | Что делает |
+|---|---|
+| `pass_to_review` | Находит последнюю сборку в TestFlight и отправляет её на рецензирование в App Store, затем сливает release-ветку в `main` |
+| `upload_metadata ver:2.0.0` | Заливает только текстовые метаданные (без бинаря/скриншотов); создаёт draft-версию, если редактируемой ещё нет |
+| `check_released ver:2.8.3` | Проверяет статус версии в App Store Connect, пишет `release_status.json` в корень проекта |
+| `create_app` | Создаёт новое приложение в App Store Connect (через `produce`) |
+
+### dSYM (`Fastfile_dsyms`)
+
+| Lane | Что делает |
+|---|---|
+| `upload_dsyms firebase:true` | Загружает dSYM в AppMetrica (если заданы `APPMETRICA_KEY` и helper) и/или Firebase Crashlytics (`firebase:true`). Пропускается целиком при `UPLOAD_DSYMS=false` |
+
+### Тесты (`Fastfile_tests`)
+
+| Lane | Что делает |
+|---|---|
+| `tests scheme:"AppNameTests" device:"iPhone 15"` | Запускает unit/UI-тесты на симуляторе, собирает code coverage |
+
+### macOS (`platform :mac`, `Fastfile_macos`)
+
+Зеркалит iOS-пайплайн, но собирает `.pkg`, подписывает installer-сертификатом
+и грузит с платформой `osx`. Сертификаты — в отдельных ветках match
+(`macos_development`/`macos_distribution`). Вызывается с префиксом `mac`:
+
+| Lane | Что делает |
+|---|---|
+| `mac match_generate_dev` | Генерирует development-сертификаты macOS |
+| `mac match_generate_appstore` | Генерирует App Store + installer-сертификаты macOS |
+| `mac match_install_appstore` | Устанавливает сертификаты macOS (readonly, для CI) |
+| `mac build` | Собирает `.pkg` для App Store |
+| `mac upload_testflight` / `mac upload_testflight external:true groups:"..."` | Загрузка в TestFlight, авто-определение internal/external как в iOS |
+| `mac upload_appstore` / `mac upload_appstore submit:true` | Загрузка в App Store Connect, `submit:true` — сразу на рецензирование |
+
+Переменные — те же, что для iOS (`APP_IDENTIFIER`, `APPSTORE_KEY_*`,
+`MATCH_GIT_URL`, `MATCH_PASSWORD`, `MAIN_PROJECT_FILE`/`MAIN_TARGET`/
+`BUILD_SCHEME`, `APP_VERSION`, `CI_PIPELINE_IID`), плюс опционально
+`MAC_INSTALLER_CERT`, `MACOS_MATCH_DEV_BRANCH`, `MACOS_MATCH_DIST_BRANCH`.
+
+### Общие
+
+| Lane | Что делает |
+|---|---|
+| `clear_keychain` | Сбрасывает системный default keychain и удаляет временный keychain fastlane |
+| `register_new_device` | Интерактивно регистрирует новое устройство и перегенерирует dev-профили |
+
+## Пример CI (GitLab CI)
+
+```yaml
+stages:
+  - build
+  - upload_dsyms
+  - upload_testflight
+
+variables:
+  APP_IDENTIFIER: "com.company.appname"
+  MAIN_TARGET: "AppName"
+  APP_VERSION: "1.2.3"
+  APPSTORE_KEY_ID: "${APPSTORE_KEY_ID}"
+  APPSTORE_ISSUER_ID: "${APPSTORE_ISSUER_ID}"
+  APPSTORE_KEY_CONTENT: "${APPSTORE_KEY_CONTENT}"
+  MATCH_PASSWORD: "${MATCH_PASSWORD}"
+  MATCH_GIT_URL: "${MATCH_GIT_URL}"
+  TELEGRAM_ENABLED: "true"
+  TELEGRAM_PROGRESS_MODE: "true"
+  TELEGRAM_BOT_TOKEN: "${TELEGRAM_BOT_TOKEN}"
+  TELEGRAM_CHAT_ID: "${TELEGRAM_CHAT_ID}"
+
+.telegram_progress_artifacts: &telegram_progress_artifacts
+  artifacts:
+    paths:
+      - fastlane/.telegram_progress_message_id
+      - fastlane/.telegram_stages_details.json
+      - fastlane/.telegram_completed_stages.txt
+    expire_in: 1 hour
+
+build:
+  stage: build
+  tags: [macos]
+  script:
+    - bundle install
+    - bundle exec fastlane build
+  artifacts:
+    paths:
+      - fastlane/artifacts/*.ipa
+      - fastlane/artifacts/*.dSYM.zip
+      - fastlane/.telegram_progress_message_id
+      - fastlane/.telegram_stages_details.json
+      - fastlane/.telegram_completed_stages.txt
+    expire_in: 1 hour
+
+upload_dsyms:
+  stage: upload_dsyms
+  tags: [macos]
+  needs: [build]
+  script:
+    - bundle install
+    - bundle exec fastlane upload_dsyms firebase:true
+  <<: *telegram_progress_artifacts
+
+upload_testflight:
+  stage: upload_testflight
+  tags: [macos]
+  needs: [upload_dsyms]
+  script:
+    - bundle install
+    - bundle exec fastlane upload_testflight
+  <<: *telegram_progress_artifacts
 ```
 
-### Сборка и публикация
+Файлы `.telegram_progress_message_id`, `.telegram_stages_details.json` и
+`.telegram_completed_stages.txt` нужны только в режиме `TELEGRAM_PROGRESS_MODE`
+— они переносят состояние одного обновляемого сообщения между job'ами.
+Подробности и примеры сообщений — в [TELEGRAM_NOTIFICATIONS.md](./TELEGRAM_NOTIFICATIONS.md)
+и [docs/TELEGRAM_NOTIFICATIONS_EXAMPLES.md](./docs/TELEGRAM_NOTIFICATIONS_EXAMPLES.md).
 
-```bash
-# Сборка IPA файла
-fastlane build
+## Обновление версий
 
-# Загрузка в TestFlight для internal testers
-fastlane upload_testflight
+- Пинуйте `import_from_git` на конкретный тег (`branch: 'v3.1.0'`), а не на
+  `main` — так обновления `fastlane-tools` не ломают ваш пайплайн незаметно.
+- Перед обновлением смотрите [CHANGELOG.md](./CHANGELOG.md): там перечислены
+  breaking changes, исправления и новые возможности каждой версии.
+- Обновление — это смена значения `branch:` (или `version:`) на новый тег в
+  `fastlane/Fastfile` вашего проекта и последующий прогон `fastlane lanes`
+  для проверки, что импорт и зависимости резолвятся.
+- Проект придерживается обратной совместимости в рамках мажорной версии:
+  существующие ENV-переменные и сигнатуры lane-ов не удаляются и не меняют
+  поведение без мажорного релиза.
 
-# Загрузка в TestFlight для external testers
-fastlane upload_external_testflight groups:"External Public Beta"
+## Документация и требования
 
-# Отправка на рецензирование в App Store
-fastlane pass_to_review
+- [docs/USAGE_GUIDE.md](./docs/USAGE_GUIDE.md) — детальное описание всех
+  lane-ов, workflow-примеры (новая сборка, external testers, публикация в App
+  Store, добавление устройства), troubleshooting, best practices.
+- [TELEGRAM_NOTIFICATIONS.md](./TELEGRAM_NOTIFICATIONS.md) — настройка
+  Telegram-бота, режим прогресс-сообщения, передача состояния между job'ами.
+- [docs/TELEGRAM_NOTIFICATIONS_EXAMPLES.md](./docs/TELEGRAM_NOTIFICATIONS_EXAMPLES.md) —
+  примеры всех типов сообщений.
+- [CHANGELOG.md](./CHANGELOG.md) — история изменений по версиям.
 
-# Заливка ТОЛЬКО метаданных (без бинаря и скриншотов).
-# Если редактируемой версии в App Store Connect нет — создаёт draft-версию
-# и заполняет её текстами. Путь к метаданным берётся из Deliverfile.
-fastlane upload_metadata ver:2.0.0     # явная версия
-fastlane upload_metadata               # версия из ENV['APP_VERSION']
-```
+**Требования:** Xcode (установлен и настроен), Ruby ≥ 2.7, Bundler, Fastlane
+(ставится через Bundler по `Gemfile`).
 
-### Сборка и публикация macOS
+**Назначение:** внутренний инструмент ESKARIA для унификации CI/CD пайплайнов
+iOS/macOS-проектов.
 
-Для macOS-приложений используются отдельные lanes под платформой `mac`
-(вызываются с префиксом `mac`). Они зеркалят iOS-пайплайн, но собирают `.pkg`,
-подписывают его installer-сертификатом и грузят с платформой `osx`. Сертификаты
-и профили хранятся в отдельных ветках match: `macos_development` и
-`macos_distribution`.
-
-```bash
-# Сертификаты macOS (development и App Store + installer-сертификат)
-fastlane mac match_generate_dev
-fastlane mac match_generate_appstore   # выпускает и mac_installer_distribution
-fastlane mac match_install_appstore    # установка на CI/новой машине (readonly)
-
-# Сборка .pkg для App Store
-fastlane mac build
-
-# Загрузка в TestFlight (авто Internal/External по EXTERNAL_TESTFLIGHT_GROUPS)
-fastlane mac upload_testflight
-fastlane mac upload_testflight external:true groups:"External Public Beta"
-
-# Загрузка в App Store Connect (submit:true — сразу на рецензирование)
-fastlane mac upload_appstore
-fastlane mac upload_appstore submit:true
-```
-
-Переменные окружения те же, что и для iOS (`APP_IDENTIFIER`, `APPSTORE_KEY_*`,
-`MATCH_GIT_URL`, `MATCH_PASSWORD`, `MAIN_PROJECT_FILE`/`MAIN_TARGET`/`BUILD_SCHEME`,
-`APP_VERSION`, `CI_PIPELINE_IID`). Дополнительно (опционально):
-
-```bash
-# Имя installer-сертификата для подписи .pkg
-export MAC_INSTALLER_CERT="3rd Party Mac Developer Installer"
-# Переопределение веток match для macOS (по умолчанию macos_development/macos_distribution)
-export MACOS_MATCH_DEV_BRANCH="macos_development"
-export MACOS_MATCH_DIST_BRANCH="macos_distribution"
-```
-
-### Дополнительные команды
-
-```bash
-# Загрузка символов (dSYM)
-fastlane upload_dsyms firebase:true
-
-# Запуск тестов
-fastlane tests scheme:"AppName" device:"iPhone 13"
-
-# Создание git тега
-fastlane tagging tags:true
-```
-
-## 📚 Документация
-
-Полная документация находится в папке [`docs/`](./docs/):
-
-- **[Полное руководство](./docs/USAGE_GUIDE.md)** - детальное описание всех lanes, workflow примеры, troubleshooting
-- **[Навигация по документации](./docs/README.md)** - структура документации
-- **[Telegram уведомления](./TELEGRAM_NOTIFICATIONS.md)** - настройка и использование Telegram уведомлений
-- **[Примеры Telegram уведомлений](./docs/TELEGRAM_NOTIFICATIONS_EXAMPLES.md)** - примеры всех типов сообщений
-
-### Быстрые ссылки
-
-- 🚀 [Быстрый старт](./docs/USAGE_GUIDE.md#быстрый-старт)
-- 📖 [Описание всех lanes](./docs/USAGE_GUIDE.md#основные-lanes)
-- 🔄 [Примеры workflow](./docs/USAGE_GUIDE.md#workflow-примеры)
-- 🔐 [Переменные окружения](./docs/USAGE_GUIDE.md#переменные-окружения)
-- 📱 [Telegram уведомления](./TELEGRAM_NOTIFICATIONS.md)
-- 🐛 [Troubleshooting](./docs/USAGE_GUIDE.md#troubleshooting)
-
-## ⚙️ Особенности
-
-### Поддержка множественных bundle identifiers
-
-Система поддерживает несколько bundle identifiers через запятую:
-
-```bash
-export APP_IDENTIFIER="com.app.main,com.app.widget,com.app.watchkit"
-fastlane build  # Автоматически обработает все identifiers
-```
-
-### Автоматическое определение типа загрузки
-
-```bash
-# Автоматически загружает для external testers, если установлена переменная
-export EXTERNAL_TESTFLIGHT_GROUPS="External Public Beta"
-fastlane upload_testflight  # Автоматически для external testers
-```
-
-### Telegram уведомления
-
-Настройте уведомления для получения информации о статусе сборок:
-
-```bash
-export TELEGRAM_ENABLED="true"
-export TELEGRAM_PROGRESS_MODE="true"  # Режим прогресс-сообщения (одно сообщение вместо множества)
-export TELEGRAM_BOT_TOKEN="your_bot_token"
-export TELEGRAM_CHAT_ID="your_chat_id"
-```
-
-**Режим прогресс-сообщения:**
-- ✅ Одно сообщение, которое обновляется по мере выполнения этапов
-- ✅ Показывает прогресс всех этапов (выполненные, текущий, предстоящие)
-- ✅ Детали всех этапов сохраняются и накапливаются
-- ✅ Подробная документация: [TELEGRAM_NOTIFICATIONS.md](./TELEGRAM_NOTIFICATIONS.md)
-
-### Retry логика
-
-Автоматическая retry логика для сетевых операций (до 3 попыток с экспоненциальной задержкой).
-
-## 📁 Структура проекта
-
-```
-fastlane-tools/
-├── fastlane/
-│   ├── Fastfile                 # Главный файл конфигурации
-│   ├── Fastfile_match          # Управление сертификатами
-│   ├── Fastfile_build          # Сборка приложений (iOS)
-│   ├── Fastfile_macos          # Сборка и публикация macOS (platform :mac)
-│   ├── Fastfile_upload         # Загрузка в TestFlight
-│   ├── Fastfile_appstore       # Работа с App Store
-│   ├── Fastfile_dsyms         # Загрузка символов
-│   ├── Fastfile_tests         # Запуск тестов
-│   ├── Fastfile_create_app    # Создание приложения
-│   └── Fastfile_helpers       # Вспомогательные функции
-├── docs/                        # Документация
-│   ├── README.md               # Навигация по документации
-│   └── USAGE_GUIDE.md          # Полное руководство
-└── README.md                   # Этот файл
-```
-
-## 🔧 Требования
-
-- **Xcode** - установлен и настроен
-- **Ruby** - версия 2.7 или выше
-- **Bundler** - для управления зависимостями
-- **Fastlane** - установлен через Bundler
-
-## 🤝 Использование в проектах
-
-### Через import_from_git
-
-Добавьте в ваш `fastlane/Fastfile`:
-
-```ruby
-import_from_git(
-  url: 'git@github.com:ESKARIA/fastlane-tools.git',
-  path: 'fastlane/Fastfile_match',
-  dependencies: [
-    'fastlane/Fastfile_build',
-    'fastlane/Fastfile_upload',
-    'fastlane/Fastfile_appstore',
-    'fastlane/Fastfile_helpers'
-  ]
-)
-```
-
-**Рекомендация:** пинуйте версию тегом (например, `version:` или `branch:` на теге
-`v3.1.0`), чтобы обновления `main` не ломали ваш пайплайн незаметно:
-
-```ruby
-import_from_git(
-  url: 'git@github.com:ESKARIA/fastlane-tools.git',
-  branch: 'v3.1.0',
-  path: 'fastlane/Fastfile_match',
-  dependencies: [
-    'fastlane/Fastfile_build',
-    'fastlane/Fastfile_upload',
-    'fastlane/Fastfile_appstore',
-    'fastlane/Fastfile_helpers'
-  ]
-)
-```
-
-## 📝 Лицензия
-
-Этот проект предназначен для внутреннего использования ESKARIA.
-
-## 🔗 Полезные ссылки
-
-- [Fastlane документация](https://docs.fastlane.tools)
-- [Match документация](https://docs.fastlane.tools/actions/match/)
-- [TestFlight документация](https://developer.apple.com/testflight/)
-- [App Store Connect API](https://developer.apple.com/documentation/appstoreconnectapi)
+**Полезные ссылки:** [Fastlane docs](https://docs.fastlane.tools) ·
+[Match](https://docs.fastlane.tools/actions/match/) ·
+[TestFlight](https://developer.apple.com/testflight/) ·
+[App Store Connect API](https://developer.apple.com/documentation/appstoreconnectapi)
 
 ---
 
-**Версия:** 3.1.0  
+**Версия:** 3.1.0
 **Последнее обновление:** 02.07.2026
-
-## 🆕 Что нового в версии 3.0
-
-- ✨ **Режим прогресс-сообщений** — одно сообщение вместо множества, которое обновляется по мере выполнения этапов
-- 📊 **Накопление деталей этапов** — детали всех этапов сохраняются и отображаются в финальном сообщении
-- 🔄 **Автоматическое обновление** — сообщение автоматически обновляется при переходе между этапами
-- 📁 **Передача состояния между job'ами** — поддержка передачи состояния прогресс-сообщения между job'ами в GitLab CI
