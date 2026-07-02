@@ -1286,7 +1286,11 @@ class FastlaneMetrics
   end
 
   # Сохраняет метрики в файл
-  def save_to_file(file_path = 'fastlane/metrics.json')
+  #
+  # По умолчанию путь привязан к каталогу самого Fastfile_helpers (__dir__),
+  # а не к Dir.pwd (который у fastlane равен папке fastlane/) — иначе
+  # относительный 'fastlane/metrics.json' создаёт вложенную fastlane/fastlane/.
+  def save_to_file(file_path = File.expand_path('metrics.json', __dir__))
     metrics_data = {
       lane: @lane_name,
       timestamp: @start_time.iso8601,
