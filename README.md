@@ -13,16 +13,16 @@ Crashlytics, Telegram-уведомления о статусе сборки (в 
 
 ## Оглавление
 
-- [Быстрый старт: подключение к своему проекту](#быстрый-старт-подключение-к-своему-проекту)
-- [Переменные окружения](#переменные-окружения)
-- [Основные lane-ы](#основные-lane-ы)
-- [Пример CI (GitLab CI)](#пример-ci-gitlab-ci)
-- [Обновление версий](#обновление-версий)
-- [Документация и требования](#документация-и-требования)
+- [🚀 Быстрый старт: подключение к своему проекту](#-быстрый-старт-подключение-к-своему-проекту)
+- [⚙️ Переменные окружения](#️-переменные-окружения)
+- [🛤 Основные lane-ы](#-основные-lane-ы)
+- [🤖 Пример CI (GitLab CI)](#-пример-ci-gitlab-ci)
+- [🔄 Обновление версий](#-обновление-версий)
+- [📚 Документация и требования](#-документация-и-требования)
 
-## Быстрый старт: подключение к своему проекту
+## 🚀 Быстрый старт: подключение к своему проекту
 
-### 1. Gemfile и Pluginfile проекта-потребителя
+### 1️⃣ Gemfile и Pluginfile проекта-потребителя
 
 В корне вашего iOS/macOS-проекта создайте (или дополните) `Gemfile`:
 
@@ -55,7 +55,7 @@ gem 'fastlane-plugin-versioning'
 bundle install
 ```
 
-### 2. Минимальный `fastlane/Fastfile` проекта
+### 2️⃣ Минимальный `fastlane/Fastfile` проекта
 
 ```ruby
 # frozen_string_literal: true
@@ -82,7 +82,7 @@ import_from_git(
 Если macOS-пайплайн вам не нужен, `Fastfile_macos` из `dependencies` можно
 убрать — на iOS-лейны это не влияет.
 
-### 3. Минимальный набор обязательных переменных окружения
+### 3️⃣ Минимальный набор обязательных переменных окружения
 
 ```bash
 export APP_IDENTIFIER="com.company.appname"
@@ -101,7 +101,7 @@ export MATCH_GIT_URL="git@github.com:your-org/certificates.git"
 обязательны для его работы: без git-репозитория сертификатов `match`
 генерировать/устанавливать профили не сможет).
 
-### 4. Первая проверка
+### 4️⃣ Первая проверка
 
 ```bash
 # Список всех доступных lane-ов (проверяет, что import_from_git отработал)
@@ -117,7 +117,7 @@ bundle exec fastlane match_generate_appstore
 Если `fastlane lanes` показывает лейны `build`, `upload_testflight`,
 `match_install_appstore` и т.д. — подключение выполнено верно.
 
-## Переменные окружения
+## ⚙️ Переменные окружения
 
 Все секреты (ключи API, пароли match, токены Telegram) передаются только
 через переменные CI/CD (protected/masked variables), не хранятся в репозитории
@@ -166,9 +166,9 @@ bundle exec fastlane match_generate_appstore
 | `MAC_INSTALLER_CERT` | `3rd Party Mac Developer Installer` | Имя installer-сертификата для подписи `.pkg` |
 | `CI` | — | Если задано (стандартно на CI-раннерах), выполняется дополнительная инициализация: `clear_derived_data`, настройка API-ключа в `before_all` |
 
-## Основные lane-ы
+## 🛤 Основные lane-ы
 
-### Сертификаты (`match`)
+### 🔑 Сертификаты (`match`)
 
 | Lane | Что делает |
 |---|---|
@@ -179,14 +179,14 @@ bundle exec fastlane match_generate_appstore
 | `reset_all_profiles` | Полностью перегенерирует development и appstore сертификаты |
 | `nuke_development` / `nuke_appstore` / `nuke_all` | Необратимое удаление сертификатов и профилей |
 
-### Сборка
+### 🏗 Сборка
 
 | Lane | Что делает |
 |---|---|
 | `version` | Устанавливает `APP_VERSION` в xcodeproj (и Info.plist, если он ещё используется) для `MAIN_TARGET` |
 | `build` | Полный цикл: версия → build number → сертификаты → `build_app` → сохранение IPA/dSYM в `ARTIFACTS_PATH`, синхронизация версии встроенных таргетов (extensions/watch app) |
 
-### Загрузка в TestFlight (`Fastfile_upload`)
+### ✈️ Загрузка в TestFlight (`Fastfile_upload`)
 
 | Lane | Что делает |
 |---|---|
@@ -194,7 +194,7 @@ bundle exec fastlane match_generate_appstore
 | `upload_external_testflight groups:"..."` | Явная загрузка для external testers, changelog берётся из git-коммитов с последнего тега |
 | `tagging tags:true` | Создаёт git-тег `v{APP_VERSION}-build-{BUILD_NUMBER}` (или с `TAG_PREFIX`) |
 
-### App Store (`Fastfile_appstore`)
+### 🏪 App Store (`Fastfile_appstore`)
 
 | Lane | Что делает |
 |---|---|
@@ -203,19 +203,19 @@ bundle exec fastlane match_generate_appstore
 | `check_released ver:2.8.3` | Проверяет статус версии в App Store Connect, пишет `release_status.json` в корень проекта |
 | `create_app` | Создаёт новое приложение в App Store Connect (через `produce`) |
 
-### dSYM (`Fastfile_dsyms`)
+### 🧩 dSYM (`Fastfile_dsyms`)
 
 | Lane | Что делает |
 |---|---|
 | `upload_dsyms firebase:true` | Загружает dSYM в AppMetrica (если заданы `APPMETRICA_KEY` и helper) и/или Firebase Crashlytics (`firebase:true`). Пропускается целиком при `UPLOAD_DSYMS=false` |
 
-### Тесты (`Fastfile_tests`)
+### 🧪 Тесты (`Fastfile_tests`)
 
 | Lane | Что делает |
 |---|---|
 | `tests scheme:"AppNameTests" device:"iPhone 15"` | Запускает unit/UI-тесты на симуляторе, собирает code coverage |
 
-### macOS (`platform :mac`, `Fastfile_macos`)
+### 🖥 macOS (`platform :mac`, `Fastfile_macos`)
 
 Зеркалит iOS-пайплайн, но собирает `.pkg`, подписывает installer-сертификатом
 и грузит с платформой `osx`. Сертификаты — в отдельных ветках match
@@ -235,14 +235,14 @@ bundle exec fastlane match_generate_appstore
 `BUILD_SCHEME`, `APP_VERSION`, `CI_PIPELINE_IID`), плюс опционально
 `MAC_INSTALLER_CERT`, `MACOS_MATCH_DEV_BRANCH`, `MACOS_MATCH_DIST_BRANCH`.
 
-### Общие
+### 🧰 Общие
 
 | Lane | Что делает |
 |---|---|
 | `clear_keychain` | Сбрасывает системный default keychain и удаляет временный keychain fastlane |
 | `register_new_device` | Интерактивно регистрирует новое устройство и перегенерирует dev-профили |
 
-## Пример CI (GitLab CI)
+## 🤖 Пример CI (GitLab CI)
 
 ```yaml
 stages:
@@ -312,7 +312,7 @@ upload_testflight:
 Подробности и примеры сообщений — в [TELEGRAM_NOTIFICATIONS.md](./TELEGRAM_NOTIFICATIONS.md)
 и [docs/TELEGRAM_NOTIFICATIONS_EXAMPLES.md](./docs/TELEGRAM_NOTIFICATIONS_EXAMPLES.md).
 
-## Обновление версий
+## 🔄 Обновление версий
 
 - Пинуйте `import_from_git` на конкретный тег (`branch: 'v3.1.0'`), а не на
   `main` — так обновления `fastlane-tools` не ломают ваш пайплайн незаметно.
@@ -325,7 +325,7 @@ upload_testflight:
   существующие ENV-переменные и сигнатуры lane-ов не удаляются и не меняют
   поведение без мажорного релиза.
 
-## Документация и требования
+## 📚 Документация и требования
 
 - [docs/USAGE_GUIDE.md](./docs/USAGE_GUIDE.md) — детальное описание всех
   lane-ов, workflow-примеры (новая сборка, external testers, публикация в App
