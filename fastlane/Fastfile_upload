@@ -244,10 +244,14 @@ lane :upload_testflight do |options|
     upload_success = false
     if respond_to?(:retry_with_backoff)
       begin
-        retry_with_backoff(max_retries: 3, delay: 5.0) do
+        # retry_with_backoff может вернуть true сам по себе (кейс «уже выполнено»),
+        # не выполнив блок до конца — поэтому используем и возвращаемое значение,
+        # и флаг, выставляемый внутри блока при обычном успехе.
+        result = retry_with_backoff(max_retries: 3, delay: 5.0) do
           testflight(**testflight_params)
           upload_success = true
         end
+        upload_success ||= (result == true)
       rescue StandardError => e
         # Если ошибка связана с тем, что сборка уже загружена/отправлена, считаем успехом
         error_msg = e.message.to_s.downcase
@@ -436,10 +440,14 @@ lane :upload_external_testflight do |options|
     upload_success = false
     if respond_to?(:retry_with_backoff)
       begin
-        retry_with_backoff(max_retries: 3, delay: 5.0) do
+        # retry_with_backoff может вернуть true сам по себе (кейс «уже выполнено»),
+        # не выполнив блок до конца — поэтому используем и возвращаемое значение,
+        # и флаг, выставляемый внутри блока при обычном успехе.
+        result = retry_with_backoff(max_retries: 3, delay: 5.0) do
           testflight(**testflight_params)
           upload_success = true
         end
+        upload_success ||= (result == true)
       rescue StandardError => e
         # Если ошибка связана с тем, что сборка уже загружена/отправлена, считаем успехом
         error_msg = e.message.to_s.downcase
