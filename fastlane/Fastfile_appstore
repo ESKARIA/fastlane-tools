@@ -342,35 +342,35 @@ lane :update_metadata_year do |_options|
     # Обновление года в файлах name.txt
     echo "Updating year in name.txt files..."
     find ./metadata -type f -name "name.txt" | while read -r file; do
-      sed -i.bak "s/[0-9]\\{4\\}/$TARGET_YEAR/g" "$file"
+      sed -i.bak -E "s/(19[0-9]{2}|20[0-9]{2})/$TARGET_YEAR/g" "$file"
       rm "$file.bak"
     done
 
     # Обновление года в файлах copyright.txt
     echo "Updating year in copyright.txt files..."
     find ./metadata -type f -name "copyright.txt" | while read -r file; do
-      sed -i.bak "s/[0-9]\\{4\\}/$TARGET_YEAR/g" "$file"
+      sed -i.bak -E "s/(19[0-9]{2}|20[0-9]{2})/$TARGET_YEAR/g" "$file"
       rm "$file.bak"
     done
 
     # Обновление года в файлах keywords.txt
     echo "Updating year in keywords.txt files..."
     find ./metadata -type f -name "keywords.txt" | while read -r file; do
-      sed -i.bak "s/[0-9]\\{4\\}/$TARGET_YEAR/g" "$file"
+      sed -i.bak -E "s/(19[0-9]{2}|20[0-9]{2})/$TARGET_YEAR/g" "$file"
       rm "$file.bak"
     done
 
     # Обновление года в файлах description.txt
     echo "Updating year in description.txt files..."
     find ./metadata -type f -name "description.txt" | while read -r file; do
-      sed -i.bak "s/[0-9]\\{4\\}/$TARGET_YEAR/g" "$file"
+      sed -i.bak -E "s/(19[0-9]{2}|20[0-9]{2})/$TARGET_YEAR/g" "$file"
       rm "$file.bak"
     done
 
     # Обновление года в файлах promotional_text.txt
     echo "Updating year in promotional_text.txt files..."
     find ./metadata -type f -name "promotional_text.txt" | while read -r file; do
-      sed -i.bak "s/[0-9]\\{4\\}/$TARGET_YEAR/g" "$file"
+      sed -i.bak -E "s/(19[0-9]{2}|20[0-9]{2})/$TARGET_YEAR/g" "$file"
       rm "$file.bak"
     done
   SHELL
