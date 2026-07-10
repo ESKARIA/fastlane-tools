@@ -1,0 +1,445 @@
+# frozen_string_literal: true
+
+require 'fileutils'
+require 'tmpdir'
+require 'tempfile'
+require 'digest'
+require 'json'
+require 'time'
+
+# ==============================================================================
+# Fastfile_macos_direct - Прямая (Developer ID) дистрибуция macOS-приложений
+# ==============================================================================
+# Дополняет Fastfile_macos (App Store) отдельным пайплайном распространения
+# приложения в обход App Store: Developer ID подпись → .app → .dmg →
+# нотаризация → appcast.xml/latest.json для автообновлений через Sparkle.
+#
+# Сертификаты Developer ID хранятся в match на отдельной ветке (не пересекается
+# с macos_development/macos_distribution из Fastfile_macos).
+#
+# Переменные окружения (переиспользуются из главного Fastfile/Fastfile_macos):
+#   MAIN_PROJECT_FILE, MAIN_TARGET, BUILD_SCHEME, APP_IDENTIFIER, TEAM_ID /
+#   FASTLANE_TEAM_ID, APPSTORE_KEY_ID, APPSTORE_ISSUER_ID, APPSTORE_KEY_CONTENT,
+#   MATCH_GIT_URL, MATCH_PASSWORD, APP_VERSION, CI_PIPELINE_IID/BUILD_NUMBER.
+#
+# Новые переменные окружения этого модуля:
+#   - DMG_NAME                   — имя тома/файла .dmg (по умолчанию MAIN_TARGET).
+#   - SPARKLE_PRIVATE_KEY        — приватный ed25519-ключ Sparkle (содержимое файла).
+#   - SPARKLE_DOWNLOAD_URL_PREFIX— публичный префикс URL, где будет лежать .dmg.
+#   - SPARKLE_TOOLS_VERSION      — версия Sparkle tools (по умолчанию "2.6.4").
+#   - DIRECT_SIGNING_STYLE       — signingStyle для build_app (по умолчанию "automatic").
+#   - MACOS_MATCH_DIRECT_BRANCH  — ветка match с Developer ID сертификатами
+#                                   (по умолчанию "macos_developer_id").
+#   - DEVELOPER_ID_APPLICATION_IDENTITY — имя identity для codesign .dmg
+#                                   (если не задано — берётся из keychain автоматически).
+# ==============================================================================
+
+# ==============================================================================
+# КОНСТАНТЫ И ПУТИ К АРТЕФАКТАМ
+# ==============================================================================
+
+# Ветка git-репозитория match для Developer ID сертификатов macOS.
+MACOS_MATCH_DIRECT_BRANCH = ENV['MACOS_MATCH_DIRECT_BRANCH'] || 'macos_developer_id'
+
+# Каталог с артефактами прямой дистрибуции (.app/.dmg/appcast.xml/latest.json).
+MACOS_DIRECT_OUTPUT_DIR = 'build/macos-direct'
+
+# Ключи lane_context для передачи путей между лейнами этого модуля.
+MACOS_DIRECT_APP_PATH = :MACOS_DIRECT_APP_PATH
+MACOS_DIRECT_DMG_PATH = :MACOS_DIRECT_DMG_PATH
+
+# ==============================================================================
+# ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ: MATCH (DEVELOPER ID)
+# ==============================================================================
+
+# Понятная ошибка о нехватке прав на выпуск Developer ID сертификата.
+# Developer ID сертификаты (Application/Installer) может выпускать только
+# Account Holder аккаунта Apple Developer — остальные роли (Admin, Member)
+# получают отказ от Apple при попытке создания.
+def macos_direct_raise_permission_error(original_error)
+  UI.user_error!(
+    '❌ Не удалось создать Developer ID сертификат: недостаточно прав. ' \
+    'Сертификаты Developer ID Application/Installer может выпускать только ' \
+    'Account Holder аккаунта Apple Developer. Попросите Account Holder выпустить ' \
+    'сертификаты вручную либо запустите этот lane под его учётной записью. ' \
+    "Исходная ошибка: #{original_error.message}"
+  )
+end
+
+# Генерация Developer ID сертификатов (Application + Installer) через match.
+def macos_direct_generate_match
+  raise 'Has no APP_IDENTIFIER' unless APP_IDENTIFIER
+  raise 'Has no APPSTORE_KEY_CONTENT' unless APPSTORE_KEY_CONTENT
+
+  app_identifiers = mac_app_identifiers
+  api_key = mac_setup_api_key
+
+  begin
+    match(
+      type: 'developer_id',
+      app_identifier: app_identifiers.join(','),
+      api_key: api_key,
+      platform: 'macos',
+      additional_cert_types: ['developer_id_installer'],
+      force_for_new_devices: true,
+      include_all_certificates: true,
+      force_for_new_certificates: true,
+      readonly: false,
+      fail_on_name_taken: true,
+      force: true,
+      verbose: true,
+      generate_apple_certs: true,
+      keychain_name: ENV['MATCH_KEYCHAIN_NAME'],
+      keychain_password: ENV['MATCH_KEYCHAIN_PASSWORD'],
+      git_branch: MACOS_MATCH_DIRECT_BRANCH
+    )
+  rescue StandardError => e
+    raise e unless e.message.to_s.match?(/do not have|insufficient|permission|not allowed|not authorized/i)
+
+    macos_direct_raise_permission_error(e)
+  end
+end
+
+# Установка Developer ID сертификатов из match (readonly, для CI/локальной сборки).
+def macos_direct_install_match
+  app_identifiers = mac_app_identifiers
+
+  match(
+    type: 'developer_id',
+    app_identifier: app_identifiers.join(','),
+    platform: 'macos',
+    additional_cert_types: ['developer_id_installer'],
+    include_all_certificates: true,
+    clone_branch_directly: true,
+    fail_on_name_taken: true,
+    readonly: true,
+    force: false,
+    verbose: true,
+    keychain_name: ENV['MATCH_KEYCHAIN_NAME'],
+    keychain_password: ENV['MATCH_KEYCHAIN_PASSWORD'],
+    git_branch: MACOS_MATCH_DIRECT_BRANCH
+  )
+end
+
+# ==============================================================================
+# ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ: СБОРКА .app
+# ==============================================================================
+
+# Ищет .app, собранный build_app, в каталоге артефактов прямой дистрибуции.
+def macos_direct_find_app_path
+  candidates = Dir.glob(File.join(File.expand_path(MACOS_DIRECT_OUTPUT_DIR), '*.app'))
+  found = candidates.first
+  UI.user_error!("❌ .app не найден в #{MACOS_DIRECT_OUTPUT_DIR} после сборки") unless found
+  found
+end
+
+# Сборка .app с подписью Developer ID (build_mac_app / gym).
+def macos_direct_build
+  check_and_set_project_file
+  UI.header('macOS Direct Distribution: сборка .app (Developer ID)')
+
+  UI.user_error!('❌ APP_VERSION не установлен') if ENV['APP_VERSION'].to_s.empty?
+  UI.user_error!('❌ BUILD_NUMBER не установлен') if BUILD_NUMBER.to_s.empty?
+  UI.user_error!('❌ MAIN_TARGET не установлен') if MAIN_TARGET.to_s.empty?
+
+  FileUtils.mkdir_p(File.expand_path(MACOS_DIRECT_OUTPUT_DIR))
+
+  mac_setup_api_key
+  ensure_signing_keychain if respond_to?(:ensure_signing_keychain)
+  macos_direct_install_match
+
+  set_version_for_target(
+    target: MAIN_TARGET.to_s,
+    version: ENV['APP_VERSION'].to_s,
+    build: BUILD_NUMBER.to_i
+  )
+
+  version_number = get_version_number_from_xcodeproj(xcodeproj: ENV['MAIN_PROJECT_FILE'], target: MAIN_TARGET)
+  build_number = get_build_number_from_xcodeproj(xcodeproj: ENV['MAIN_PROJECT_FILE'], target: MAIN_TARGET)
+  signing_style = ENV['DIRECT_SIGNING_STYLE'].to_s.strip.empty? ? 'automatic' : ENV['DIRECT_SIGNING_STYLE'].strip
+
+  UI.message("Версия: #{version_number}")
+  UI.message("Номер сборки: #{build_number}")
+  UI.message("Signing style: #{signing_style}")
+
+  build_params = {
+    project: ENV['MAIN_PROJECT_FILE'],
+    scheme: BUILD_SCHEME,
+    export_method: 'developer-id',
+    export_options: {
+      method: 'developer-id',
+      signingStyle: signing_style
+    },
+    xcargs: "MARKETING_VERSION=#{version_number} CURRENT_PROJECT_VERSION=#{build_number}",
+    cloned_source_packages_path: 'SourcePackages',
+    clean: true,
+    output_directory: MACOS_DIRECT_OUTPUT_DIR,
+    build_path: DERIVED_PATH.to_s
+  }
+  build_params[:configuration] = BUILD_CONFIGURATION unless BUILD_CONFIGURATION.to_s.empty?
+
+  build_app(**build_params)
+
+  app_path = macos_direct_find_app_path
+  Actions.lane_context[MACOS_DIRECT_APP_PATH] = app_path
+
+  UI.success("✅ .app собран: #{app_path}")
+  app_path
+end
+
+# ==============================================================================
+# ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ: .dmg
+# ==============================================================================
+
+# Имя тома/файла .dmg (без расширения).
+def macos_direct_dmg_name
+  raw = ENV['DMG_NAME'].to_s.strip
+  raw.empty? ? MAIN_TARGET.to_s : raw
+end
+
+def macos_direct_dmg_file_path
+  File.join(MACOS_DIRECT_OUTPUT_DIR, "#{macos_direct_dmg_name}.dmg")
+end
+
+# Определяет identity сертификата "Developer ID Application" для подписи .dmg:
+# сначала берём из ENV, иначе ищем в keychain через security find-identity.
+def macos_direct_developer_id_application_identity
+  env_identity = ENV['DEVELOPER_ID_APPLICATION_IDENTITY'].to_s.strip
+  return env_identity unless env_identity.empty?
+
+  output = sh('security find-identity -v -p codesigning || true', log: false).to_s
+  identity_line = output.lines.find { |line| line.include?('Developer ID Application') }
+  UI.user_error!('❌ Не найден сертификат "Developer ID Application" в keychain') unless identity_line
+
+  matched = identity_line.match(/"([^"]+)"/)
+  UI.user_error!('❌ Не удалось разобрать имя сертификата Developer ID Application') unless matched
+
+  matched[1]
+end
+
+# Собирает .dmg из .app: временная папка + симлинк /Applications + hdiutil + codesign.
+def macos_direct_make_dmg(app_path: nil)
+  UI.header('macOS Direct Distribution: сборка .dmg')
+
+  source_app_path = app_path || Actions.lane_context[MACOS_DIRECT_APP_PATH]
+  UI.user_error!('❌ Не найден путь к .app. Сначала выполните lane build_direct') if source_app_path.to_s.empty?
+  UI.user_error!("❌ .app не найден по пути: #{source_app_path}") unless File.exist?(source_app_path.to_s)
+
+  FileUtils.mkdir_p(File.expand_path(MACOS_DIRECT_OUTPUT_DIR))
+  dmg_path = File.expand_path(macos_direct_dmg_file_path)
+  FileUtils.rm_f(dmg_path)
+
+  Dir.mktmpdir('macos_direct_dmg') do |tmp_dir|
+    FileUtils.cp_r(source_app_path, tmp_dir)
+    FileUtils.ln_s('/Applications', File.join(tmp_dir, 'Applications'))
+
+    sh("hdiutil create -volname \"#{macos_direct_dmg_name}\" -srcfolder \"#{tmp_dir}\" -ov -format UDZO \"#{dmg_path}\"")
+  end
+
+  identity = macos_direct_developer_id_application_identity
+  sh("codesign --sign \"#{identity}\" --timestamp \"#{dmg_path}\"")
+
+  Actions.lane_context[MACOS_DIRECT_DMG_PATH] = dmg_path
+  UI.success("✅ .dmg собран и подписан: #{dmg_path}")
+  dmg_path
+end
+
+# ==============================================================================
+# ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ: НОТАРИЗАЦИЯ
+# ==============================================================================
+
+# Нотаризация .dmg через штатный fastlane-экшен notarize (notarytool) + staple.
+def macos_direct_notarize(dmg_path: nil)
+  UI.header('macOS Direct Distribution: нотаризация .dmg')
+
+  target_dmg = dmg_path || Actions.lane_context[MACOS_DIRECT_DMG_PATH]
+  UI.user_error!('❌ Не найден путь к .dmg. Сначала выполните lane make_dmg') if target_dmg.to_s.empty?
+
+  api_key = mac_setup_api_key
+  app_identifier = mac_app_identifiers.first
+
+  notarize(
+    package: target_dmg,
+    bundle_id: app_identifier,
+    api_key: api_key,
+    use_notarytool: true,
+    skip_stapling: true,
+    print_log: true
+  )
+
+  sh("xcrun stapler staple \"#{target_dmg}\"")
+
+  UI.success("✅ .dmg нотаризован и staple выполнен: #{target_dmg}")
+  target_dmg
+end
+
+# ==============================================================================
+# ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ: SPARKLE APPCAST / latest.json
+# ==============================================================================
+
+# Находит (или скачивает и распаковывает) бинарь generate_appcast из Sparkle tools.
+def macos_direct_ensure_sparkle_tools
+  which_output = sh('command -v generate_appcast || true', log: false).to_s.strip
+  return which_output unless which_output.empty?
+
+  cached = Dir.glob(File.expand_path('~/.cache/sparkle-tools/**/generate_appcast')).first
+  return cached if cached && File.executable?(cached)
+
+  version = ENV['SPARKLE_TOOLS_VERSION'].to_s.strip.empty? ? '2.6.4' : ENV['SPARKLE_TOOLS_VERSION'].strip
+  install_dir = File.expand_path('~/.cache/sparkle-tools')
+  FileUtils.mkdir_p(install_dir)
+  archive_url = "https://github.com/sparkle-project/Sparkle/releases/download/#{version}/Sparkle-#{version}.tar.xz"
+  archive_path = File.join(install_dir, "Sparkle-#{version}.tar.xz")
+
+  UI.message("Скачивание Sparkle tools #{version}...")
+  sh("curl -fsSL \"#{archive_url}\" -o \"#{archive_path}\"")
+  sh("tar -xf \"#{archive_path}\" -C \"#{install_dir}\"")
+
+  binary = Dir.glob(File.join(install_dir, '**', 'generate_appcast')).first
+  UI.user_error!('❌ Не удалось найти бинарь generate_appcast после распаковки Sparkle tools') unless binary
+  FileUtils.chmod('+x', binary)
+  binary
+end
+
+# Генерирует appcast.xml через generate_appcast (Sparkle tools), приватный ключ —
+# из ENV['SPARKLE_PRIVATE_KEY'] через временный файл с правами 600 (удаляется в ensure).
+def macos_direct_generate_appcast_xml
+  download_prefix = ENV['SPARKLE_DOWNLOAD_URL_PREFIX'].to_s.strip
+  if download_prefix.empty?
+    UI.user_error!('❌ Не задан SPARKLE_DOWNLOAD_URL_PREFIX для generate_appcast_feed')
+  end
+
+  binary = macos_direct_ensure_sparkle_tools
+  key_file = Tempfile.new('sparkle_ed_key')
+
+  begin
+    key_file.write(ENV['SPARKLE_PRIVATE_KEY'].to_s)
+    key_file.close
+    FileUtils.chmod(0o600, key_file.path)
+
+    sh(
+      "\"#{binary}\" \"#{File.expand_path(MACOS_DIRECT_OUTPUT_DIR)}\" " \
+      "--ed-key-file \"#{key_file.path}\" --download-url-prefix \"#{download_prefix}\""
+    )
+  ensure
+    key_file.unlink
+  end
+
+  appcast_path = File.join(MACOS_DIRECT_OUTPUT_DIR, 'appcast.xml')
+  UI.success("✅ appcast.xml сгенерирован: #{appcast_path}")
+  appcast_path
+end
+
+# Читает LSMinimumSystemVersion из Info.plist собранного .app через PlistBuddy.
+def macos_direct_app_min_os_version(app_path)
+  info_plist = File.join(app_path.to_s, 'Contents', 'Info.plist')
+  return nil unless File.exist?(info_plist)
+
+  value = sh(
+    "/usr/libexec/PlistBuddy -c \"Print :LSMinimumSystemVersion\" \"#{info_plist}\" 2>/dev/null || true",
+    log: false
+  ).to_s.strip
+  value.empty? ? nil : value
+end
+
+# Генерирует latest.json с метаданными релиза (для клиентов, не использующих Sparkle appcast).
+def macos_direct_generate_latest_json(dmg_path: nil)
+  target_dmg = dmg_path || Actions.lane_context[MACOS_DIRECT_DMG_PATH]
+  UI.user_error!('❌ Не найден путь к .dmg для latest.json') if target_dmg.to_s.empty?
+
+  download_prefix = ENV['SPARKLE_DOWNLOAD_URL_PREFIX'].to_s.strip
+  app_path = Actions.lane_context[MACOS_DIRECT_APP_PATH]
+
+  payload = {
+    'name' => macos_direct_dmg_name,
+    'version' => ENV['APP_VERSION'].to_s,
+    'build' => BUILD_NUMBER.to_s,
+    'url' => download_prefix.empty? ? File.basename(target_dmg) : "#{download_prefix}/#{File.basename(target_dmg)}",
+    'sha256' => Digest::SHA256.file(target_dmg).hexdigest,
+    'size' => File.size(target_dmg),
+    'pub_date' => Time.now.utc.iso8601,
+    'min_os' => app_path ? macos_direct_app_min_os_version(app_path) : nil
+  }
+
+  json_path = File.join(MACOS_DIRECT_OUTPUT_DIR, 'latest.json')
+  File.write(File.expand_path(json_path), JSON.pretty_generate(payload))
+  UI.success("✅ latest.json сгенерирован: #{json_path}")
+  json_path
+end
+
+# Композит: appcast.xml — только если задан SPARKLE_PRIVATE_KEY, latest.json — всегда.
+def macos_direct_generate_appcast(dmg_path: nil)
+  UI.header('macOS Direct Distribution: генерация appcast/latest.json')
+
+  appcast_path = nil
+  if ENV['SPARKLE_PRIVATE_KEY'].to_s.strip.empty?
+    UI.important('⚠️ SPARKLE_PRIVATE_KEY не задан — генерация appcast.xml пропущена')
+  else
+    appcast_path = macos_direct_generate_appcast_xml
+  end
+
+  latest_json_path = macos_direct_generate_latest_json(dmg_path: dmg_path)
+
+  { appcast: appcast_path, latest_json: latest_json_path }
+end
+
+# ==============================================================================
+# ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ: КОМПОЗИТНЫЙ РЕЛИЗ
+# ==============================================================================
+
+# Полный цикл: build_direct → make_dmg → notarize_dmg → generate_appcast_feed.
+def macos_direct_release
+  UI.header('macOS Direct Distribution: полный релиз')
+
+  app_path = macos_direct_build
+  dmg_path = macos_direct_make_dmg(app_path: app_path)
+  macos_direct_notarize(dmg_path: dmg_path)
+  artifacts = macos_direct_generate_appcast(dmg_path: dmg_path)
+
+  UI.success('✅ macOS Direct Distribution релиз завершён')
+  UI.message("  .app: #{app_path}")
+  UI.message("  .dmg: #{dmg_path}")
+  UI.message("  appcast.xml: #{artifacts[:appcast] || 'пропущен (SPARKLE_PRIVATE_KEY не задан)'}")
+  UI.message("  latest.json: #{artifacts[:latest_json]}")
+end
+
+# ==============================================================================
+# LANES
+# ==============================================================================
+
+platform :mac do
+  desc 'macOS Direct: сгенерировать Developer ID сертификаты (Application + Installer)'
+  lane :match_generate_developer_id do |_options|
+    macos_direct_generate_match
+  end
+
+  desc 'macOS Direct: установить Developer ID сертификаты (readonly)'
+  lane :match_install_developer_id do |_options|
+    macos_direct_install_match
+  end
+
+  desc 'macOS Direct: собрать .app с подписью Developer ID'
+  lane :build_direct do |_options|
+    macos_direct_build
+  end
+
+  desc 'macOS Direct: собрать .dmg из .app (app_path — опционально, иначе из lane_context)'
+  lane :make_dmg do |options|
+    macos_direct_make_dmg(app_path: options[:app_path])
+  end
+
+  desc 'macOS Direct: нотаризовать .dmg и staple тикет (dmg_path — опционально)'
+  lane :notarize_dmg do |options|
+    macos_direct_notarize(dmg_path: options[:dmg_path])
+  end
+
+  desc 'macOS Direct: сгенерировать appcast.xml (Sparkle, если задан SPARKLE_PRIVATE_KEY) и latest.json'
+  lane :generate_appcast_feed do |options|
+    macos_direct_generate_appcast(dmg_path: options[:dmg_path])
+  end
+
+  desc 'macOS Direct: полный релиз — build_direct → make_dmg → notarize_dmg → generate_appcast_feed'
+  lane :release_direct do |_options|
+    macos_direct_release
+  end
+end
