@@ -208,14 +208,10 @@ def macos_direct_build
   ensure_signing_keychain if respond_to?(:ensure_signing_keychain)
   macos_direct_install_match
 
-  set_version_for_target(
-    target: MAIN_TARGET.to_s,
-    version: ENV['APP_VERSION'].to_s,
-    build: BUILD_NUMBER.to_i
-  )
-
-  version_number = get_version_number_from_xcodeproj(xcodeproj: ENV['MAIN_PROJECT_FILE'], target: MAIN_TARGET)
-  build_number = get_build_number_from_xcodeproj(xcodeproj: ENV['MAIN_PROJECT_FILE'], target: MAIN_TARGET)
+  # Версия и номер сборки прокидываются через xcargs (проекты с
+  # GENERATE_INFOPLIST_FILE=YES), без записи в pbxproj и без плагина versioning.
+  version_number = ENV['APP_VERSION'].to_s
+  build_number = BUILD_NUMBER.to_s
   signing_style = ENV['DIRECT_SIGNING_STYLE'].to_s.strip.empty? ? 'automatic' : ENV['DIRECT_SIGNING_STYLE'].strip
 
   UI.message("Версия: #{version_number}")
