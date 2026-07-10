@@ -178,22 +178,25 @@ def macos_direct_import_certificate(cert_path:, p12_path:, p12_password: nil)
 end
 
 # Перепаковывает .p12 без пароля (во временный файл) — match ожидает p12 без пароля.
+# Только через Apple `security import`/`security export`: p12 без пароля,
+# созданный OpenSSL (и CLI, и Ruby), Keychain отвергает с «MAC verification
+# failed» — расходится кодировка пустого пароля. Формат security export
+# Keychain принимает гарантированно.
 def macos_direct_strip_p12_password(p12_path, password)
   require 'tmpdir'
   require 'shellwords'
   tmp_dir = Dir.mktmpdir('match-import-p12')
-  pem = File.join(tmp_dir, 'key_cert.pem')
   out = File.join(tmp_dir, 'no_password.p12')
-  sh("openssl pkcs12 -in #{p12_path.shellescape} -passin pass:#{password.shellescape} " \
-     "-nodes -out #{pem.shellescape} -legacy 2>/dev/null || " \
-     "openssl pkcs12 -in #{p12_path.shellescape} -passin pass:#{password.shellescape} " \
-     "-nodes -out #{pem.shellescape}", log: false)
-  # ВАЖНО: legacy-шифры (3DES/SHA1) — современный формат OpenSSL 3 (PBES2/AES,
-  # SHA-256 MAC) macOS `security import` не читает: «MAC verification failed».
-  export_flags = '-certpbe PBE-SHA1-3DES -keypbe PBE-SHA1-3DES -macalg sha1'
-  export_base = "openssl pkcs12 -export -in #{pem.shellescape} -out #{out.shellescape} " \
-                "-passout pass: #{export_flags}"
-  sh("#{export_base} -legacy 2>/dev/null || #{export_base}", log: false)
+  keychain = File.join(tmp_dir, 'p12-repack.keychain')
+  sh("security create-keychain -p tmp-repack #{keychain.shellescape}", log: false)
+  begin
+    sh("security import #{p12_path.shellescape} -k #{keychain.shellescape} " \
+       "-P #{password.shellescape}", log: false)
+    sh("security export -k #{keychain.shellescape} -t identities -f pkcs12 " \
+       "-P '' -o #{out.shellescape}", log: false)
+  ensure
+    sh("security delete-keychain #{keychain.shellescape}", log: false)
+  end
   out
 end
 
