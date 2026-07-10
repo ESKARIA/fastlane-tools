@@ -434,6 +434,9 @@ def macos_direct_generate_latest_json(dmg_path: nil)
   target_dmg = dmg_path || Actions.lane_context[MACOS_DIRECT_DMG_PATH]
   UI.user_error!('❌ Не найден путь к .dmg для latest.json') if target_dmg.to_s.empty?
 
+  # Относительный путь из CLI-опции — к корню проекта (Dir.pwd = папка fastlane/).
+  target_dmg = expand_under_project_root(target_dmg) if respond_to?(:expand_under_project_root)
+
   download_prefix = ENV['SPARKLE_DOWNLOAD_URL_PREFIX'].to_s.strip
   app_path = Actions.lane_context[MACOS_DIRECT_APP_PATH]
 
