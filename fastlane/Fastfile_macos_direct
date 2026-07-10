@@ -328,6 +328,10 @@ def macos_direct_notarize(dmg_path: nil)
   target_dmg = dmg_path || Actions.lane_context[MACOS_DIRECT_DMG_PATH]
   UI.user_error!('❌ Не найден путь к .dmg. Сначала выполните lane make_dmg') if target_dmg.to_s.empty?
 
+  # Относительный путь (например, из CLI-опции) — к корню проекта: plain-Ruby/sh
+  # в fastlane выполняются из папки fastlane/, и staple не найдёт файл.
+  target_dmg = expand_under_project_root(target_dmg) if respond_to?(:expand_under_project_root)
+
   api_key = mac_setup_api_key
   app_identifier = mac_app_identifiers.first
 
