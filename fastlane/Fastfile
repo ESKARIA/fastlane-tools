@@ -220,6 +220,7 @@ import_from_git(
   dependencies: [
     'fastlane/Fastfile_build',        # Сборка приложений (iOS)
     'fastlane/Fastfile_macos',        # Сборка и публикация macOS приложений (platform :mac)
+    'fastlane/Fastfile_macos_direct', # Прямая (Developer ID) дистрибуция macOS (platform :mac)
     'fastlane/Fastfile_tests',        # Запуск тестов
     'fastlane/Fastfile_dsyms',        # Загрузка символов
     'fastlane/Fastfile_upload',       # Загрузка в TestFlight
