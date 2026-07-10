@@ -208,6 +208,12 @@ def macos_direct_build
   ensure_signing_keychain if respond_to?(:ensure_signing_keychain)
   macos_direct_install_match
 
+  # match с skip_provisioning_profiles оставляет в lane_context пустой
+  # provisioningProfiles-mapping; gym молча вписывает его в exportOptionsPlist,
+  # и xcodebuild -exportArchive падает на декодировании. Developer ID экспорту
+  # профили не нужны — очищаем.
+  Actions.lane_context.delete(Actions::SharedValues::MATCH_PROVISIONING_PROFILE_MAPPING)
+
   # Версия и номер сборки прокидываются через xcargs (проекты с
   # GENERATE_INFOPLIST_FILE=YES), без записи в pbxproj и без плагина versioning.
   version_number = ENV['APP_VERSION'].to_s
