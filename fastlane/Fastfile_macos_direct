@@ -372,7 +372,10 @@ def macos_direct_ensure_sparkle_tools
   version = ENV['SPARKLE_TOOLS_VERSION'].to_s.strip.empty? ? '2.6.4' : ENV['SPARKLE_TOOLS_VERSION'].strip
   install_dir = File.expand_path('~/.cache/sparkle-tools')
   FileUtils.mkdir_p(install_dir)
-  archive_url = "https://github.com/sparkle-project/Sparkle/releases/download/#{version}/Sparkle-#{version}.tar.xz"
+  # SPARKLE_TOOLS_URL — зеркало архива (например, GitLab generic package
+  # registry) для раннеров без доступа к GitHub release-CDN.
+  archive_url = ENV['SPARKLE_TOOLS_URL'].to_s.strip
+  archive_url = "https://github.com/sparkle-project/Sparkle/releases/download/#{version}/Sparkle-#{version}.tar.xz" if archive_url.empty?
   archive_path = File.join(install_dir, "Sparkle-#{version}.tar.xz")
 
   UI.message("Скачивание Sparkle tools #{version}...")
