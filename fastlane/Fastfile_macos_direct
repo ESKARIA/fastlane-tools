@@ -358,8 +358,8 @@ def macos_direct_ensure_sparkle_tools
   which_output = sh('command -v generate_appcast || true', log: false).to_s.strip
   return which_output unless which_output.empty?
 
-  cached = Dir.glob(File.expand_path('~/.cache/sparkle-tools/**/generate_appcast')).first
-  return cached if cached && File.executable?(cached)
+  cached = macos_direct_pick_generate_appcast(File.expand_path('~/.cache/sparkle-tools'))
+  return cached if cached
 
   version = ENV['SPARKLE_TOOLS_VERSION'].to_s.strip.empty? ? '2.6.4' : ENV['SPARKLE_TOOLS_VERSION'].strip
   install_dir = File.expand_path('~/.cache/sparkle-tools')
@@ -371,8 +371,19 @@ def macos_direct_ensure_sparkle_tools
   sh("curl -fsSL \"#{archive_url}\" -o \"#{archive_path}\"")
   sh("tar -xf \"#{archive_path}\" -C \"#{install_dir}\"")
 
-  binary = Dir.glob(File.join(install_dir, '**', 'generate_appcast')).first
+  binary = macos_direct_pick_generate_appcast(install_dir)
   UI.user_error!('❌ Не удалось найти бинарь generate_appcast после распаковки Sparkle tools') unless binary
+  binary
+end
+
+# Ищет исполняемый generate_appcast, отбрасывая отладочные DWARF-файлы из *.dSYM
+# (glob по '**/generate_appcast' находит и их, а они не исполняются — exit 126).
+def macos_direct_pick_generate_appcast(root)
+  candidates = Dir.glob(File.join(root, '**', 'generate_appcast'))
+                  .reject { |path| path.include?('.dSYM') }
+  binary = candidates.find { |path| File.file?(path) }
+  return nil unless binary
+
   FileUtils.chmod('+x', binary)
   binary
 end
