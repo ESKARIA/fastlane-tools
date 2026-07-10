@@ -214,7 +214,11 @@ end
 #   - Fastfile_create_app: создание нового приложения в App Store Connect
 import_from_git(
   url: 'git@github.com:ESKARIA/fastlane-tools.git',
-  # branch: 'main', # Укажите конкретную ветку, если нужно
+  # Ветка модулей. По умолчанию HEAD (main) — прежнее поведение. Переопределяется
+  # через FASTLANE_TOOLS_BRANCH, чтобы проекты могли использовать feature-ветку
+  # fastlane-tools целиком (внешний import_from_git той же ветки недостаточен:
+  # вложенный импорт модулей иначе уйдёт в main).
+  branch: ENV['FASTLANE_TOOLS_BRANCH'] || 'HEAD',
   path: 'fastlane/Fastfile_match', # Используется любой другой Fastfile кроме Fastfile для избежания рекурсии
   # version: [">= 1.0.0"], # Ограничение версии, если нужно
   dependencies: [
