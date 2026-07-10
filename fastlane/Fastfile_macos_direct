@@ -135,17 +135,24 @@ def macos_direct_import_certificate(cert_path:, p12_path:, p12_password: nil)
 
   p12 = macos_direct_strip_p12_password(p12, p12_password) if p12_password.to_s.length.positive?
 
-  match_import(
-    type: 'developer_id',
-    platform: 'macos',
-    app_identifier: mac_app_identifiers.join(','),
-    cert_path: cert,
-    p12_path: p12,
-    git_url: ENV['MATCH_GIT_URL'],
-    git_branch: MACOS_MATCH_DIRECT_BRANCH,
-    api_key: mac_setup_api_key,
-    skip_certificate_matching: true
+  # `fastlane match import` — CLI-подкоманда, отдельного action у неё нет,
+  # поэтому вызываем Match::Importer напрямую с той же конфигурацией.
+  # profile_path: '' — Developer ID не использует provisioning profile,
+  # пустая строка отключает интерактивный запрос пути.
+  require 'match'
+  config = FastlaneCore::Configuration.create(
+    Match::Options.available_options,
+    {
+      type: 'developer_id',
+      platform: 'macos',
+      app_identifier: mac_app_identifiers,
+      git_url: ENV['MATCH_GIT_URL'],
+      git_branch: MACOS_MATCH_DIRECT_BRANCH,
+      api_key: mac_setup_api_key,
+      skip_certificate_matching: true
+    }
   )
+  Match::Importer.new.import_cert(config, cert_path: cert, p12_path: p12, profile_path: '')
 
   UI.success("✅ Developer ID сертификат импортирован в match (ветка #{MACOS_MATCH_DIRECT_BRANCH})")
   UI.message('Проверка: fastlane mac match_install_developer_id')
