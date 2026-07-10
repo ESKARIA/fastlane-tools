@@ -75,7 +75,7 @@ FASTLANE_TEAM_ID            = ENV['FASTLANE_TEAM_ID'] || ENV['TEAM_ID']
 ENV['FASTLANE_TEAM_ID']     = FASTLANE_TEAM_ID if FASTLANE_TEAM_ID.to_s.strip.length.positive?
 
 # Номер сборки (обычно берется из CI/CD переменной)
-BUILD_NUMBER                = ENV['CI_PIPELINE_IID']
+BUILD_NUMBER                = ENV['CI_PIPELINE_IID'] || ENV['BUILD_NUMBER']
 # Ключ API для AppMetrica (для загрузки dSYM)
 APPMETRICA_KEY              = ENV['APPMETRICA_KEY']
 # Путь к helper скрипту для загрузки dSYM в AppMetrica
