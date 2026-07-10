@@ -121,6 +121,51 @@ def macos_direct_install_match
   )
 end
 
+# Импорт вручную выпущенного Developer ID сертификата в match.
+# Apple не позволяет выпускать Developer ID сертификаты через API (ни командным,
+# ни индивидуальным ключом — provisioning-эндпоинты им недоступны), поэтому
+# сертификат выпускает Account Holder вручную (Xcode/портал), а сюда импортируется
+# пара .cer + .p12. Если .p12 экспортирован с паролем — передайте p12_password,
+# он будет перепакован без пароля (match хранит и устанавливает p12 без пароля).
+def macos_direct_import_certificate(cert_path:, p12_path:, p12_password: nil)
+  cert = File.expand_path(cert_path.to_s)
+  p12 = File.expand_path(p12_path.to_s)
+  UI.user_error!("❌ Не найден .cer: #{cert}") unless File.exist?(cert)
+  UI.user_error!("❌ Не найден .p12: #{p12}") unless File.exist?(p12)
+
+  p12 = macos_direct_strip_p12_password(p12, p12_password) if p12_password.to_s.length.positive?
+
+  match_import(
+    type: 'developer_id',
+    platform: 'macos',
+    app_identifier: mac_app_identifiers.join(','),
+    cert_path: cert,
+    p12_path: p12,
+    git_url: ENV['MATCH_GIT_URL'],
+    git_branch: MACOS_MATCH_DIRECT_BRANCH,
+    api_key: mac_setup_api_key,
+    skip_certificate_matching: true
+  )
+
+  UI.success("✅ Developer ID сертификат импортирован в match (ветка #{MACOS_MATCH_DIRECT_BRANCH})")
+  UI.message('Проверка: fastlane mac match_install_developer_id')
+end
+
+# Перепаковывает .p12 без пароля (во временный файл) — match ожидает p12 без пароля.
+def macos_direct_strip_p12_password(p12_path, password)
+  require 'tmpdir'
+  require 'shellwords'
+  tmp_dir = Dir.mktmpdir('match-import-p12')
+  pem = File.join(tmp_dir, 'key_cert.pem')
+  out = File.join(tmp_dir, 'no_password.p12')
+  sh("openssl pkcs12 -in #{p12_path.shellescape} -passin pass:#{password.shellescape} " \
+     "-nodes -out #{pem.shellescape} -legacy 2>/dev/null || " \
+     "openssl pkcs12 -in #{p12_path.shellescape} -passin pass:#{password.shellescape} " \
+     "-nodes -out #{pem.shellescape}", log: false)
+  sh("openssl pkcs12 -export -in #{pem.shellescape} -out #{out.shellescape} -passout pass:", log: false)
+  out
+end
+
 # ==============================================================================
 # ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ: СБОРКА .app
 # ==============================================================================
@@ -416,6 +461,16 @@ platform :mac do
   desc 'macOS Direct: установить Developer ID сертификаты (readonly)'
   lane :match_install_developer_id do |_options|
     macos_direct_install_match
+  end
+
+  desc 'macOS Direct: импортировать вручную выпущенный Developer ID сертификат ' \
+       '(cert_path, p12_path, p12_password — опционально)'
+  lane :match_import_developer_id do |options|
+    macos_direct_import_certificate(
+      cert_path: options[:cert_path] || ENV['DEVELOPER_ID_CERT_PATH'],
+      p12_path: options[:p12_path] || ENV['DEVELOPER_ID_P12_PATH'],
+      p12_password: options[:p12_password] || ENV['DEVELOPER_ID_P12_PASSWORD']
+    )
   end
 
   desc 'macOS Direct: собрать .app с подписью Developer ID'
