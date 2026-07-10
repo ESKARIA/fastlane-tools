@@ -28,6 +28,7 @@ RSpec.describe 'Fastfile_macos_direct' do
   %i[
     match_generate_developer_id
     match_install_developer_id
+    match_import_developer_id
     build_direct
     make_dmg
     notarize_dmg
@@ -39,11 +40,12 @@ RSpec.describe 'Fastfile_macos_direct' do
     end
   end
 
-  it 'не объявляет лишних lane сверх ожидаемых 7' do
+  it 'не объявляет лишних lane сверх ожидаемых 8' do
     declared_lanes = source.scan(/lane\s+:([a-zA-Z_][a-zA-Z0-9_]*)\s+do/).flatten.map(&:to_sym)
     expected_lanes = %i[
       match_generate_developer_id
       match_install_developer_id
+      match_import_developer_id
       build_direct
       make_dmg
       notarize_dmg
