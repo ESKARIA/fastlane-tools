@@ -50,6 +50,17 @@ end
 # Каталог с артефактами прямой дистрибуции (.app/.dmg/appcast.xml/latest.json).
 MACOS_DIRECT_OUTPUT_DIR = 'build/macos-direct'
 
+# Абсолютный путь к каталогу артефактов. Plain-Ruby (Dir.glob/FileUtils) в fastlane
+# исполняется с Dir.pwd = папка fastlane/, а gym кладёт вывод относительно корня
+# проекта — поэтому используем expand_under_project_root из главного Fastfile.
+def macos_direct_output_dir_abs
+  if respond_to?(:expand_under_project_root)
+    expand_under_project_root(MACOS_DIRECT_OUTPUT_DIR)
+  else
+    macos_direct_output_dir_abs
+  end
+end
+
 # Ключи lane_context для передачи путей между лейнами этого модуля.
 MACOS_DIRECT_APP_PATH = :MACOS_DIRECT_APP_PATH
 MACOS_DIRECT_DMG_PATH = :MACOS_DIRECT_DMG_PATH
@@ -187,7 +198,7 @@ end
 
 # Ищет .app, собранный build_app, в каталоге артефактов прямой дистрибуции.
 def macos_direct_find_app_path
-  candidates = Dir.glob(File.join(File.expand_path(MACOS_DIRECT_OUTPUT_DIR), '*.app'))
+  candidates = Dir.glob(File.join(macos_direct_output_dir_abs, '*.app'))
   found = candidates.first
   UI.user_error!("❌ .app не найден в #{MACOS_DIRECT_OUTPUT_DIR} после сборки") unless found
   found
@@ -202,7 +213,7 @@ def macos_direct_build
   UI.user_error!('❌ BUILD_NUMBER не установлен') if BUILD_NUMBER.to_s.empty?
   UI.user_error!('❌ MAIN_TARGET не установлен') if MAIN_TARGET.to_s.empty?
 
-  FileUtils.mkdir_p(File.expand_path(MACOS_DIRECT_OUTPUT_DIR))
+  FileUtils.mkdir_p(macos_direct_output_dir_abs)
 
   mac_setup_api_key
   ensure_signing_keychain if respond_to?(:ensure_signing_keychain)
@@ -260,7 +271,7 @@ def macos_direct_dmg_name
 end
 
 def macos_direct_dmg_file_path
-  File.join(MACOS_DIRECT_OUTPUT_DIR, "#{macos_direct_dmg_name}.dmg")
+  File.join(macos_direct_output_dir_abs, "#{macos_direct_dmg_name}.dmg")
 end
 
 # Определяет identity сертификата "Developer ID Application" для подписи .dmg:
@@ -287,7 +298,7 @@ def macos_direct_make_dmg(app_path: nil)
   UI.user_error!('❌ Не найден путь к .app. Сначала выполните lane build_direct') if source_app_path.to_s.empty?
   UI.user_error!("❌ .app не найден по пути: #{source_app_path}") unless File.exist?(source_app_path.to_s)
 
-  FileUtils.mkdir_p(File.expand_path(MACOS_DIRECT_OUTPUT_DIR))
+  FileUtils.mkdir_p(macos_direct_output_dir_abs)
   dmg_path = File.expand_path(macos_direct_dmg_file_path)
   FileUtils.rm_f(dmg_path)
 
@@ -380,14 +391,14 @@ def macos_direct_generate_appcast_xml
     FileUtils.chmod(0o600, key_file.path)
 
     sh(
-      "\"#{binary}\" \"#{File.expand_path(MACOS_DIRECT_OUTPUT_DIR)}\" " \
+      "\"#{binary}\" \"#{macos_direct_output_dir_abs}\" " \
       "--ed-key-file \"#{key_file.path}\" --download-url-prefix \"#{download_prefix}\""
     )
   ensure
     key_file.unlink
   end
 
-  appcast_path = File.join(MACOS_DIRECT_OUTPUT_DIR, 'appcast.xml')
+  appcast_path = File.join(macos_direct_output_dir_abs, 'appcast.xml')
   UI.success("✅ appcast.xml сгенерирован: #{appcast_path}")
   appcast_path
 end
@@ -423,7 +434,7 @@ def macos_direct_generate_latest_json(dmg_path: nil)
     'min_os' => app_path ? macos_direct_app_min_os_version(app_path) : nil
   }
 
-  json_path = File.join(MACOS_DIRECT_OUTPUT_DIR, 'latest.json')
+  json_path = File.join(macos_direct_output_dir_abs, 'latest.json')
   File.write(File.expand_path(json_path), JSON.pretty_generate(payload))
   UI.success("✅ latest.json сгенерирован: #{json_path}")
   json_path
