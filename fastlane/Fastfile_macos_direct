@@ -95,6 +95,7 @@ def macos_direct_generate_match
       force: true,
       verbose: true,
       generate_apple_certs: true,
+      skip_provisioning_profiles: true, # Developer ID приложениям профиль не нужен
       keychain_name: ENV['MATCH_KEYCHAIN_NAME'],
       keychain_password: ENV['MATCH_KEYCHAIN_PASSWORD'],
       git_branch: MACOS_MATCH_DIRECT_BRANCH
@@ -121,6 +122,7 @@ def macos_direct_install_match
     readonly: true,
     force: false,
     verbose: true,
+    skip_provisioning_profiles: true, # Developer ID приложениям профиль не нужен
     keychain_name: ENV['MATCH_KEYCHAIN_NAME'],
     keychain_password: ENV['MATCH_KEYCHAIN_PASSWORD'],
     git_branch: MACOS_MATCH_DIRECT_BRANCH
