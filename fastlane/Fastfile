@@ -75,7 +75,7 @@ FASTLANE_TEAM_ID            = ENV['FASTLANE_TEAM_ID'] || ENV['TEAM_ID']
 ENV['FASTLANE_TEAM_ID']     = FASTLANE_TEAM_ID if FASTLANE_TEAM_ID.to_s.strip.length.positive?
 
 # Номер сборки (обычно берется из CI/CD переменной)
-BUILD_NUMBER                = ENV['CI_PIPELINE_IID']
+BUILD_NUMBER                = ENV['CI_PIPELINE_IID'] || ENV['BUILD_NUMBER']
 # Ключ API для AppMetrica (для загрузки dSYM)
 APPMETRICA_KEY              = ENV['APPMETRICA_KEY']
 # Путь к helper скрипту для загрузки dSYM в AppMetrica
@@ -214,12 +214,17 @@ end
 #   - Fastfile_create_app: создание нового приложения в App Store Connect
 import_from_git(
   url: 'git@github.com:ESKARIA/fastlane-tools.git',
-  # branch: 'main', # Укажите конкретную ветку, если нужно
+  # Ветка модулей. По умолчанию HEAD (main) — прежнее поведение. Переопределяется
+  # через FASTLANE_TOOLS_BRANCH, чтобы проекты могли использовать feature-ветку
+  # fastlane-tools целиком (внешний import_from_git той же ветки недостаточен:
+  # вложенный импорт модулей иначе уйдёт в main).
+  branch: ENV['FASTLANE_TOOLS_BRANCH'] || 'HEAD',
   path: 'fastlane/Fastfile_match', # Используется любой другой Fastfile кроме Fastfile для избежания рекурсии
   # version: [">= 1.0.0"], # Ограничение версии, если нужно
   dependencies: [
     'fastlane/Fastfile_build',        # Сборка приложений (iOS)
     'fastlane/Fastfile_macos',        # Сборка и публикация macOS приложений (platform :mac)
+    'fastlane/Fastfile_macos_direct', # Прямая (Developer ID) дистрибуция macOS (platform :mac)
     'fastlane/Fastfile_tests',        # Запуск тестов
     'fastlane/Fastfile_dsyms',        # Загрузка символов
     'fastlane/Fastfile_upload',       # Загрузка в TestFlight

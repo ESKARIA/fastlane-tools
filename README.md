@@ -235,6 +235,36 @@ bundle exec fastlane match_generate_appstore
 `BUILD_SCHEME`, `APP_VERSION`, `CI_PIPELINE_IID`), плюс опционально
 `MAC_INSTALLER_CERT`, `MACOS_MATCH_DEV_BRANCH`, `MACOS_MATCH_DIST_BRANCH`.
 
+### 🚚 macOS: прямая дистрибуция (`platform :mac`, `Fastfile_macos_direct`)
+
+Отдельный пайплайн распространения приложения в обход App Store: подпись
+Developer ID, сборка `.dmg`, нотаризация и генерация Sparkle-фида для
+автообновлений. Сертификаты Developer ID хранятся в match на отдельной
+ветке, не пересекающейся с `macos_development`/`macos_distribution`.
+Вызывается с префиксом `mac`:
+
+| Lane | Что делает |
+|---|---|
+| `mac match_generate_developer_id` | Генерирует Developer ID сертификаты (Application + Installer). Может выпускать только Account Holder аккаунта Apple Developer |
+| `mac match_install_developer_id` | Устанавливает Developer ID сертификаты (readonly, для CI) |
+| `mac build_direct` | Собирает `.app`, подписанный Developer ID (`export_method: developer-id`) |
+| `mac make_dmg` | Собирает `.dmg` из `.app` (симлинк `/Applications`, подпись `.dmg` через `codesign`) |
+| `mac notarize_dmg` | Отправляет `.dmg` на нотаризацию (`notarize`/`notarytool`) и делает `staple` |
+| `mac generate_appcast_feed` | Генерирует `appcast.xml` (Sparkle, только если задан `SPARKLE_PRIVATE_KEY`) и `latest.json` (всегда) |
+| `mac release_direct` | Полный цикл: `build_direct` → `make_dmg` → `notarize_dmg` → `generate_appcast_feed` |
+
+Переменные окружения — общие с `Fastfile_macos`, плюс:
+
+| Переменная | Значение по умолчанию | Назначение |
+|---|---|---|
+| `DMG_NAME` | значение `MAIN_TARGET` | Имя тома и файла `.dmg` |
+| `SPARKLE_PRIVATE_KEY` | — | Приватный ed25519-ключ Sparkle (содержимое файла), включает генерацию `appcast.xml` |
+| `SPARKLE_DOWNLOAD_URL_PREFIX` | — | Публичный префикс URL, где будет опубликован `.dmg` (используется в appcast/`latest.json`) |
+| `SPARKLE_TOOLS_VERSION` | `2.6.4` | Версия Sparkle tools для скачивания `generate_appcast`, если бинарь не найден локально |
+| `DIRECT_SIGNING_STYLE` | `automatic` | `signingStyle` для сборки `.app` |
+| `MACOS_MATCH_DIRECT_BRANCH` | `macos_developer_id` | Ветка match-репозитория с Developer ID сертификатами |
+| `DEVELOPER_ID_APPLICATION_IDENTITY` | автоопределение из keychain | Имя сертификата "Developer ID Application" для подписи `.dmg` |
+
 ### 🧰 Общие
 
 | Lane | Что делает |
