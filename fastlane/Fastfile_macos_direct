@@ -191,9 +191,9 @@ def macos_direct_strip_p12_password(p12_path, password)
   # ВАЖНО: legacy-шифры (3DES/SHA1) — современный формат OpenSSL 3 (PBES2/AES,
   # SHA-256 MAC) macOS `security import` не читает: «MAC verification failed».
   export_flags = '-certpbe PBE-SHA1-3DES -keypbe PBE-SHA1-3DES -macalg sha1'
-  sh(
-    "openssl pkcs12 -export -in #{pem.shellescape} -out #{out.shellescape} " + "-passout pass: #{export_flags} -legacy 2>/dev/null || " + "openssl pkcs12 -export -in #{pem.shellescape} -out #{out.shellescape} " + "-passout pass: #{export_flags}", log: false
-  )
+  export_base = "openssl pkcs12 -export -in #{pem.shellescape} -out #{out.shellescape} " \
+                "-passout pass: #{export_flags}"
+  sh("#{export_base} -legacy 2>/dev/null || #{export_base}", log: false)
   out
 end
 
