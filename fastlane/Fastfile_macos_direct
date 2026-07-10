@@ -41,6 +41,12 @@ require 'time'
 # Ветка git-репозитория match для Developer ID сертификатов macOS.
 MACOS_MATCH_DIRECT_BRANCH = ENV['MACOS_MATCH_DIRECT_BRANCH'] || 'macos_developer_id'
 
+# Developer ID Installer нужен только для .pkg-дистрибуции; для .dmg он лишний,
+# и его нельзя выпустить/импортировать через API. Подключается по флагу.
+def macos_direct_additional_cert_types
+  ENV['MACOS_DIRECT_WITH_INSTALLER'] == 'true' ? ['developer_id_installer'] : []
+end
+
 # Каталог с артефактами прямой дистрибуции (.app/.dmg/appcast.xml/latest.json).
 MACOS_DIRECT_OUTPUT_DIR = 'build/macos-direct'
 
@@ -80,7 +86,7 @@ def macos_direct_generate_match
       app_identifier: app_identifiers.join(','),
       api_key: api_key,
       platform: 'macos',
-      additional_cert_types: ['developer_id_installer'],
+      additional_cert_types: macos_direct_additional_cert_types,
       force_for_new_devices: true,
       include_all_certificates: true,
       force_for_new_certificates: true,
@@ -108,7 +114,7 @@ def macos_direct_install_match
     type: 'developer_id',
     app_identifier: app_identifiers.join(','),
     platform: 'macos',
-    additional_cert_types: ['developer_id_installer'],
+    additional_cert_types: macos_direct_additional_cert_types,
     include_all_certificates: true,
     clone_branch_directly: true,
     fail_on_name_taken: true,
