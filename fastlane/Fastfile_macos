@@ -82,6 +82,17 @@ end
 
 # Генерация сертификатов и профилей macOS через match (режим записи).
 #
+# installer (additional_cert_types: ['mac_installer_distribution']) ВСЕГДА
+# генерируется ОТДЕЛЬНЫМ вызовом match, а не вместе с базовым appstore/
+# development-сертификатом в одном вызове:
+# fastlane/fastlane#21447 — если в одном вызове match запросить сразу два типа
+# сертификата, sigh при создании provisioning-профиля видит обе identity разом
+# и берёт "первую попавшуюся" ("Found more than one code signing identity.
+# Choosing the first one"), что может привести к профилю, привязанному не к
+# тому сертификату. Installer-сертификат вообще не имеет своего provisioning-
+# профиля (fastlane/fastlane#21189), поэтому его отдельный вызов идёт с
+# skip_provisioning_profiles: true.
+#
 # @param type [String] 'development' или 'appstore'
 # @param git_branch [String] ветка match
 # @param installer [Boolean] добавить ли mac_installer_distribution сертификат
@@ -95,7 +106,7 @@ def mac_generate_match(type:, git_branch:, installer: false)
 
   api_key = mac_setup_api_key
 
-  params = {
+  base_params = {
     type: type,
     app_identifier: app_identifiers.join(','),
     api_key: api_key,
@@ -116,13 +127,20 @@ def mac_generate_match(type:, git_branch:, installer: false)
     keychain_password: ENV['MATCH_KEYCHAIN_PASSWORD'],
     git_branch: git_branch
   }
-  # Для App Store дополнительно выпускаем installer-сертификат для подписи .pkg.
-  params[:additional_cert_types] = ['mac_installer_distribution'] if installer
 
-  match(**params)
+  match(**base_params)
+
+  return unless installer
+
+  match(**base_params.merge(
+    additional_cert_types: ['mac_installer_distribution'],
+    skip_provisioning_profiles: true
+  ))
 end
 
 # Установка существующих сертификатов/профилей macOS из match (readonly).
+#
+# Отдельные вызовы match — по той же причине, что в mac_generate_match.
 #
 # @param type [String] 'development' или 'appstore'
 # @param git_branch [String] ветка match
@@ -132,7 +150,7 @@ def mac_install_match(type:, git_branch:, installer: false)
   UI.message("Установка macOS сертификатов для bundle identifiers: #{app_identifiers.count}")
   app_identifiers.each_with_index { |id, i| UI.message("  #{i + 1}. #{id}") }
 
-  params = {
+  base_params = {
     type: type,
     app_identifier: app_identifiers.join(','),
     platform: 'macos',
@@ -146,9 +164,55 @@ def mac_install_match(type:, git_branch:, installer: false)
     keychain_password: ENV['MATCH_KEYCHAIN_PASSWORD'],
     git_branch: git_branch
   }
-  params[:additional_cert_types] = ['mac_installer_distribution'] if installer
 
-  match(**params)
+  match(**base_params)
+
+  return unless installer
+
+  match(**base_params.merge(
+    additional_cert_types: ['mac_installer_distribution'],
+    skip_provisioning_profiles: true
+  ))
+end
+
+# ==============================================================================
+# РЕГИСТРАЦИЯ ТЕКУЩЕГО MAC КАК ПРОВИЖЕНИНГ-УСТРОЙСТВА
+# ==============================================================================
+# macOS development-профиль обязан содержать зарегистрированные устройства —
+# без этого App Store Connect API отклоняет создание профиля с ошибкой
+# "relationship 'devices' is required". iOS-сторона такой проблемы не имеет
+# (профиль development там тоже требует устройств, но регистрация обычно уже
+# выполнена через Xcode) — это macOS-специфичный шаг.
+#
+# Чистый парсинг (без Fastlane DSL) вынесен в Fastfile_helpers:
+# parse_provisioning_udid / mac_device_display_name — покрыт RSpec напрямую.
+# ==============================================================================
+
+# Provisioning UDID текущего Mac (нужен для регистрации устройства в портале).
+def mac_this_device_udid
+  out = `system_profiler SPHardwareDataType 2>/dev/null`
+  parse_provisioning_udid(out)
+end
+
+# Регистрирует текущий Mac как устройство платформы mac (идемпотентно).
+# Если UDID не удалось определить — не валим лейн, просто предупреждаем:
+# без сети/на CI без реального железа этот шаг может быть недоступен.
+def mac_register_this_device
+  udid = mac_this_device_udid
+  if udid.to_s.empty?
+    UI.important('⚠️  Не удалось определить Provisioning UDID этого Mac — пропускаю регистрацию устройства')
+    return
+  end
+
+  computer_name = `scutil --get ComputerName 2>/dev/null`.strip
+  name = mac_device_display_name(computer_name, udid)
+
+  UI.message("Регистрирую Mac '#{name}' (#{udid}) как устройство платформы mac")
+  register_devices(
+    devices: { name => udid },
+    platform: 'mac',
+    api_key: mac_setup_api_key
+  )
 end
 
 # ==============================================================================
@@ -162,6 +226,7 @@ platform :mac do
 
   desc 'macOS: сгенерировать development сертификаты и профили'
   lane :match_generate_dev do |_options|
+    mac_register_this_device # macOS dev-профилю нужны зарегистрированные устройства
     mac_generate_match(type: 'development', git_branch: MACOS_MATCH_DEV_BRANCH)
   end
 
@@ -213,7 +278,7 @@ platform :mac do
   # ============================================================================
 
   desc 'macOS: собрать .pkg для App Store (версия, подпись через match, артефакт)'
-  lane :build do |_options|
+  lane :build do |options|
     check_and_set_project_file
     start_metrics('build') if respond_to?(:start_metrics)
 
@@ -267,9 +332,18 @@ platform :mac do
       hash[identifier] = "match AppStore #{identifier}"
     end
 
+    # Мультиплатформенные схемы (одна схема собирает и iphoneos, и macosx —
+    # см. проект Messenger) требуют явного sdk/destination, иначе build_app
+    # может выбрать не тот артефакт. Приоритет: явный options аргумент лейна >
+    # ENV > дефолт (текущее неявное поведение — macOS).
+    build_sdk = options[:sdk] || ENV['MAC_SDK'] || 'macosx'
+    build_destination = options[:destination] || ENV['MAC_DESTINATION'] || 'generic/platform=macOS'
+
     build_params = {
       project: ENV['MAIN_PROJECT_FILE'],
       scheme: BUILD_SCHEME,
+      sdk: build_sdk,
+      destination: build_destination,
       export_method: 'app-store',
       export_options: {
         method: 'app-store',

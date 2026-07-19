@@ -5,6 +5,42 @@
 Формат основан на [Keep a Changelog](https://keepachangelog.com/ru/1.0.0/),
 проект придерживается [Semantic Versioning](https://semver.org/lang/ru/).
 
+## [Unreleased]
+
+### Changed
+
+- `Fastfile_macos`: генерация и установка `mac_installer_distribution`
+  сертификата (`mac_generate_match`/`mac_install_match`, `installer: true`)
+  разбиты на два отдельных вызова `match` вместо одного вызова с
+  `additional_cert_types`. Второй вызов идёт с `skip_provisioning_profiles: true`
+  (у installer-сертификата нет собственного provisioning-профиля). Обходит
+  fastlane/fastlane#21447 (`sigh` при двух типах сертификата в одном вызове
+  `match` может выбрать «первую попавшуюся» identity и привязать профиль не к
+  тому сертификату) и учитывает fastlane/fastlane#21189.
+- `lane :build` (macOS) — `sdk`/`destination` теперь настраиваемые:
+  `options[:sdk]`/`options[:destination]` > `ENV['MAC_SDK']`/`ENV['MAC_DESTINATION']` >
+  дефолт `'macosx'`/`'generic/platform=macOS'` (прежнее неявное поведение).
+  Нужно для мультиплатформенных схем (одна схема собирает и `iphoneos`, и
+  `macosx`), где implicit-выбор SDK/destination может забрать не тот артефакт.
+
+### Added
+
+- `Fastfile_macos`: регистрация текущего Mac как provisioning-устройства
+  (`mac_this_device_udid`, `mac_register_this_device`) — macOS
+  development-профиль требует зарегистрированных устройств, иначе App Store
+  Connect API отклоняет создание профиля. Идемпотентно, не валит lane, если
+  UDID не удалось определить. Подключено в `match_generate_dev` (перед
+  генерацией профиля); НЕ подключено в readonly `match_install_dev` и в
+  appstore/build lane.
+- `Fastfile_helpers`: чистые функции `parse_provisioning_udid` (извлекает
+  Provisioning UDID из вывода `system_profiler SPHardwareDataType`) и
+  `mac_device_display_name` (имя компьютера или фоллбэк `"Mac <UDID суффикс>"`),
+  покрыты RSpec (`spec/mac_device_registration_spec.rb`).
+- `spec/fastfile_macos_spec.rb` — структурные тесты `Fastfile_macos` (состав
+  9 lane, синтаксическая валидность, двухшаговый `match` для installer-
+  сертификата, подключение `register_devices`, конфигурация `sdk`/`destination`
+  в `build`), по образцу `spec/fastfile_macos_direct_spec.rb`.
+
 ## [3.2.0] - 2026-07-10
 
 ### Added

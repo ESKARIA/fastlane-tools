@@ -1504,6 +1504,45 @@ def get_primary_app_identifier
 end
 
 # ==============================================================================
+# РЕГИСТРАЦИЯ MAC-УСТРОЙСТВА (чистая логика, вызывается из Fastfile_macos)
+# ==============================================================================
+
+# Извлекает Provisioning UDID из вывода `system_profiler SPHardwareDataType`.
+#
+# На Apple Silicon именно "Provisioning UDID" (не Hardware UUID) нужен для
+# регистрации устройства в App Store Connect под macOS development-профиль.
+#
+# @param system_profiler_output [String] сырой вывод `system_profiler SPHardwareDataType`
+# @return [String, nil] UDID или nil, если не найден в выводе
+#
+# @example
+#   parse_provisioning_udid("Provisioning UDID: 00008103-000A2D8E3C28001E\n")
+#   # => "00008103-000A2D8E3C28001E"
+def parse_provisioning_udid(system_profiler_output)
+  udid = system_profiler_output.to_s[/Provisioning UDID:\s*([0-9A-Fa-f-]+)/, 1]
+  udid&.strip
+end
+
+# Возвращает отображаемое имя Mac-устройства для register_devices.
+#
+# @param computer_name [String] значение `scutil --get ComputerName` (может быть пустым)
+# @param udid [String] Provisioning UDID устройства
+# @return [String] computer_name (без пробелов по краям), если непустой,
+#   иначе фоллбэк вида "Mac <последние 6 символов udid>"
+#
+# @example
+#   mac_device_display_name("Emil's MacBook Pro", "00008103-000A2D8E3C28001E")
+#   # => "Emil's MacBook Pro"
+#   mac_device_display_name("", "00008103-000A2D8E3C28001E")
+#   # => "Mac 8001E"
+def mac_device_display_name(computer_name, udid)
+  name = computer_name.to_s.strip
+  return name unless name.empty?
+
+  "Mac #{udid.to_s[-6..]}"
+end
+
+# ==============================================================================
 # РАБОТА С ПУТЯМИ И ФАЙЛАМИ
 # ==============================================================================
 
