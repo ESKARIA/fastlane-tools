@@ -134,6 +134,40 @@ def ensure_signing_keychain
 end
 
 # ==============================================================================
+# МУЛЬТИПЛАТФОРМЕННЫЕ СХЕМЫ (Xcode "Multiplatform App" — один target/scheme,
+# несколько платформ, например iOS+macOS одновременно)
+# ==============================================================================
+# multiplatform_scheme?(options) — определена в Fastfile_helpers (чистая
+# Ruby-логика, без Fastlane DSL, тестируется напрямую через spec_helper).
+#
+# ВАЖНО, специфика ТОЛЬКО таких схем — обычные однoplatform-проекты этот
+# режим не задевают (выключен по умолчанию, включается явно):
+#
+#   1. build_app нужен явный sdk:/destination: — иначе gym/xcodebuild может
+#      выбрать не тот SDK из нескольких доступных таргету.
+#   2. Версию/build number ТОЛЬКО через xcargs (MARKETING_VERSION=/
+#      CURRENT_PROJECT_VERSION=), НЕ через прямую запись в pbxproj
+#      (set_version_for_target/increment_version_number_in_xcodeproj).
+#      На мультиплатформенном таргете (iphoneos+macosx в одном target)
+#      прямая запись в pbxproj ломает xcodebuild -exportArchive:
+#        "IDEDistributionMethodManager ... Unknown Distribution Error"
+#        "exportOptionsPlist error for key 'method' expected one {} but
+#         found <method>"
+#      Архивация (xcodebuild archive) при этом проходит УСПЕШНО — падает
+#      именно экспорт (-exportArchive), и падает вне зависимости от
+#      содержимого exportOptions.plist (auth key, teamID, installer cert —
+#      ничего из этого не влияет). Причина на стороне Xcode/multiplatform
+#      archive metadata, не задокументирована Apple; обходится только
+#      отказом от прямой pbxproj-записи в пользу xcargs. Воспроизведено и
+#      устранено на реальном проекте (Messenger, iphoneos+macosx в одном
+#      target, миграция на fastlane-tools, 2026-07).
+#
+# Включается через lane-опцию multiplatform:true ИЛИ ENV['MULTIPLATFORM_SCHEME']
+# == 'true'. sdk:/destination: — через options[:sdk]/options[:destination]
+# ИЛИ ENV['IOS_SDK']/ENV['IOS_DESTINATION'] (аналогично MAC_SDK/MAC_DESTINATION
+# в Fastfile_macos — тот же паттерн для симметрии).
+
+# ==============================================================================
 # ХЕЛПЕРЫ ДЛЯ РАБОТЫ С ВЕРСИЯМИ
 # ==============================================================================
 
@@ -343,35 +377,52 @@ lane :build do |options|
   # ========================================================================
   # УПРАВЛЕНИЕ ВЕРСИЯМИ (С ПРОВЕРКОЙ INFO.PLIST)
   # ========================================================================
-  # Устанавливаем версию ТОЛЬКО для конкретного таргета
-  # Автоматически определяет, нужен ли Info.plist
-  set_version_for_target(
-    target: MAIN_TARGET.to_s,
-    version: ENV['APP_VERSION'].to_s,
-    build: BUILD_NUMBER.to_i
-  )
+  # Мультиплатформенные схемы (см. multiplatform_scheme? выше) — версия
+  # ТОЛЬКО через xcargs при сборке, прямую запись в pbxproj пропускаем:
+  # ломает xcodebuild -exportArchive на таких таргетах.
+  multiplatform = multiplatform_scheme?(options)
 
-  # Держим встроенные таргеты (расширения, watch app) в синхроне по версии и
-  # build number — иначе Apple отклоняет архив/экспорт из-за рассинхрона
-  # CFBundleVersion/CFBundleShortVersionString.
-  sync_build_number_for_other_targets(
-    xcodeproj: ENV['MAIN_PROJECT_FILE'],
-    main_target: MAIN_TARGET.to_s,
-    version: ENV['APP_VERSION'].to_s,
-    build: BUILD_NUMBER.to_i
-  )
+  unless multiplatform
+    # Устанавливаем версию ТОЛЬКО для конкретного таргета
+    # Автоматически определяет, нужен ли Info.plist
+    set_version_for_target(
+      target: MAIN_TARGET.to_s,
+      version: ENV['APP_VERSION'].to_s,
+      build: BUILD_NUMBER.to_i
+    )
 
-  # Получение текущей маркетинговой версии из проекта
-  # ИСПОЛЬЗУЕМ actions из fastlane-plugin-versioning (поддерживают target)
-  version_number = get_version_number_from_xcodeproj(
-    xcodeproj: ENV['MAIN_PROJECT_FILE'],
-    target: MAIN_TARGET
-  )
+    # Держим встроенные таргеты (расширения, watch app) в синхроне по версии и
+    # build number — иначе Apple отклоняет архив/экспорт из-за рассинхрона
+    # CFBundleVersion/CFBundleShortVersionString.
+    sync_build_number_for_other_targets(
+      xcodeproj: ENV['MAIN_PROJECT_FILE'],
+      main_target: MAIN_TARGET.to_s,
+      version: ENV['APP_VERSION'].to_s,
+      build: BUILD_NUMBER.to_i
+    )
+  end
 
-  build_number = get_build_number_from_xcodeproj(
-    xcodeproj: ENV['MAIN_PROJECT_FILE'],
-    target: MAIN_TARGET
-  )
+  # Получение текущей маркетинговой версии из проекта.
+  # Мультиплатформенная схема: pbxproj не менялся выше — версия берётся
+  # напрямую из ENV (совпадает с тем, что подставит xcargs ниже), а не из
+  # xcodeproj (там всё ещё предыдущее значение).
+  version_number = if multiplatform
+                     ENV['APP_VERSION'].to_s
+                   else
+                     get_version_number_from_xcodeproj(
+                       xcodeproj: ENV['MAIN_PROJECT_FILE'],
+                       target: MAIN_TARGET
+                     )
+                   end
+
+  build_number = if multiplatform
+                   BUILD_NUMBER.to_s
+                 else
+                   get_build_number_from_xcodeproj(
+                     xcodeproj: ENV['MAIN_PROJECT_FILE'],
+                     target: MAIN_TARGET
+                   )
+                 end
 
   # Вывод информации о версии и номере сборки
   UI.header('Сборка приложения')
@@ -413,9 +464,11 @@ lane :build do |options|
     hash[identifier] = "match AppStore #{identifier}"
   end
 
-  # ВАЖНО: НЕ используем xcargs с MARKETING_VERSION, т.к. мы уже записали
-  # версию в xcodeproj для конкретного таргета. Иначе xcargs перезапишет
-  # версии ВСЕХ таргетов одним значением.
+  # НЕ мультиплатформенная схема: xcargs с MARKETING_VERSION не используем,
+  # т.к. версия уже записана в xcodeproj для конкретного таргета — иначе
+  # xcargs перезапишет версии ВСЕХ таргетов одним значением.
+  # Мультиплатформенная схема: наоборот, xcargs — единственный рабочий
+  # способ версionирования здесь (см. multiplatform_scheme? выше).
   build_params = {
     project: ENV['MAIN_PROJECT_FILE'],
     scheme: BUILD_SCHEME,
@@ -427,9 +480,22 @@ lane :build do |options|
     clean: true,
     output_name: IPA_FILE_NAME.to_s,
     build_path: DERIVED_PATH.to_s
-    # ❌ xcargs с MARKETING_VERSION УБРАН
   }
   build_params[:configuration] = BUILD_CONFIGURATION unless BUILD_CONFIGURATION.to_s.empty?
+
+  if multiplatform
+    build_params[:xcargs] = "MARKETING_VERSION=#{version_number} CURRENT_PROJECT_VERSION=#{build_number}"
+  end
+
+  # sdk:/destination: — опционально для ЛЮБОЙ сборки (не только
+  # мультиплатформенной), но практически нужны именно ей: один scheme,
+  # собирающий несколько платформ, иначе gym/xcodebuild может выбрать не тот
+  # SDK. options[:sdk]/options[:destination] > ENV — как MAC_SDK/MAC_DESTINATION
+  # в Fastfile_macos, для симметрии.
+  ios_sdk = options[:sdk] || ENV['IOS_SDK']
+  ios_destination = options[:destination] || ENV['IOS_DESTINATION']
+  build_params[:sdk] = ios_sdk unless ios_sdk.to_s.empty?
+  build_params[:destination] = ios_destination unless ios_destination.to_s.empty?
 
   build_app(**build_params)
 

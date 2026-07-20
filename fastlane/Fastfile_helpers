@@ -1591,3 +1591,20 @@ def find_artifact_files(pattern:, search_paths: [])
 
   found_files.uniq
 end
+
+# ==============================================================================
+# МУЛЬТИПЛАТФОРМЕННЫЕ СХЕМЫ (Xcode "Multiplatform App" — один target/scheme,
+# несколько платформ одновременно, например iOS+macOS)
+# ==============================================================================
+# Используется в Fastfile_build (lane :build, iOS) и Fastfile_macos (lane
+# :build) — подробности и обоснование см. комментарий у первого места
+# использования в Fastfile_build. Вынесена сюда (а не определена локально в
+# каждом из модулей) как чистая Ruby-логика без Fastlane DSL, чтобы её можно
+# было протестировать напрямую через spec_helper (по аналогии с
+# parse_provisioning_udid/mac_device_display_name).
+#
+# @param options [Hash] опции лейна (options[:multiplatform])
+# @return [Boolean] true — включён мультиплатформенный режим версионирования/sdk
+def multiplatform_scheme?(options)
+  options[:multiplatform] == true || ENV['MULTIPLATFORM_SCHEME'].to_s == 'true'
+end

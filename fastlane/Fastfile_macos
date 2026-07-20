@@ -46,8 +46,15 @@ def mac_pkg_file_name
   "#{FILE_NAME}.pkg"
 end
 
+# ПЛОСКО, без подпапки pkg/ — как IPA_FOLDER_PATH/DSYM_FOLDER_PATH в главном
+# Fastfile ("Плоский layout обязателен: shared-gitlab-ci основных проектов
+# собирает артефакты плоским глобом (fastlane/artifacts/*.ipa,
+# fastlane/artifacts/*.dSYM.zip) и подпапки не видит"). С подпапкой pkg/
+# .ios-macos-gitlab-ci.yml (artifacts: paths: .../fastlane/artifacts/*.pkg)
+# не подхватывал .pkg между build:macos и upload_testflight:macos —
+# "Не найден .pkg для загрузки" при полностью успешном build.
 def mac_pkg_folder_path
-  "#{ARTIFACTS_PATH}pkg/"
+  ARTIFACTS_PATH.to_s
 end
 
 def mac_pkg_file_path
@@ -59,13 +66,25 @@ end
 # ==============================================================================
 
 # Возвращает массив bundle identifiers (переиспользуем общий helper, если есть).
+# Bundle identifiers для macOS. По умолчанию — те же, что у iOS
+# (APP_IDENTIFIER/get_all_app_identifiers), НО многоцелевые Xcode-проекты
+# часто содержат iOS-only расширения (Widget/Live Activity/Notification
+# Service и т.п.), для которых macOS-профиля не существует и не должно
+# существовать — match падает "No matching provisioning profiles found"
+# для такого identifier при попытке установить macOS-сертификаты.
+# ENV['MAC_APP_IDENTIFIER'] (та же CSV-нотация, что и APP_IDENTIFIER)
+# позволяет задать ОТДЕЛЬНЫЙ, более узкий список специально для macOS —
+# аналогично MAC_SDK/MAC_DESTINATION.
 def mac_app_identifiers
-  identifiers = if respond_to?(:get_all_app_identifiers)
+  mac_specific = ENV['MAC_APP_IDENTIFIER'].to_s.split(',').map(&:strip).reject(&:empty?)
+  identifiers = if !mac_specific.empty?
+                  mac_specific
+                elsif respond_to?(:get_all_app_identifiers)
                   get_all_app_identifiers
                 else
                   APP_IDENTIFIER.to_s.split(',').map(&:strip).reject(&:empty?)
                 end
-  UI.user_error!('❌ APP_IDENTIFIER не установлен или пуст') if identifiers.empty?
+  UI.user_error!('❌ APP_IDENTIFIER/MAC_APP_IDENTIFIER не установлен или пуст') if identifiers.empty?
   identifiers
 end
 
@@ -304,15 +323,26 @@ platform :mac do
     # ----- Каталоги артефактов -----
     FileUtils.mkdir_p(File.expand_path(mac_pkg_folder_path))
 
-    # ----- Версия (тот же helper, что и в iOS-сборке) -----
-    set_version_for_target(
-      target: MAIN_TARGET.to_s,
-      version: ENV['APP_VERSION'].to_s,
-      build: BUILD_NUMBER.to_i
-    )
+    # ----- Версия -----
+    # Мультиплатформенные схемы (multiplatform_scheme?, определён в
+    # Fastfile_build) — версия ТОЛЬКО через xcargs при сборке ниже, прямую
+    # запись в pbxproj пропускаем: ломает xcodebuild -exportArchive на таких
+    # таргетах ("IDEDistributionMethodManager ... Unknown Distribution
+    # Error") — воспроизведено и устранено на той же схеме, что и iOS-сторона
+    # (Messenger, iphoneos+macosx в одном target). См. подробный комментарий
+    # у multiplatform_scheme? в Fastfile_build.
+    multiplatform = multiplatform_scheme?(options)
 
-    version_number = get_version_number_from_xcodeproj(xcodeproj: ENV['MAIN_PROJECT_FILE'], target: MAIN_TARGET)
-    build_number   = get_build_number_from_xcodeproj(xcodeproj: ENV['MAIN_PROJECT_FILE'], target: MAIN_TARGET)
+    unless multiplatform
+      set_version_for_target(
+        target: MAIN_TARGET.to_s,
+        version: ENV['APP_VERSION'].to_s,
+        build: BUILD_NUMBER.to_i
+      )
+    end
+
+    version_number = multiplatform ? ENV['APP_VERSION'].to_s : get_version_number_from_xcodeproj(xcodeproj: ENV['MAIN_PROJECT_FILE'], target: MAIN_TARGET)
+    build_number   = multiplatform ? BUILD_NUMBER.to_s : get_build_number_from_xcodeproj(xcodeproj: ENV['MAIN_PROJECT_FILE'], target: MAIN_TARGET)
 
     UI.header('Сборка macOS приложения')
     UI.message("Версия: #{version_number}")
@@ -328,8 +358,15 @@ platform :mac do
 
     # ----- Сборка через gym -----
     app_identifiers = mac_app_identifiers
+    # ВАЖНО: суффикс " macos" в имени профиля обязателен — match хранит
+    # macOS AppStore-профиль под именем "match AppStore <id> macos" (не
+    # "match AppStore <id>", это имя занято iOS-профилем того же bundle id).
+    # Без суффикса gym подставляет в exportOptions.plist профиль iOS, и
+    # xcodebuild -exportArchive падает: 'Provisioning profile "match AppStore
+    # <id>" has platforms "visionOS, watchOS, and iOS", which does not match
+    # the current platform "macOS"'.
     provisioning_profiles = app_identifiers.each_with_object({}) do |identifier, hash|
-      hash[identifier] = "match AppStore #{identifier}"
+      hash[identifier] = "match AppStore #{identifier} macos"
     end
 
     # Мультиплатформенные схемы (одна схема собирает и iphoneos, и macosx —
@@ -353,11 +390,19 @@ platform :mac do
       },
       cloned_source_packages_path: 'SourcePackages',
       clean: true,
-      output_name: mac_pkg_file_name,
+      # gym/build_app сам добавляет расширение по типу экспорта — передавать
+      # его в output_name не нужно (mac_pkg_file_name уже включает ".pkg"
+      # для ДРУГИХ целей: имя итогового файла на диске/в валидации). Без
+      # .sub здесь gym создаёт "<name>.pkg.pkg" ("Successfully exported and
+      # signed the pkg file: .../Messenger_v1.0.0_b236.pkg.pkg"), а
+      # валидация ниже ищет mac_pkg_file_name (одно .pkg) — не находит.
+      output_name: mac_pkg_file_name.sub(/\.pkg\z/, ''),
       output_directory: mac_pkg_folder_path,
       build_path: DERIVED_PATH.to_s
     }
     build_params[:configuration] = BUILD_CONFIGURATION unless BUILD_CONFIGURATION.to_s.empty?
+    # Мультиплатформенная схема — версия только через xcargs (см. выше).
+    build_params[:xcargs] = "MARKETING_VERSION=#{version_number} CURRENT_PROJECT_VERSION=#{build_number}" if multiplatform
 
     build_app(**build_params)
 
