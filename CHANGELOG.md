@@ -5,7 +5,7 @@
 Формат основан на [Keep a Changelog](https://keepachangelog.com/ru/1.0.0/),
 проект придерживается [Semantic Versioning](https://semver.org/lang/ru/).
 
-## [Unreleased]
+## [3.4.0] - 2026-07-20
 
 ### Added
 
@@ -34,6 +34,46 @@
   (`options[:sdk]`/`options[:destination]` > `ENV['IOS_SDK']`/
   `ENV['IOS_DESTINATION']`) — тот же паттерн, что уже был у macOS с тикета
   3.3.0. Покрыто структурными RSpec (`spec/multiplatform_build_spec.rb`).
+- `Fastfile_macos`: `mac_app_identifiers` теперь читает опциональный
+  `ENV['MAC_APP_IDENTIFIER']` (отдельный, более узкий CSV-список bundle id
+  специально для macOS), приоритетнее общего `APP_IDENTIFIER`. Нужно для
+  проектов с iOS-only расширениями (Widget/Live Activity/Notification
+  Service), у которых физически нет и не должно быть macOS-профиля — без
+  этой опции `mac_install_match` падал `No matching provisioning profiles
+  found ... readonly` на таком identifier.
+
+### Fixed
+
+- `Fastfile_macos`, `lane :build`: имя provisioning-профиля в
+  `export_options.provisioningProfiles` собиралось без суффикса `" macos"`
+  (`"match AppStore <id>"` вместо `"match AppStore <id> macos"`) — match
+  хранит macOS AppStore-профиль под ИМЕНЕМ с этим суффиксом (без него это
+  имя iOS-профиля того же bundle id). gym подставлял iOS-профиль в
+  exportOptions.plist, `xcodebuild -exportArchive` падал: `Provisioning
+  profile "match AppStore <id>" has platforms "visionOS, watchOS, and
+  iOS", which does not match the current platform "macOS"`. Архивация при
+  этом проходила успешно (сертификат/keychain были корректны) — падал
+  только export.
+- `Fastfile_macos`, `lane :build`: `output_name:` для `build_app` передавал
+  `mac_pkg_file_name` (уже включает `.pkg`) — gym сам добавляет расширение
+  по типу экспорта, получалось `<name>.pkg.pkg`. Экспорт формально
+  проходил успешно, но последующая валидация артефакта (искала файл с
+  одним `.pkg`) не находила его.
+- `Fastfile_macos`: `mac_pkg_folder_path` клал `.pkg` в подпапку
+  `ARTIFACTS_PATH/pkg/` — нарушало собственную задокументированную
+  конвенцию репозитория (см. комментарий в главном `Fastfile`: "Плоский
+  layout обязателен: shared-gitlab-ci основных проектов собирает
+  артефакты плоским глобом"). Общий CI-темплейт с плоским глобом
+  `fastlane/artifacts/*.pkg` не подхватывал файл из подпапки — между
+  джобой сборки и джобой заливки в TestFlight (разные CI-процессы)
+  артефакт не передавался: "Не найден .pkg для загрузки" при полностью
+  успешной сборке. Теперь `mac_pkg_folder_path` == `ARTIFACTS_PATH`,
+  плоско, как у iOS (`IPA_FOLDER_PATH`/`DSYM_FOLDER_PATH`).
+
+Все четыре находки (профиль без суффикса, двойное расширение, вложенная
+папка pkg/, отсутствие MAC_APP_IDENTIFIER) обнаружены на живом смок-тесте
+миграции Messenger — `Fastfile_macos` из тикета 3.3.0 никогда не проходил
+реальный CI-прогон iOS+macOS split-job пайплайна до этого момента.
 
 ## [3.3.0] - 2026-07-19
 
