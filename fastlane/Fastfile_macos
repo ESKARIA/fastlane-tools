@@ -383,7 +383,13 @@ platform :mac do
       },
       cloned_source_packages_path: 'SourcePackages',
       clean: true,
-      output_name: mac_pkg_file_name,
+      # gym/build_app сам добавляет расширение по типу экспорта — передавать
+      # его в output_name не нужно (mac_pkg_file_name уже включает ".pkg"
+      # для ДРУГИХ целей: имя итогового файла на диске/в валидации). Без
+      # .sub здесь gym создаёт "<name>.pkg.pkg" ("Successfully exported and
+      # signed the pkg file: .../Messenger_v1.0.0_b236.pkg.pkg"), а
+      # валидация ниже ищет mac_pkg_file_name (одно .pkg) — не находит.
+      output_name: mac_pkg_file_name.sub(/\.pkg\z/, ''),
       output_directory: mac_pkg_folder_path,
       build_path: DERIVED_PATH.to_s
     }
