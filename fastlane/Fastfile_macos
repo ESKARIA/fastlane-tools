@@ -351,8 +351,15 @@ platform :mac do
 
     # ----- Сборка через gym -----
     app_identifiers = mac_app_identifiers
+    # ВАЖНО: суффикс " macos" в имени профиля обязателен — match хранит
+    # macOS AppStore-профиль под именем "match AppStore <id> macos" (не
+    # "match AppStore <id>", это имя занято iOS-профилем того же bundle id).
+    # Без суффикса gym подставляет в exportOptions.plist профиль iOS, и
+    # xcodebuild -exportArchive падает: 'Provisioning profile "match AppStore
+    # <id>" has platforms "visionOS, watchOS, and iOS", which does not match
+    # the current platform "macOS"'.
     provisioning_profiles = app_identifiers.each_with_object({}) do |identifier, hash|
-      hash[identifier] = "match AppStore #{identifier}"
+      hash[identifier] = "match AppStore #{identifier} macos"
     end
 
     # Мультиплатформенные схемы (одна схема собирает и iphoneos, и macosx —
