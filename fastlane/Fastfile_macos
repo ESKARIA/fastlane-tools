@@ -59,13 +59,25 @@ end
 # ==============================================================================
 
 # Возвращает массив bundle identifiers (переиспользуем общий helper, если есть).
+# Bundle identifiers для macOS. По умолчанию — те же, что у iOS
+# (APP_IDENTIFIER/get_all_app_identifiers), НО многоцелевые Xcode-проекты
+# часто содержат iOS-only расширения (Widget/Live Activity/Notification
+# Service и т.п.), для которых macOS-профиля не существует и не должно
+# существовать — match падает "No matching provisioning profiles found"
+# для такого identifier при попытке установить macOS-сертификаты.
+# ENV['MAC_APP_IDENTIFIER'] (та же CSV-нотация, что и APP_IDENTIFIER)
+# позволяет задать ОТДЕЛЬНЫЙ, более узкий список специально для macOS —
+# аналогично MAC_SDK/MAC_DESTINATION.
 def mac_app_identifiers
-  identifiers = if respond_to?(:get_all_app_identifiers)
+  mac_specific = ENV['MAC_APP_IDENTIFIER'].to_s.split(',').map(&:strip).reject(&:empty?)
+  identifiers = if !mac_specific.empty?
+                  mac_specific
+                elsif respond_to?(:get_all_app_identifiers)
                   get_all_app_identifiers
                 else
                   APP_IDENTIFIER.to_s.split(',').map(&:strip).reject(&:empty?)
                 end
-  UI.user_error!('❌ APP_IDENTIFIER не установлен или пуст') if identifiers.empty?
+  UI.user_error!('❌ APP_IDENTIFIER/MAC_APP_IDENTIFIER не установлен или пуст') if identifiers.empty?
   identifiers
 end
 
