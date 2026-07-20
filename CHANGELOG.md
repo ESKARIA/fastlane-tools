@@ -5,6 +5,33 @@
 Формат основан на [Keep a Changelog](https://keepachangelog.com/ru/1.0.0/),
 проект придерживается [Semantic Versioning](https://semver.org/lang/ru/).
 
+## [3.5.0] - 2026-07-20
+
+### Added
+
+- `Fastfile_helpers`: опциональный relay-режим для Telegram-уведомлений —
+  `TELEGRAM_USE_RELAY=true` (+ `TELEGRAM_RELAY_BASE_URL`,
+  `TELEGRAM_RELAY_API_KEY`) отправляет уведомления через
+  [TelegramProxy](https://gitlab.sportplay.tech/sportplay/telegram-bot-relay)
+  вместо прямого `api.telegram.org` — не нужно хранить сырой
+  `TELEGRAM_BOT_TOKEN` в переменных проекта, ретраи и rate-limit на стороне
+  relay. По умолчанию выключено (`TELEGRAM_USE_RELAY` не установлен) —
+  поведение не меняется, используется прежний прямой вызов. Если
+  `TELEGRAM_USE_RELAY=true`, но relay-переменные не заданы, автоматический
+  откат на прямой API с предупреждением в логе, без падения pipeline.
+  Новые низкоуровневые функции: `telegram_relay_enabled?`,
+  `telegram_relay_request`, `telegram_relay_wait_for_status`,
+  `telegram_relay_send_message`, `telegram_relay_edit_message`. Режим
+  прогресс-сообщения (`TELEGRAM_PROGRESS_MODE`) поддержан в обоих режимах —
+  `send_telegram_notification`, `edit_telegram_message` и создание нового
+  прогресс-сообщения в `update_telegram_progress` (вынесено в
+  `create_telegram_progress_message_via_relay`/`_direct`) сами выбирают путь
+  по `telegram_relay_enabled?`. Relay асинхронный, поэтому перед
+  `editMessageText` код дожидается статуса `delivered` (до 15 секунд), чтобы
+  узнать настоящий Telegram `message_id`. Покрыто RSpec
+  (`spec/telegram_relay_spec.rb`), задокументировано в `README.md` и
+  `TELEGRAM_NOTIFICATIONS.md`.
+
 ## [3.4.0] - 2026-07-20
 
 ### Added

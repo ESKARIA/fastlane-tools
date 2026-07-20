@@ -159,6 +159,9 @@ bundle exec fastlane match_generate_appstore
 | `TELEGRAM_BOT_TOKEN` | — | Токен Telegram-бота |
 | `TELEGRAM_CHAT_ID` | — | Chat ID для отправки уведомлений |
 | `TELEGRAM_PROGRESS_MODE` | `false` | Одно обновляемое сообщение вместо серии отдельных. Требует передачи файлов `.telegram_progress_message_id` и др. между job'ами CI (см. [TELEGRAM_NOTIFICATIONS.md](./TELEGRAM_NOTIFICATIONS.md)) |
+| `TELEGRAM_USE_RELAY` | `false` | Слать уведомления через [TelegramProxy](https://gitlab.sportplay.tech/sportplay/telegram-bot-relay) вместо прямого `api.telegram.org` — не хранит сырой `TELEGRAM_BOT_TOKEN`, ретраи/rate-limit на стороне relay. Требует `TELEGRAM_RELAY_BASE_URL`/`TELEGRAM_RELAY_API_KEY`; при их отсутствии автоматически откатывается на прямой API |
+| `TELEGRAM_RELAY_BASE_URL` | — | URL relay, например `https://relay.emvakar.ru` |
+| `TELEGRAM_RELAY_API_KEY` | — | Ключ бота в relay (`tgp_...`, из `tgrelay bots register`) — НЕ `TELEGRAM_BOT_TOKEN` |
 | `APPSTORE_KEY_PATH` / `APP_STORE_CONNECT_KEY_PATH` | — | Путь к файлу `.p8`, альтернатива `APPSTORE_KEY_CONTENT` (используется, например, в `check_released`/`upload_metadata`) |
 | `DELIVER_METADATA_PATH` | Deliverfile / `./fastlane/metadata` | Путь к метаданным одного пака (для монорепо с несколькими приложениями) |
 | `MACOS_MATCH_DEV_BRANCH` | `macos_development` | Ветка match-репозитория с development-сертификатами macOS |
@@ -341,6 +344,10 @@ upload_testflight:
 — они переносят состояние одного обновляемого сообщения между job'ами.
 Подробности и примеры сообщений — в [TELEGRAM_NOTIFICATIONS.md](./TELEGRAM_NOTIFICATIONS.md)
 и [docs/TELEGRAM_NOTIFICATIONS_EXAMPLES.md](./docs/TELEGRAM_NOTIFICATIONS_EXAMPLES.md).
+
+Уведомления можно слать через relay ([TelegramProxy](https://gitlab.sportplay.tech/sportplay/telegram-bot-relay))
+вместо прямого `api.telegram.org` — см. `TELEGRAM_USE_RELAY` в таблице
+переменных выше. По умолчанию выключено, поведение не меняется.
 
 ## 🔄 Обновление версий
 

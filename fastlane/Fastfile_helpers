@@ -170,6 +170,150 @@ end
 # TELEGRAM УВЕДОМЛЕНИЯ
 # ==============================================================================
 
+# ------------------------------------------------------------------------------
+# Relay-режим (TelegramProxy)
+# ------------------------------------------------------------------------------
+#
+# Когда TELEGRAM_USE_RELAY=true, уведомления идут не напрямую в
+# api.telegram.org, а через relay (TelegramProxy —
+# https://gitlab.sportplay.tech/sportplay/telegram-bot-relay): сервис
+# принимает вызов асинхронно (POST /send), сам доставляет его в Telegram Bot
+# API с ретраями/rate-limit'ом, и позволяет узнать реальный Telegram
+# message_id через GET /messages/{id} после доставки.
+#
+# Требует TELEGRAM_RELAY_BASE_URL (например https://relay.emvakar.ru) и
+# TELEGRAM_RELAY_API_KEY — ключ конкретного бота в relay (НЕ сырой
+# TELEGRAM_BOT_TOKEN), полученный через `tgrelay bots register`.
+#
+# По умолчанию (TELEGRAM_USE_RELAY не установлен или "false") ничего не
+# меняется — используется прежний прямой вызов api.telegram.org.
+
+# Проверяет, включен ли relay-режим и настроены ли для него все переменные.
+# Если TELEGRAM_USE_RELAY=true, но переменные relay не заданы, откатывается
+# на прямой Telegram API вместо падения.
+#
+# @return [Boolean]
+def telegram_relay_enabled?
+  return false unless ENV['TELEGRAM_USE_RELAY'] == 'true'
+
+  base_url = ENV['TELEGRAM_RELAY_BASE_URL']
+  api_key = ENV['TELEGRAM_RELAY_API_KEY']
+
+  if base_url.nil? || base_url.empty? || api_key.nil? || api_key.empty?
+    UI.important('⚠️  TELEGRAM_USE_RELAY=true, но TELEGRAM_RELAY_BASE_URL/TELEGRAM_RELAY_API_KEY не заданы — используем прямой Telegram API')
+    return false
+  end
+
+  true
+end
+
+# Выполняет один HTTP-запрос к relay (POST /send или GET /messages/{id}),
+# авторизуясь API-ключом бота из TELEGRAM_RELAY_API_KEY.
+#
+# @param method [Symbol] :post или :get
+# @param path [String] путь, например "/send" или "/messages/<id>"
+# @param body [Hash, nil] тело запроса для :post (сериализуется в JSON)
+# @return [Hash, nil] распарсенный JSON-ответ, либо nil при ошибке транспорта
+#   или не-2xx статусе (подробности идут в UI.important)
+def telegram_relay_request(method, path, body: nil)
+  uri = URI("#{ENV['TELEGRAM_RELAY_BASE_URL']}#{path}")
+
+  http = Net::HTTP.new(uri.host, uri.port)
+  http.use_ssl = uri.scheme == 'https'
+  http.read_timeout = 10
+  http.open_timeout = 10
+
+  request = method == :post ? Net::HTTP::Post.new(uri.request_uri) : Net::HTTP::Get.new(uri.request_uri)
+  request['Authorization'] = "Bearer #{ENV['TELEGRAM_RELAY_API_KEY']}"
+  if method == :post
+    request['Content-Type'] = 'application/json'
+    request.body = body.to_json
+  end
+
+  response = http.request(request)
+  unless response.code.to_i.between?(200, 299)
+    UI.important("⚠️  Relay #{method.to_s.upcase} #{path} вернул #{response.code}: #{response.body}")
+    return nil
+  end
+
+  JSON.parse(response.body)
+rescue StandardError => e
+  UI.important("⚠️  Ошибка запроса к relay (#{method} #{path}): #{e.message}")
+  nil
+end
+
+# Ждет, пока сообщение в relay не получит терминальный статус
+# (delivered/failed/dead), и возвращает распарсенный ответ GET /messages/{id}.
+#
+# @param relay_message_id [String] внутренний (UUID) message_id, который
+#   вернул POST /send — НЕ настоящий Telegram message_id
+# @param timeout [Numeric] сколько секунд ждать, прежде чем сдаться
+# @return [Hash, nil] последний известный ответ, либо nil если relay ни разу
+#   не ответил успешно
+def telegram_relay_wait_for_status(relay_message_id, timeout: 15)
+  deadline = Time.now + timeout
+  last = nil
+
+  loop do
+    last = telegram_relay_request(:get, "/messages/#{relay_message_id}")
+    break if last.nil?
+    break if %w[delivered failed dead].include?(last['status'])
+    break if Time.now >= deadline
+
+    sleep 1
+  end
+
+  last
+end
+
+# Отправляет текстовое сообщение через relay (POST /send с
+# method=sendMessage), ждет доставки и возвращает реальный Telegram
+# message_id — нужен, например, чтобы потом отредактировать это же
+# сообщение через telegram_relay_edit_message.
+#
+# @return [Integer, nil] Telegram message_id, либо nil если relay не
+#   подтвердил доставку в течение таймаута
+def telegram_relay_send_message(text, chat_id:, parse_mode: 'HTML', disable_notification: false)
+  payload = {
+    chat_id: chat_id,
+    text: text,
+    parse_mode: parse_mode,
+    disable_notification: disable_notification
+  }
+
+  result = telegram_relay_request(:post, '/send', body: { method: 'sendMessage', chat_id: chat_id, payload: payload })
+  return nil if result.nil? || result['message_id'].nil?
+
+  status = telegram_relay_wait_for_status(result['message_id'])
+  if status.nil? || status['status'] != 'delivered'
+    UI.important("⚠️  Relay не подтвердил доставку сообщения (статус: #{status && status['status']})")
+    return nil
+  end
+
+  status['telegram_message_id']
+end
+
+# Редактирует уже отправленное Telegram-сообщение через relay (POST /send с
+# method=editMessageText), ждет подтверждения доставки правки.
+#
+# @param telegram_message_id [Integer] настоящий Telegram message_id (не
+#   relay-UUID) редактируемого сообщения
+# @return [Boolean] true, если relay подтвердил доставку правки
+def telegram_relay_edit_message(telegram_message_id, text, chat_id:, parse_mode: 'HTML')
+  payload = {
+    chat_id: chat_id,
+    message_id: telegram_message_id,
+    text: text,
+    parse_mode: parse_mode
+  }
+
+  result = telegram_relay_request(:post, '/send', body: { method: 'editMessageText', chat_id: chat_id, payload: payload })
+  return false if result.nil? || result['message_id'].nil?
+
+  status = telegram_relay_wait_for_status(result['message_id'])
+  !status.nil? && status['status'] == 'delivered'
+end
+
 # Отправляет уведомление в Telegram
 #
 # @param message [String] текст сообщения
@@ -182,9 +326,26 @@ end
 # @example
 #   send_telegram_notification("✅ Сборка завершена успешно")
 def send_telegram_notification(message, bot_token: nil, chat_id: nil, parse_mode: 'HTML', disable_notification: false)
+  chat_id ||= ENV['TELEGRAM_CHAT_ID']
+
+  if telegram_relay_enabled?
+    if chat_id.nil? || chat_id.empty?
+      UI.important('⚠️  TELEGRAM_CHAT_ID не установлен, уведомление не отправлено')
+      return false
+    end
+
+    telegram_message_id = telegram_relay_send_message(message, chat_id: chat_id, parse_mode: parse_mode, disable_notification: disable_notification)
+    if telegram_message_id
+      UI.success("✅ Уведомление отправлено в Telegram через relay (message_id: #{telegram_message_id})")
+      return true
+    end
+
+    UI.important('⚠️  Не удалось отправить уведомление через relay')
+    return false
+  end
+
   # Получение параметров из переменных окружения
   bot_token ||= ENV['TELEGRAM_BOT_TOKEN']
-  chat_id ||= ENV['TELEGRAM_CHAT_ID']
 
   # Проверка наличия обязательных параметров
   if bot_token.nil? || bot_token.empty?
@@ -405,8 +566,17 @@ end
 # @param parse_mode [String] режим парсинга ('HTML' или 'Markdown')
 # @return [Boolean] true, если сообщение обновлено успешно
 def edit_telegram_message(message_id, message, bot_token: nil, chat_id: nil, parse_mode: 'HTML')
-  bot_token ||= ENV['TELEGRAM_BOT_TOKEN']
   chat_id ||= ENV['TELEGRAM_CHAT_ID']
+
+  if telegram_relay_enabled?
+    if chat_id.nil? || chat_id.empty?
+      UI.important('⚠️  Не удалось обновить сообщение: отсутствует chat_id')
+      return false
+    end
+    return telegram_relay_edit_message(message_id, message, chat_id: chat_id, parse_mode: parse_mode)
+  end
+
+  bot_token ||= ENV['TELEGRAM_BOT_TOKEN']
 
   if bot_token.nil? || bot_token.empty? || chat_id.nil? || chat_id.empty?
     UI.important('⚠️  Не удалось обновить сообщение: отсутствуют bot_token или chat_id')
@@ -603,13 +773,84 @@ end
 # @param details [Hash] детали этапа
 # @param error_message [String, nil] сообщение об ошибке (если есть)
 # @return [Integer, nil] ID сообщения
+# Создает новое прогресс-сообщение через relay и сохраняет его message_id
+# для последующих этапов. Вынесено из update_telegram_progress отдельным
+# методом, чтобы не раздувать его длину/вложенность (см. direct-вариант
+# ниже — create_telegram_progress_message_direct).
+#
+# @return [Integer, nil] новый Telegram message_id, либо nil при неудаче
+def create_telegram_progress_message_via_relay(message, chat_id:)
+  new_message_id = telegram_relay_send_message(message, chat_id: chat_id, parse_mode: 'HTML', disable_notification: false)
+
+  if new_message_id
+    save_progress_message_id(new_message_id)
+    UI.success("📝 Создано новое прогресс-сообщение (ID: #{new_message_id}, через relay)")
+    UI.message('💾 message_id сохранен для использования в следующих этапах')
+  else
+    UI.important('⚠️  Не удалось создать сообщение в Telegram через relay')
+  end
+
+  new_message_id
+end
+
+# Прямой (не через relay) вариант создания нового прогресс-сообщения —
+# исходная реализация до появления relay-режима, поведение не менялось.
+#
+# @return [Integer, nil] новый Telegram message_id, либо nil при неудаче
+def create_telegram_progress_message_direct(message, bot_token:, chat_id:)
+  uri = URI("https://api.telegram.org/bot#{bot_token}/sendMessage")
+  params = {
+    chat_id: chat_id,
+    text: message,
+    parse_mode: 'HTML',
+    disable_notification: false
+  }
+
+  http = Net::HTTP.new(uri.host, uri.port)
+  http.use_ssl = true
+  http.read_timeout = 10
+  http.open_timeout = 10
+
+  request = Net::HTTP::Post.new(uri.path)
+  request.set_form_data(params)
+
+  response = http.request(request)
+
+  unless response.code == '200'
+    UI.important("⚠️  Не удалось создать сообщение в Telegram: #{response.code}")
+    UI.message("Ответ: #{response.body}")
+    return nil
+  end
+
+  result = JSON.parse(response.body)
+  new_message_id = result['result']['message_id']
+
+  # ВАЖНО: Сохраняем message_id сразу после создания сообщения
+  # Это гарантирует, что следующий этап сможет обновить это же сообщение
+  save_progress_message_id(new_message_id)
+  UI.success("📝 Создано новое прогресс-сообщение (ID: #{new_message_id})")
+  UI.message('💾 message_id сохранен для использования в следующих этапах')
+
+  if File.exist?(PROGRESS_MESSAGE_ID_FILE)
+    UI.success("✅ Файл #{PROGRESS_MESSAGE_ID_FILE} успешно создан")
+  else
+    UI.important("⚠️  Файл #{PROGRESS_MESSAGE_ID_FILE} не найден после сохранения!")
+  end
+
+  new_message_id
+rescue StandardError => e
+  UI.important("⚠️  Ошибка при создании сообщения в Telegram: #{e.message}")
+  nil
+end
+
 def update_telegram_progress(stage_name, status: 'start', details: {}, error_message: nil)
   return nil unless ENV['TELEGRAM_ENABLED'] == 'true'
 
   bot_token = ENV['TELEGRAM_BOT_TOKEN']
   chat_id = ENV['TELEGRAM_CHAT_ID']
 
-  return nil if bot_token.nil? || bot_token.empty? || chat_id.nil? || chat_id.empty?
+  return nil if chat_id.nil? || chat_id.empty?
+  return nil if !telegram_relay_enabled? && (bot_token.nil? || bot_token.empty?)
 
   # ВАЖНО: Сначала пытаемся получить message_id ДО формирования сообщения
   # Это гарантирует, что мы обновим существующее сообщение, а не создадим новое
@@ -784,55 +1025,12 @@ def update_telegram_progress(stage_name, status: 'start', details: {}, error_mes
   end
 
   # Создаем новое сообщение только если message_id не найден или обновление не удалось
-  unless message_id
-    # Создаем новое сообщение
-    uri = URI("https://api.telegram.org/bot#{bot_token}/sendMessage")
-    params = {
-      chat_id: chat_id,
-      text: message,
-      parse_mode: 'HTML',
-      disable_notification: false
-    }
+  return unless message_id.nil?
 
-    begin
-      http = Net::HTTP.new(uri.host, uri.port)
-      http.use_ssl = true
-      http.read_timeout = 10
-      http.open_timeout = 10
-
-      request = Net::HTTP::Post.new(uri.path)
-      request.set_form_data(params)
-
-      response = http.request(request)
-
-      if response.code == '200'
-        result = JSON.parse(response.body)
-        new_message_id = result['result']['message_id']
-
-        # ВАЖНО: Сохраняем message_id сразу после создания сообщения
-        # Это гарантирует, что следующий этап сможет обновить это же сообщение
-        save_progress_message_id(new_message_id)
-
-        UI.success("📝 Создано новое прогресс-сообщение (ID: #{new_message_id})")
-        UI.message('💾 message_id сохранен для использования в следующих этапах')
-
-        # Проверяем, что файл действительно создан
-        if File.exist?(PROGRESS_MESSAGE_ID_FILE)
-          UI.success("✅ Файл #{PROGRESS_MESSAGE_ID_FILE} успешно создан")
-        else
-          UI.important("⚠️  Файл #{PROGRESS_MESSAGE_ID_FILE} не найден после сохранения!")
-        end
-
-        new_message_id
-      else
-        UI.important("⚠️  Не удалось создать сообщение в Telegram: #{response.code}")
-        UI.message("Ответ: #{response.body}")
-        nil
-      end
-    rescue StandardError => e
-      UI.important("⚠️  Ошибка при создании сообщения в Telegram: #{e.message}")
-      nil
-    end
+  if telegram_relay_enabled?
+    create_telegram_progress_message_via_relay(message, chat_id: chat_id)
+  else
+    create_telegram_progress_message_direct(message, bot_token: bot_token, chat_id: chat_id)
   end
 end
 
@@ -1089,7 +1287,8 @@ def send_final_telegram_message(result, details = {}, include_pipeline_link: tru
   bot_token = ENV['TELEGRAM_BOT_TOKEN']
   chat_id = ENV['TELEGRAM_CHAT_ID']
 
-  return nil if bot_token.nil? || bot_token.empty? || chat_id.nil? || chat_id.empty?
+  return nil if chat_id.nil? || chat_id.empty?
+  return nil if !telegram_relay_enabled? && (bot_token.nil? || bot_token.empty?)
 
   # Получаем все этапы и их детали
   all_stages = get_pipeline_stages
