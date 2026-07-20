@@ -7,6 +7,36 @@
 
 ## [Unreleased]
 
+### Added
+
+- `Fastfile_helpers`: `multiplatform_scheme?(options)` — чистая функция,
+  включает опциональный режим для Xcode-таргетов, собирающих несколько
+  платформ из одного target/scheme (например iOS+macOS одновременно).
+  Включается через lane-опцию `multiplatform: true` или
+  `ENV['MULTIPLATFORM_SCHEME'] == 'true'`; по умолчанию выключен, не
+  затрагивает обычные однoplatform-проекты. Покрыто RSpec
+  (`spec/multiplatform_scheme_spec.rb`).
+- `lane :build` (iOS, `Fastfile_build`) и `lane :build` (macOS,
+  `Fastfile_macos`): в мультиплатформенном режиме версия/build number
+  передаются ТОЛЬКО через `xcargs` (`MARKETING_VERSION=`/
+  `CURRENT_PROJECT_VERSION=`), прямая запись в pbxproj
+  (`set_version_for_target`/`sync_build_number_for_other_targets`)
+  пропускается — на мультиплатформенном таргете (`iphoneos`+`macosx` в одном
+  target) такая запись ломает `xcodebuild -exportArchive`:
+  `IDEDistributionMethodManager ... Unknown Distribution Error` /
+  `exportOptionsPlist error for key 'method' expected one {} but found
+  <method>`. Архивация при этом проходит успешно — падает именно экспорт, и
+  падает независимо от содержимого `exportOptions.plist` (auth key, teamID,
+  installer cert — ничего из этого не влияло). Причина на стороне Xcode,
+  Apple не документирует; воспроизведено и устранено на реальном проекте
+  (Messenger, миграция на fastlane-tools, 2026-07). iOS-сторона lane :build
+  дополнительно получила опциональные `sdk:`/`destination:`
+  (`options[:sdk]`/`options[:destination]` > `ENV['IOS_SDK']`/
+  `ENV['IOS_DESTINATION']`) — тот же паттерн, что уже был у macOS с тикета
+  3.3.0. Покрыто структурными RSpec (`spec/multiplatform_build_spec.rb`).
+
+## [3.3.0] - 2026-07-19
+
 ### Changed
 
 - `Fastfile_macos`: генерация и установка `mac_installer_distribution`

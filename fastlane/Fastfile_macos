@@ -304,15 +304,26 @@ platform :mac do
     # ----- Каталоги артефактов -----
     FileUtils.mkdir_p(File.expand_path(mac_pkg_folder_path))
 
-    # ----- Версия (тот же helper, что и в iOS-сборке) -----
-    set_version_for_target(
-      target: MAIN_TARGET.to_s,
-      version: ENV['APP_VERSION'].to_s,
-      build: BUILD_NUMBER.to_i
-    )
+    # ----- Версия -----
+    # Мультиплатформенные схемы (multiplatform_scheme?, определён в
+    # Fastfile_build) — версия ТОЛЬКО через xcargs при сборке ниже, прямую
+    # запись в pbxproj пропускаем: ломает xcodebuild -exportArchive на таких
+    # таргетах ("IDEDistributionMethodManager ... Unknown Distribution
+    # Error") — воспроизведено и устранено на той же схеме, что и iOS-сторона
+    # (Messenger, iphoneos+macosx в одном target). См. подробный комментарий
+    # у multiplatform_scheme? в Fastfile_build.
+    multiplatform = multiplatform_scheme?(options)
 
-    version_number = get_version_number_from_xcodeproj(xcodeproj: ENV['MAIN_PROJECT_FILE'], target: MAIN_TARGET)
-    build_number   = get_build_number_from_xcodeproj(xcodeproj: ENV['MAIN_PROJECT_FILE'], target: MAIN_TARGET)
+    unless multiplatform
+      set_version_for_target(
+        target: MAIN_TARGET.to_s,
+        version: ENV['APP_VERSION'].to_s,
+        build: BUILD_NUMBER.to_i
+      )
+    end
+
+    version_number = multiplatform ? ENV['APP_VERSION'].to_s : get_version_number_from_xcodeproj(xcodeproj: ENV['MAIN_PROJECT_FILE'], target: MAIN_TARGET)
+    build_number   = multiplatform ? BUILD_NUMBER.to_s : get_build_number_from_xcodeproj(xcodeproj: ENV['MAIN_PROJECT_FILE'], target: MAIN_TARGET)
 
     UI.header('Сборка macOS приложения')
     UI.message("Версия: #{version_number}")
@@ -358,6 +369,8 @@ platform :mac do
       build_path: DERIVED_PATH.to_s
     }
     build_params[:configuration] = BUILD_CONFIGURATION unless BUILD_CONFIGURATION.to_s.empty?
+    # Мультиплатформенная схема — версия только через xcargs (см. выше).
+    build_params[:xcargs] = "MARKETING_VERSION=#{version_number} CURRENT_PROJECT_VERSION=#{build_number}" if multiplatform
 
     build_app(**build_params)
 
