@@ -46,8 +46,15 @@ def mac_pkg_file_name
   "#{FILE_NAME}.pkg"
 end
 
+# ПЛОСКО, без подпапки pkg/ — как IPA_FOLDER_PATH/DSYM_FOLDER_PATH в главном
+# Fastfile ("Плоский layout обязателен: shared-gitlab-ci основных проектов
+# собирает артефакты плоским глобом (fastlane/artifacts/*.ipa,
+# fastlane/artifacts/*.dSYM.zip) и подпапки не видит"). С подпапкой pkg/
+# .ios-macos-gitlab-ci.yml (artifacts: paths: .../fastlane/artifacts/*.pkg)
+# не подхватывал .pkg между build:macos и upload_testflight:macos —
+# "Не найден .pkg для загрузки" при полностью успешном build.
 def mac_pkg_folder_path
-  "#{ARTIFACTS_PATH}pkg/"
+  ARTIFACTS_PATH.to_s
 end
 
 def mac_pkg_file_path
