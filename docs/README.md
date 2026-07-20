@@ -14,25 +14,11 @@
 - 📖 Описание всех lanes
 - 🔄 Примеры workflow
 - 🔐 Переменные окружения
-- 🎁 Дополнительные функции (Telegram, метрики, retry)
+- 🎁 Дополнительные функции (метрики, retry)
 - 🐛 Troubleshooting
 - ✅ Best Practices
 
 **Начните с этого документа**, если вы впервые используете Fastlane Tools.
-
----
-
-### [TELEGRAM_NOTIFICATIONS_EXAMPLES.md](./TELEGRAM_NOTIFICATIONS_EXAMPLES.md)
-**Примеры Telegram уведомлений** - визуальные примеры всех возможных уведомлений:
-
-- ✅ Успешная сборка
-- ✅ Загрузка для Internal/External Testers
-- ❌ Уведомления об ошибках
-- 📊 Метрики выполнения
-- 🎨 Форматирование и эмодзи
-- ⚙️ Настройка уведомлений
-
-**Полезно для понимания**, какие уведомления вы будете получать.
 
 ---
 
@@ -41,8 +27,7 @@
 ```
 docs/
 ├── README.md                          # Этот файл
-├── USAGE_GUIDE.md                     # Полное руководство по использованию
-└── TELEGRAM_NOTIFICATIONS_EXAMPLES.md # Примеры всех Telegram уведомлений
+└── USAGE_GUIDE.md                     # Полное руководство по использованию
 ```
 
 ---
@@ -60,9 +45,6 @@ docs/
 
 ### Проблемы с настройкой?
 → [Troubleshooting](./USAGE_GUIDE.md#troubleshooting)
-
-### Хотите увидеть примеры уведомлений?
-→ [Примеры Telegram уведомлений](./TELEGRAM_NOTIFICATIONS_EXAMPLES.md)
 
 ---
 

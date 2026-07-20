@@ -310,16 +310,6 @@ platform :mac do
     add_metric('build_number', BUILD_NUMBER.to_s) if respond_to?(:add_metric)
     add_metric('platform', 'macos') if respond_to?(:add_metric)
 
-    if ENV['TELEGRAM_ENABLED'] == 'true' && respond_to?(:notify_telegram_stage)
-      notify_telegram_stage('Начало сборки macOS приложения', {
-                              'Версия' => ENV['APP_VERSION'],
-                              'Build' => BUILD_NUMBER.to_s,
-                              'Target' => MAIN_TARGET.to_s,
-                              'Scheme' => BUILD_SCHEME.to_s,
-                              'Платформа' => 'macOS'
-                            })
-    end
-
     # ----- Каталоги артефактов -----
     FileUtils.mkdir_p(File.expand_path(mac_pkg_folder_path))
 
@@ -433,17 +423,6 @@ platform :mac do
 
     add_metric('pkg_size_mb', pkg_size_mb.round(2)) if respond_to?(:add_metric)
     add_metric('status', 'success') if respond_to?(:add_metric)
-
-    if ENV['TELEGRAM_ENABLED'] == 'true' && respond_to?(:notify_telegram_success)
-      notify_telegram_success('Сборка macOS завершена успешно', {
-                                'Версия' => version_number,
-                                'Build' => build_number.to_s,
-                                'Target' => MAIN_TARGET.to_s,
-                                'Платформа' => 'macOS',
-                                'Размер PKG' => "#{pkg_size_mb.round(2)}MB",
-                                'PKG файл' => File.basename(found_pkg_path)
-                              }, include_metrics: true)
-    end
   end
 
   # ============================================================================
@@ -473,15 +452,6 @@ platform :mac do
       UI.header('macOS → TestFlight (Internal Testers)')
     end
 
-    if ENV['TELEGRAM_ENABLED'] == 'true' && respond_to?(:notify_telegram_stage)
-      notify_telegram_stage("Начало загрузки macOS в TestFlight (#{is_external ? 'External' : 'Internal'})", {
-                              'Версия' => ENV['APP_VERSION'] || 'не указана',
-                              'Build' => BUILD_NUMBER.to_s,
-                              'Target' => MAIN_TARGET.to_s,
-                              'Платформа' => 'macOS'
-                            })
-    end
-
     api_key = mac_setup_api_key
     changelog = respond_to?(:get_changelog_from_git) ? get_changelog_from_git : nil
     app_identifier = mac_app_identifiers.first
@@ -508,16 +478,6 @@ platform :mac do
       UI.success("✅ macOS сборка загружена для external testers: #{groups_array.join(', ')}")
     else
       UI.success('✅ macOS сборка загружена (Internal Testers)')
-    end
-
-    if ENV['TELEGRAM_ENABLED'] == 'true' && respond_to?(:notify_telegram_success)
-      notify_telegram_success("macOS сборка загружена (#{is_external ? 'External' : 'Internal'})", {
-                                'Версия' => ENV['APP_VERSION'] || 'не указана',
-                                'Build' => BUILD_NUMBER.to_s,
-                                'Target' => MAIN_TARGET.to_s,
-                                'Платформа' => 'macOS',
-                                'Группы' => is_external ? groups_array : 'Internal'
-                              }, include_metrics: true)
     end
 
     add_metric('status', 'success') if respond_to?(:add_metric)
@@ -566,16 +526,6 @@ platform :mac do
 
     deliver(**deliver_params)
     UI.success("✅ macOS .pkg загружен в App Store Connect#{submit ? ' и отправлен на рецензирование' : ''}")
-
-    if ENV['TELEGRAM_ENABLED'] == 'true' && respond_to?(:notify_telegram_success)
-      notify_telegram_success('macOS загружено в App Store', {
-                                'Версия' => ENV['APP_VERSION'] || 'не указана',
-                                'Build' => BUILD_NUMBER.to_s,
-                                'Target' => MAIN_TARGET.to_s,
-                                'Платформа' => 'macOS',
-                                'Отправлено на ревью' => submit ? 'да' : 'нет'
-                              }, include_metrics: true)
-    end
   end
 end
 

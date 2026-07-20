@@ -2,8 +2,11 @@
 
 Общий набор Fastlane-лейнов для iOS/macOS-проектов ESKARIA: сборка, подпись через
 `match`, загрузка в TestFlight и App Store, загрузка dSYM в AppMetrica/Firebase
-Crashlytics, Telegram-уведомления о статусе сборки (в т.ч. режим одного
-обновляемого прогресс-сообщения) и сбор метрик выполнения лейнов.
+Crashlytics и сбор метрик выполнения лейнов.
+
+Уведомления о статусе сборки (Telegram и другие) больше не отправляются этим
+репозиторием — эта ответственность полностью перенесена в relay-шаблоны
+gitlab-ci/Messenger.
 
 Репозиторий подключается к проекту-потребителю через `import_from_git` —
 своего Fastfile с нуля писать не нужно, только минимальный конфиг с
@@ -39,15 +42,12 @@ eval_gemfile(plugins_path) if File.exist?(plugins_path)
 И `fastlane/Pluginfile`:
 
 ```ruby
-gem 'fastlane-plugin-telegram'
 gem 'fastlane-plugin-versioning'
 ```
 
 `fastlane-plugin-versioning` обязателен — лейны `build`/`version` используют его
 экшены (`get_version_number_from_xcodeproj`, `increment_build_number_in_xcodeproj`
-и т.д.). `fastlane-plugin-telegram` нужен, если планируете Telegram-уведомления
-(`TELEGRAM_ENABLED=true`); можно оставить в Pluginfile даже без включённых
-уведомлений — лишним не будет.
+и т.д.).
 
 Установите зависимости:
 
@@ -74,7 +74,7 @@ import_from_git(
     'fastlane/Fastfile_upload',       # загрузка в TestFlight
     'fastlane/Fastfile_appstore',     # работа с App Store
     'fastlane/Fastfile_create_app',   # создание приложения в App Store Connect
-    'fastlane/Fastfile_helpers'       # retry-логика, Telegram, метрики
+    'fastlane/Fastfile_helpers'       # retry-логика, метрики
   ]
 )
 ```
@@ -119,9 +119,8 @@ bundle exec fastlane match_generate_appstore
 
 ## ⚙️ Переменные окружения
 
-Все секреты (ключи API, пароли match, токены Telegram) передаются только
-через переменные CI/CD (protected/masked variables), не хранятся в репозитории
-проекта.
+Все секреты (ключи API, пароли match) передаются только через переменные
+CI/CD (protected/masked variables), не хранятся в репозитории проекта.
 
 ### Обязательные
 
@@ -155,13 +154,6 @@ bundle exec fastlane match_generate_appstore
 | `TEAM_ID` / `FASTLANE_TEAM_ID` | — | Apple Developer Team ID |
 | `MATCH_KEYCHAIN_NAME` | `fastlane_tmp_keychain` | Имя постоянного keychain для подписи на CI |
 | `MATCH_KEYCHAIN_PASSWORD` | `''` (пусто) | Пароль keychain для подписи |
-| `TELEGRAM_ENABLED` | `false` | Включает уведомления в Telegram на всех этапах |
-| `TELEGRAM_BOT_TOKEN` | — | Токен Telegram-бота |
-| `TELEGRAM_CHAT_ID` | — | Chat ID для отправки уведомлений |
-| `TELEGRAM_PROGRESS_MODE` | `false` | Одно обновляемое сообщение вместо серии отдельных. Требует передачи файлов `.telegram_progress_message_id` и др. между job'ами CI (см. [TELEGRAM_NOTIFICATIONS.md](./TELEGRAM_NOTIFICATIONS.md)) |
-| `TELEGRAM_USE_RELAY` | `false` | Слать уведомления через [TelegramProxy](https://gitlab.sportplay.tech/sportplay/telegram-bot-relay) вместо прямого `api.telegram.org` — не хранит сырой `TELEGRAM_BOT_TOKEN`, ретраи/rate-limit на стороне relay. Требует `TELEGRAM_RELAY_BASE_URL`/`TELEGRAM_RELAY_API_KEY`; при их отсутствии автоматически откатывается на прямой API |
-| `TELEGRAM_RELAY_BASE_URL` | — | URL relay, например `https://relay.emvakar.ru` |
-| `TELEGRAM_RELAY_API_KEY` | — | Ключ бота в relay (`tgp_...`, из `tgrelay bots register`) — НЕ `TELEGRAM_BOT_TOKEN` |
 | `APPSTORE_KEY_PATH` / `APP_STORE_CONNECT_KEY_PATH` | — | Путь к файлу `.p8`, альтернатива `APPSTORE_KEY_CONTENT` (используется, например, в `check_released`/`upload_metadata`) |
 | `DELIVER_METADATA_PATH` | Deliverfile / `./fastlane/metadata` | Путь к метаданным одного пака (для монорепо с несколькими приложениями) |
 | `MACOS_MATCH_DEV_BRANCH` | `macos_development` | Ветка match-репозитория с development-сертификатами macOS |
@@ -292,18 +284,6 @@ variables:
   APPSTORE_KEY_CONTENT: "${APPSTORE_KEY_CONTENT}"
   MATCH_PASSWORD: "${MATCH_PASSWORD}"
   MATCH_GIT_URL: "${MATCH_GIT_URL}"
-  TELEGRAM_ENABLED: "true"
-  TELEGRAM_PROGRESS_MODE: "true"
-  TELEGRAM_BOT_TOKEN: "${TELEGRAM_BOT_TOKEN}"
-  TELEGRAM_CHAT_ID: "${TELEGRAM_CHAT_ID}"
-
-.telegram_progress_artifacts: &telegram_progress_artifacts
-  artifacts:
-    paths:
-      - fastlane/.telegram_progress_message_id
-      - fastlane/.telegram_stages_details.json
-      - fastlane/.telegram_completed_stages.txt
-    expire_in: 1 hour
 
 build:
   stage: build
@@ -315,9 +295,6 @@ build:
     paths:
       - fastlane/artifacts/*.ipa
       - fastlane/artifacts/*.dSYM.zip
-      - fastlane/.telegram_progress_message_id
-      - fastlane/.telegram_stages_details.json
-      - fastlane/.telegram_completed_stages.txt
     expire_in: 1 hour
 
 upload_dsyms:
@@ -327,7 +304,6 @@ upload_dsyms:
   script:
     - bundle install
     - bundle exec fastlane upload_dsyms firebase:true
-  <<: *telegram_progress_artifacts
 
 upload_testflight:
   stage: upload_testflight
@@ -336,18 +312,11 @@ upload_testflight:
   script:
     - bundle install
     - bundle exec fastlane upload_testflight
-  <<: *telegram_progress_artifacts
 ```
 
-Файлы `.telegram_progress_message_id`, `.telegram_stages_details.json` и
-`.telegram_completed_stages.txt` нужны только в режиме `TELEGRAM_PROGRESS_MODE`
-— они переносят состояние одного обновляемого сообщения между job'ами.
-Подробности и примеры сообщений — в [TELEGRAM_NOTIFICATIONS.md](./TELEGRAM_NOTIFICATIONS.md)
-и [docs/TELEGRAM_NOTIFICATIONS_EXAMPLES.md](./docs/TELEGRAM_NOTIFICATIONS_EXAMPLES.md).
-
-Уведомления можно слать через relay ([TelegramProxy](https://gitlab.sportplay.tech/sportplay/telegram-bot-relay))
-вместо прямого `api.telegram.org` — см. `TELEGRAM_USE_RELAY` в таблице
-переменных выше. По умолчанию выключено, поведение не меняется.
+Уведомления о статусе пайплайна (Telegram и т.д.) не входят в зону
+ответственности этого репозитория — подключаются отдельно через relay-шаблоны
+gitlab-ci/Messenger в CI-конфиге проекта-потребителя.
 
 ## 🔄 Обновление версий
 
@@ -367,10 +336,6 @@ upload_testflight:
 - [docs/USAGE_GUIDE.md](./docs/USAGE_GUIDE.md) — детальное описание всех
   lane-ов, workflow-примеры (новая сборка, external testers, публикация в App
   Store, добавление устройства), troubleshooting, best practices.
-- [TELEGRAM_NOTIFICATIONS.md](./TELEGRAM_NOTIFICATIONS.md) — настройка
-  Telegram-бота, режим прогресс-сообщения, передача состояния между job'ами.
-- [docs/TELEGRAM_NOTIFICATIONS_EXAMPLES.md](./docs/TELEGRAM_NOTIFICATIONS_EXAMPLES.md) —
-  примеры всех типов сообщений.
 - [CHANGELOG.md](./CHANGELOG.md) — история изменений по версиям.
 
 **Требования:** Xcode (установлен и настроен), Ruby ≥ 2.7, Bundler, Fastlane

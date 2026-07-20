@@ -27,7 +27,6 @@
 - ✅ **Публикация в App Store** - отправка приложений на рецензирование
 - ✅ **Управление версиями** - автоматическое управление версиями и build numbers
 - ✅ **Загрузка символов** - автоматическая загрузка dSYM в AppMetrica и Firebase Crashlytics
-- ✅ **Уведомления** - Telegram уведомления о статусе сборок
 - ✅ **Метрики** - сбор метрик выполнения lanes
 
 ---
@@ -374,11 +373,6 @@ export UPLOAD_DSYMS="true"
 
 # Группы external testers по умолчанию
 export EXTERNAL_TESTFLIGHT_GROUPS="External Public Beta"
-
-# Telegram уведомления
-export TELEGRAM_ENABLED="true"
-export TELEGRAM_BOT_TOKEN="123456789:ABCdefGHIjklMNOpqrsTUVwxyz"
-export TELEGRAM_CHAT_ID="123456789"
 ```
 
 ### Настройка для CI/CD
@@ -395,50 +389,11 @@ variables:
   APPSTORE_ISSUER_ID: "${APPSTORE_ISSUER_ID}"
   APPSTORE_KEY_CONTENT: "${APPSTORE_KEY_CONTENT}"
   MATCH_PASSWORD: "${MATCH_PASSWORD}"
-  TELEGRAM_ENABLED: "true"
-  TELEGRAM_BOT_TOKEN: "${TELEGRAM_BOT_TOKEN}"
-  TELEGRAM_CHAT_ID: "${TELEGRAM_CHAT_ID}"
 ```
 
 ---
 
 ## 🎁 Дополнительные функции
-
-### Telegram уведомления
-
-Настройте уведомления для получения информации о статусе сборок:
-
-1. **Создайте Telegram бота:**
-   - Откройте [@BotFather](https://t.me/botfather)
-   - Отправьте `/newbot` и следуйте инструкциям
-   - Сохраните токен бота
-
-2. **Получите Chat ID:**
-   - Отправьте сообщение боту
-   - Откройте: `https://api.telegram.org/bot<TOKEN>/getUpdates`
-   - Найдите `"chat":{"id":123456789}`
-
-3. **Настройте переменные:**
-   ```bash
-   export TELEGRAM_ENABLED="true"
-   export TELEGRAM_BOT_TOKEN="123456789:ABCdefGHIjklMNOpqrsTUVwxyz"
-   export TELEGRAM_CHAT_ID="123456789"
-   ```
-
-**Что отправляется:**
-- ✅ Успешные сборки (версия, build, размер IPA) с отдельным блоком артефактов
-- ✅ Загрузки в TestFlight (internal/external) с группами тестировщиков
-- ❌ Ошибки при выполнении с вынесенными в отдельный блоком причинами
-- 📊 Метрики выполнения lanes в том же читабельном формате
-- 🔗 Ссылка на Pipeline (GitLab/GitHub/Jenkins) добавляется автоматически
-
-**Читаемость:**
-- Вверху показывается мини‑сводка `Target • vX • bY`
-- Далее блоки: `Контекст`, `Артефакты`, `Время`, `Пользователи`, `Ошибки`, `Дополнительно`
-- Эмодзи подбираются автоматически по названию поля
-- Можно отключить ссылку на pipeline через `include_pipeline_link: false`
-
----
 
 ### Метрики и тайминги
 
@@ -452,7 +407,6 @@ variables:
 
 **Где сохраняются:**
 - Файл: `fastlane/metrics.json`
-- Telegram (если включено)
 
 **Пример метрик:**
 ```json
@@ -578,7 +532,6 @@ fastlane upload_external_testflight
 - Используйте переменные окружения для всех секретов
 - Кэшируйте match репозиторий между сборками
 - Сохраняйте артефакты (IPA, dSYM) для последующего использования
-- Настройте Telegram уведомления для мониторинга
 
 ### 5. Обработка ошибок
 

@@ -5,6 +5,51 @@
 Формат основан на [Keep a Changelog](https://keepachangelog.com/ru/1.0.0/),
 проект придерживается [Semantic Versioning](https://semver.org/lang/ru/).
 
+## [4.0.0] - 2026-07-21
+
+### Removed
+
+- **BREAKING:** вся Ruby-логика Telegram-уведомлений полностью удалена из
+  `fastlane-tools`. Ответственность за уведомления о статусе pipeline
+  (сборка/загрузка/ошибки) целиком перенесена в relay-шаблоны
+  gitlab-ci/Messenger — переход проверен там end-to-end.
+  - `Fastfile_helpers`: удалены прямой и relay-режим отправки — функции
+    `send_telegram_notification`, `format_telegram_message`,
+    `notify_telegram_start`, `notify_telegram_stage`, `notify_telegram_success`,
+    `notify_telegram_error`, `send_final_telegram_message`,
+    `edit_telegram_message`, `update_telegram_progress`,
+    `get_progress_message_id`, `save_progress_message_id`,
+    `get_pipeline_stages`, `get_current_stage_name`,
+    `format_stages_progress`, `create_telegram_progress_message_via_relay`,
+    `create_telegram_progress_message_direct`, `telegram_relay_enabled?`,
+    `telegram_relay_request`, `telegram_relay_wait_for_status`,
+    `telegram_relay_send_message`, `telegram_relay_edit_message`,
+    `sanitize_secrets`, `escape_html` и константы
+    `PROGRESS_MESSAGE_ID_FILE`/`PROGRESS_STAGES_DETAILS_FILE`/
+    `PROGRESS_COMPLETED_STAGES_FILE`. `get_pipeline_url` сохранён (используется
+    метриками, Telegram-специфичным не был).
+  - `FastlaneMetrics`: удалены `to_telegram_message` и
+    `format_metrics_for_telegram`; `finish_metrics` больше не принимает
+    параметр `send_to_telegram` (сигнатура: `finish_metrics(save_to_file:
+    true)`).
+  - Все вызовы `notify_telegram_*`/`send_final_telegram_message` убраны из
+    `Fastfile` (`before_all`/`after_all`/`error`), `Fastfile_build`,
+    `Fastfile_upload`, `Fastfile_dsyms`, `Fastfile_macos` — build/upload/
+    tagging-логика не затронута.
+  - Убрана зависимость `gem 'fastlane-plugin-telegram'` из `Pluginfile` (в
+    коде не использовалась — уведомления шли через прямые HTTP-вызовы).
+  - Удалены `spec/telegram_formatting_spec.rb`, `spec/telegram_relay_spec.rb`,
+    `spec/sanitize_secrets_spec.rb` (был целиком про `sanitize_secrets`,
+    других сценариев не покрывал), `docs/TELEGRAM_NOTIFICATIONS_EXAMPLES.md`.
+  - `README.md`/`docs/README.md`/`docs/USAGE_GUIDE.md`: убраны все разделы,
+    таблицы переменных и примеры, описывающие Telegram-уведомления;
+    `.gitignore` больше не содержит `fastlane/.telegram_*` файлов.
+  - ENV-переменные `TELEGRAM_ENABLED`, `TELEGRAM_BOT_TOKEN`,
+    `TELEGRAM_CHAT_ID`, `TELEGRAM_PROGRESS_MODE`, `TELEGRAM_PROGRESS_MESSAGE_ID`,
+    `TELEGRAM_COMPLETED_STAGES`, `TELEGRAM_USE_RELAY`,
+    `TELEGRAM_RELAY_BASE_URL`, `TELEGRAM_RELAY_API_KEY` больше нигде не
+    читаются этим репозиторием — нет ни прямой отправки, ни фоллбэка.
+
 ## [3.5.0] - 2026-07-20
 
 ### Added
