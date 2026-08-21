@@ -341,11 +341,13 @@ def macos_direct_notarize(dmg_path: nil)
   target_dmg = expand_under_project_root(target_dmg) if respond_to?(:expand_under_project_root)
 
   api_key = mac_setup_api_key
-  app_identifier = mac_app_identifiers.first
 
+  # bundle_id не передаётся: опция существовала только для legacy-пути altool
+  # и удалена из экшена notarize в свежем fastlane (notarytool с api_key
+  # определяет приложение по самому пакету) — с ней лейн падает
+  # "Could not find option 'bundle_id'".
   notarize(
     package: target_dmg,
-    bundle_id: app_identifier,
     api_key: api_key,
     skip_stapling: true,
     print_log: true

@@ -31,7 +31,12 @@ NON_RETRYABLE_TESTFLIGHT_ERRORS = [
   'cannot add internal group',
   'builds cannot be assigned',
   'already distributed',
-  'build already exists'
+  'build already exists',
+  # altool/ContentDelivery 90189: первая попытка загрузки реально дошла до ASC,
+  # но ответ до клиента не доехал (таймаут) — ретрай упирается в "дубль".
+  # Это успех, а не ошибка: бинарь с этим build number уже на сервере.
+  'redundant binary upload',
+  "you've already uploaded a build"
 ].freeze
 
 # Выполняет блок кода с повторными попытками при ошибках
