@@ -19,47 +19,109 @@ require 'shellwords'
 # ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ
 # ==============================================================================
 
-# Получает changelog из git коммитов
+# Лимит App Store Connect на поле «What to Test» / «What's New» — сборка с
+# более длинным значением отклоняется ошибкой API, а не обрезается сама
+# (issue #420, п.4).
+CHANGELOG_MAX_LENGTH = 4000
+CHANGELOG_TRUNCATION_SUFFIX = "\n… (обрезано по лимиту Apple, полная история — в git log)"
+
+# Столько последних коммитов берём, если ни тег, ни корневой коммит не дали
+# непустого changelog — требование владельца: пустого поля быть не должно
+# (issue #420, п.2).
+CHANGELOG_FALLBACK_COMMIT_COUNT = 20
+
+# Получает changelog из git коммитов для поля «What to Test» в TestFlight.
 #
-# Генерирует список изменений между последним git тегом и текущим HEAD.
-# Если тег не найден, используется первый коммит в истории.
+# Порядок попыток (issue #420 — предыдущая версия тихо отдавала пустой
+# changelog на раннере без тегов/с обрезанной историей):
+#   1. Диапазон от последнего git-тега (`git describe --tags --abbrev=0`) до HEAD.
+#   2. Диапазон от корневого коммита репозитория (`git rev-list --max-parents=0
+#      HEAD`) до HEAD. Эта команда может вернуть НЕСКОЛЬКО хешей — несколько
+#      корневых коммитов в истории или shallow-клон на раннере без полной
+#      истории превращают её в многострочный список. Раньше это многострочное
+#      значение целиком уходило в `between:` и ломало диапазон молча (в логе
+#      было видно только "Collecting Git commits between <N хешей> and HEAD" и
+#      дальше пустота) — теперь берём последнюю строку.
+#   3. Если и это дало пусто (нет тегов, единственный коммит в истории и т.п.)
+#      — последние 20 коммитов без merge, безусловно.
+# Каждый шаг логирует, каким путём получен changelog — раньше источник можно
+# было понять только по косвенным признакам в логе job'а.
 #
-# @return [String] changelog в формате списка коммитов
+# @return [String] changelog в формате списка коммитов, не длиннее лимита Apple
 #
 # @example
 #   changelog = get_changelog_from_git
 #   # => "- Fix bug with login\n- Add new feature\n"
 def get_changelog_from_git
-  # Попытка найти последний git тег
+  changelog = ''
+  source = nil
+
+  # Попытка 1: диапазон от последнего тега до HEAD
   begin
     last_tag = sh('git describe --tags --abbrev=0').strip
-    # Если тег не найден, используем значение по умолчанию
-    last_tag = 'v1.0.0-build-1' if last_tag.empty?
-  rescue StandardError
-    # Если команда не удалась, используем значение по умолчанию
-    UI.message('Не найден тег, используется значение по умолчанию: v1.0.0-build-1')
-    last_tag = 'v1.0.0-build-1'
+    if last_tag.empty?
+      UI.message('git describe --tags не вернул тег (пустая строка)')
+    else
+      changelog = changelog_from_git_commits(
+        between: [last_tag, 'HEAD'],
+        pretty: '- %s',
+        merge_commit_filtering: 'exclude_merges'
+      ).to_s
+      source = "тег #{last_tag}..HEAD" unless changelog.strip.empty?
+    end
+  rescue StandardError => e
+    UI.message("git describe --tags не нашёл тега в истории: #{e.message}")
   end
 
-  # Получение хэша коммита последнего тега
-  begin
-    commit_of_last_tag = sh("git rev-list -n 1 #{Shellwords.escape(last_tag)}").strip
-  rescue StandardError
-    # Если не удалось получить хэш тега, используем первый коммит в истории
-    UI.message('Не удалось получить хэш коммита тега, используется хэш первого коммита')
-    commit_of_last_tag = sh('git rev-list --max-parents=0 HEAD').strip
+  # Попытка 2: диапазон от корневого коммита репозитория до HEAD
+  if changelog.strip.empty?
+    begin
+      root_commits = sh('git rev-list --max-parents=0 HEAD').strip.split("\n").reject(&:empty?)
+      root_commit = root_commits.last
+      if root_commits.size > 1
+        UI.message(
+          "git rev-list --max-parents=0 HEAD вернул #{root_commits.size} корневых " \
+          "коммитов (несколько корней истории или shallow-клон) — берём последний: #{root_commit}"
+        )
+      end
+      changelog = changelog_from_git_commits(
+        between: [root_commit.to_s, 'HEAD'],
+        pretty: '- %s',
+        merge_commit_filtering: 'exclude_merges'
+      ).to_s
+      source = "корневой коммит #{root_commit}..HEAD" unless changelog.strip.empty?
+    rescue StandardError => e
+      UI.message("Фолбэк на корневой коммит истории не сработал: #{e.message}")
+    end
   end
 
-  UI.message("Используем хэш коммита: #{commit_of_last_tag}")
+  # Попытка 3: последние N коммитов без merge — пустого changelog быть не должно
+  if changelog.strip.empty?
+    begin
+      changelog = sh("git log -#{CHANGELOG_FALLBACK_COMMIT_COUNT} --no-merges --pretty='- %s'").to_s
+    rescue StandardError => e
+      UI.message("Фолбэк на git log -#{CHANGELOG_FALLBACK_COMMIT_COUNT} тоже не сработал: #{e.message}")
+      changelog = "- (не удалось собрать changelog автоматически: #{e.message})\n"
+    end
+    source = "последние #{CHANGELOG_FALLBACK_COMMIT_COUNT} коммитов (git log, без merge)"
+  end
 
-  # Генерация changelog из коммитов между тегом и HEAD
-  changelog = changelog_from_git_commits(
-    between: [commit_of_last_tag.to_s, 'HEAD'],  # Диапазон коммитов
-    pretty: '- %s',                              # Формат: "- Commit message"
-    merge_commit_filtering: 'exclude_merges' # Исключить merge коммиты
-  )
+  UI.message("Changelog собран из: #{source}")
 
-  changelog.to_s
+  truncate_changelog(changelog.to_s)
+end
+
+# Обрезает changelog под лимит App Store Connect (см. CHANGELOG_MAX_LENGTH) —
+# без этого upload_to_testflight падает ошибкой API вместо предупреждения.
+#
+# @param changelog [String]
+# @return [String] значение не длиннее CHANGELOG_MAX_LENGTH
+def truncate_changelog(changelog)
+  return changelog if changelog.length <= CHANGELOG_MAX_LENGTH
+
+  UI.message("Changelog длиннее лимита Apple (#{changelog.length} > #{CHANGELOG_MAX_LENGTH} символов) — обрезаем")
+  cut_at = CHANGELOG_MAX_LENGTH - CHANGELOG_TRUNCATION_SUFFIX.length
+  "#{changelog[0, cut_at]}#{CHANGELOG_TRUNCATION_SUFFIX}"
 end
 
 # Находит все IPA файлы в указанной директории
