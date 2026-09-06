@@ -22,7 +22,7 @@ require 'shellwords'
 # Лимит App Store Connect на поле «What to Test» / «What's New» — сборка с
 # более длинным значением отклоняется ошибкой API, а не обрезается сама
 # (issue #420, п.4).
-CHANGELOG_MAX_LENGTH = 4000
+CHANGELOG_MAX_BYTES = 4000
 CHANGELOG_TRUNCATION_SUFFIX = "\n… (обрезано по лимиту Apple, полная история — в git log)"
 
 # Столько последних коммитов берём, если ни тег, ни корневой коммит не дали
@@ -111,17 +111,24 @@ def get_changelog_from_git
   truncate_changelog(changelog.to_s)
 end
 
-# Обрезает changelog под лимит App Store Connect (см. CHANGELOG_MAX_LENGTH) —
+# Обрезает changelog под лимит App Store Connect (см. CHANGELOG_MAX_BYTES) —
 # без этого upload_to_testflight падает ошибкой API вместо предупреждения.
 #
 # @param changelog [String]
-# @return [String] значение не длиннее CHANGELOG_MAX_LENGTH
+# @return [String] значение не длиннее CHANGELOG_MAX_BYTES байт
 def truncate_changelog(changelog)
-  return changelog if changelog.length <= CHANGELOG_MAX_LENGTH
+  # Лимит Apple считается в БАЙТАХ, а не в символах: кириллица в UTF-8 занимает
+  # два байта на символ, поэтому 4000 «символов» русского changelog — это ~8000
+  # байт, и обрезка по length пропускала бы вдвое больше лимита (наблюдалось на
+  # смок-тесте #420: fastlane сообщал «It currently contains 23983 bytes»).
+  return changelog if changelog.bytesize <= CHANGELOG_MAX_BYTES
 
-  UI.message("Changelog длиннее лимита Apple (#{changelog.length} > #{CHANGELOG_MAX_LENGTH} символов) — обрезаем")
-  cut_at = CHANGELOG_MAX_LENGTH - CHANGELOG_TRUNCATION_SUFFIX.length
-  "#{changelog[0, cut_at]}#{CHANGELOG_TRUNCATION_SUFFIX}"
+  UI.message("Changelog длиннее лимита Apple (#{changelog.bytesize} > #{CHANGELOG_MAX_BYTES} байт) — обрезаем")
+  budget = CHANGELOG_MAX_BYTES - CHANGELOG_TRUNCATION_SUFFIX.bytesize
+  # scrub: обрезка по байтам может разрубить многобайтовый символ пополам —
+  # приводим строку обратно к валидному UTF-8, отбрасывая незавершённый хвост.
+  truncated = changelog.byteslice(0, budget).scrub('')
+  "#{truncated}#{CHANGELOG_TRUNCATION_SUFFIX}"
 end
 
 # Находит все IPA файлы в указанной директории
