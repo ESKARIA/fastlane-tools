@@ -5,6 +5,15 @@
 Формат основан на [Keep a Changelog](https://keepachangelog.com/ru/1.0.0/),
 проект придерживается [Semantic Versioning](https://semver.org/lang/ru/).
 
+## [Unreleased]
+
+### Fixed
+
+- `Fastfile_appstore` → `prepare_api_key_for_release_check`: в ветке
+  `APPSTORE_KEY_PATH` вызов `app_store_connect_api_key` передавал несуществующий
+  параметр `keyfile:` и падал с «Could not find option 'keyfile'». Исправлено на
+  `key_filepath:`.
+
 ## [4.0.0] - 2026-07-21
 
 ### Removed
