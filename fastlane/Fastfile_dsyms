@@ -2,6 +2,162 @@
 
 require 'shellwords'
 
+# Stores each source archive once per app/pipeline and retries only records that
+# belong to the current AppMetrica application. An entry directory is published
+# with one atomic rename after its archive and manifest are both complete.
+def spool_and_upload_dsyms(spool_path)
+  require 'digest'
+  require 'fileutils'
+  require 'find'
+  require 'json'
+  require 'tmpdir'
+  require 'time'
+
+  identifiers = if respond_to?(:get_all_app_identifiers)
+                  get_all_app_identifiers
+                else
+                  APP_IDENTIFIER.to_s.split(',').map(&:strip).reject(&:empty?)
+                end
+  UI.user_error!('❌ APP_IDENTIFIER не установлен или пуст') if identifiers.empty?
+  app_id = identifiers.first
+
+  search_paths = ['.']
+  begin
+    path = File.expand_path(DSYM_FOLDER_PATH)
+    search_paths << path unless path.empty?
+  rescue StandardError
+    # DSYM_FOLDER_PATH may not be configured.
+  end
+  artifacts_path = File.expand_path('fastlane/artifacts')
+  search_paths << artifacts_path
+  search_paths.uniq!
+
+  source_archives = []
+  search_paths.each do |search_path|
+    next unless File.exist?(search_path)
+
+    Find.find(search_path) { |path| source_archives << File.expand_path(path) if path.end_with?('.dSYM.zip') }
+  end
+  source_archives.uniq!
+
+  FileUtils.mkdir_p(spool_path, mode: 0o700)
+  File.chmod(0o700, spool_path)
+  lock_path = File.join(spool_path, '.lock')
+  successful_uploads = 0
+
+  File.open(lock_path, File::RDWR | File::CREAT, 0o600) do |lock|
+    File.chmod(0o600, lock_path)
+    lock.flock(File::LOCK_EX)
+    Dir.glob(File.join(spool_path, '.pending-*')).each { |path| FileUtils.rm_rf(path) }
+
+    source_archives.each do |source_path|
+      entry_tmp = nil
+      sha256 = Digest::SHA256.file(source_path).hexdigest
+      app_key = Digest::SHA256.hexdigest(app_id)
+      pipeline_id = ENV['CI_PIPELINE_ID'].to_s
+      pipeline_key = Digest::SHA256.hexdigest(pipeline_id)
+      entry_id = "#{app_key}-#{pipeline_key}-#{sha256}"
+      entry_dir = File.join(spool_path, "entry-#{entry_id}")
+      manifest_path = File.join(entry_dir, 'manifest.json')
+      build_association = {
+        'target_artifact_basename' => (defined?(ARTIFACT_BASENAME) ? ARTIFACT_BASENAME : nil),
+        'version' => ENV['APP_VERSION'],
+        'build' => (defined?(BUILD_NUMBER) ? BUILD_NUMBER.to_s : ENV['BUILD_NUMBER']),
+        'pipeline_id' => ENV['CI_PIPELINE_ID'],
+        'pipeline_iid' => ENV['CI_PIPELINE_IID'],
+        'job_id' => ENV['CI_JOB_ID'],
+        'original_archive_name' => File.basename(source_path),
+        'queued_at' => Time.now.utc.iso8601
+      }
+
+      if File.exist?(entry_dir)
+        existing_manifest = JSON.parse(File.read(manifest_path))
+        unless existing_manifest['app_id'] == app_id &&
+               existing_manifest['pipeline_id'].to_s == pipeline_id &&
+               existing_manifest['sha256'] == sha256
+          raise "Manifest очереди не соответствует ключу dedup: #{manifest_path}"
+        end
+        # The filename is keyed by app, pipeline and content hash, so an
+        # existing manifest is the same archive from a retry of that pipeline.
+        next
+      end
+
+      entry_tmp = File.join(spool_path, ".pending-#{entry_id}-#{Process.pid}-#{Thread.current.object_id}")
+      FileUtils.mkdir(entry_tmp, mode: 0o700)
+      archive_path = File.join(entry_tmp, 'archive.dSYM.zip')
+      FileUtils.cp(source_path, archive_path)
+      File.chmod(0o600, archive_path)
+      manifest = {
+        'app_id' => app_id,
+        'target_artifact_basename' => build_association['target_artifact_basename'],
+        'version' => build_association['version'],
+        'build' => build_association['build'],
+        'pipeline_id' => build_association['pipeline_id'],
+        'pipeline_iid' => build_association['pipeline_iid'],
+        'job_id' => build_association['job_id'],
+        'original_archive_name' => build_association['original_archive_name'],
+        'sha256' => sha256,
+        'queued_at' => build_association['queued_at']
+      }
+      File.open(File.join(entry_tmp, 'manifest.json'), 'w', 0o600) do |file|
+        file.write(JSON.pretty_generate(manifest))
+      end
+      File.rename(entry_tmp, entry_dir)
+      UI.message("dSYM добавлен в локальную очередь: #{File.basename(source_path)}")
+    ensure
+      FileUtils.rm_rf(entry_tmp) if defined?(entry_tmp) && entry_tmp && File.exist?(entry_tmp)
+    end
+
+    failed_uploads = 0
+    if File.exist?(HELPER_PATH) && !APPMETRICA_KEY.to_s.strip.empty?
+      helper_path = File.expand_path(HELPER_PATH)
+      Dir.glob(File.join(spool_path, 'entry-*', 'manifest.json')).sort.each do |queued_manifest_path|
+        manifest = JSON.parse(File.read(queued_manifest_path))
+        next unless manifest.fetch('app_id') == app_id
+
+        queued_entry_dir = File.dirname(queued_manifest_path)
+        queued_archive_path = File.join(queued_entry_dir, 'archive.dSYM.zip')
+        raise "В очереди отсутствует архив dSYM: #{queued_archive_path}" unless File.file?(queued_archive_path)
+
+        upload_failed = false
+        Dir.mktmpdir('fastlane-dsym-upload-') do |extract_dir|
+          sh("unzip -o -q #{queued_archive_path.shellescape} -d #{extract_dir.shellescape}")
+          Dir.chdir(extract_dir) do
+            begin
+              sh("#{helper_path.shellescape} -k #{APPMETRICA_KEY.to_s.shellescape} -v", log: false)
+            rescue StandardError => upload_error
+              UI.important("⚠️  Не удалось загрузить dSYM #{manifest['original_archive_name']} в AppMetrica; запись оставлена в очереди (#{upload_error.class})")
+              upload_failed = true
+              failed_uploads += 1
+            end
+          end
+        end
+        next if upload_failed
+
+        FileUtils.rm_r(queued_entry_dir)
+        successful_uploads += 1
+        UI.success("✅ dSYM загружен в AppMetrica: #{manifest['original_archive_name']}")
+      end
+    else
+      UI.message('Пропуск AppMetrica: helper или APPMETRICA_KEY недоступен; dSYM сохранены в очереди')
+    end
+
+    remaining_manifests = Dir.glob(File.join(spool_path, 'entry-*', 'manifest.json'))
+    remaining_bytes = remaining_manifests.sum do |path|
+      archive = File.join(File.dirname(path), 'archive.dSYM.zip')
+      File.file?(archive) ? File.size(archive) : 0
+    end
+    if remaining_manifests.any?
+      message = "Очередь dSYM: #{remaining_manifests.length} записей, #{remaining_bytes} байт архива"
+      failed_uploads.to_i.positive? ? UI.important(message) : UI.message(message)
+    end
+  ensure
+    lock.flock(File::LOCK_UN)
+  end
+
+  successful_uploads.positive?
+end
+
 # Диагностика: документирует, что реально лежит в путях поиска dSYM на момент
 # запуска lane. Нужна для отладки кейса «артефакты скачались, но *.dSYM.zip не
 # найден» — печатает cwd, ожидаемое имя/путь dSYM и фактическое содержимое
@@ -50,28 +206,21 @@ lane :upload_dsyms do |options|
   UI.header('Загрузка символов (dSYM)')
 
   check_and_set_project_file
+  dsym_spool_path = '/Users/Shared/fastlane-dsym-spool'
 
-  # AppMetrica включаем ТОЛЬКО когда реально есть и helper-бинарь, и ключ.
-  # Раньше гейт был по HELPER_PATH ('./helper' — константа, всегда непустая),
-  # из-за чего ветка AppMetrica запускалась всегда и падала с user_error
-  # (helper не найден / APPMETRICA_KEY пуст) даже при firebase-only загрузке.
+  # Всегда сначала складываем полученные архивы в локальную очередь. Сетевую
+  # отправку очередь выполняет только при наличии helper и ключа AppMetrica.
   helper_present = File.exist?(HELPER_PATH)
   metrica_key_present = !APPMETRICA_KEY.to_s.strip.empty?
-  is_metrica = helper_present && metrica_key_present
-
-  if is_metrica
+  if helper_present && metrica_key_present
     UI.message("Путь к helper: #{HELPER_PATH}")
-    UI.message('Загрузка dSYM в AppMetrica...')
-    sh("chmod +x #{Shellwords.escape(HELPER_PATH)}") if File.exist?(HELPER_PATH)
-    unzip_and_upload(options)
+    sh("chmod +x #{Shellwords.escape(HELPER_PATH)}")
+  end
+  if spool_and_upload_dsyms(dsym_spool_path)
     add_metric('uploaded_to_appmetrica', true) if respond_to?(:add_metric)
   else
-    reason = if !helper_present
-               "helper-бинарь не найден (#{HELPER_PATH})"
-             else
-               'APPMETRICA_KEY не задан'
-             end
-    UI.message("Пропуск загрузки в AppMetrica: #{reason}")
+    reason = !helper_present ? "helper-бинарь не найден (#{HELPER_PATH})" : 'APPMETRICA_KEY не задан'
+    UI.message("Пропуск загрузки в AppMetrica: #{reason}; архивы сохраняются в очереди") unless helper_present && metrica_key_present
   end
 
   firebase = options[:firebase] ? true : false

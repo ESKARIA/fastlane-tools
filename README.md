@@ -146,7 +146,7 @@ CI/CD (protected/masked variables), не хранятся в репозитор�
 | `ARTIFACTS_PATH` | `fastlane/artifacts/` (в корне проекта) | Каталог для IPA/dSYM/.pkg. Относительный путь резолвится от корня проекта (не от `fastlane/`), `~` разворачивается в HOME |
 | `ARTIFACT_BASENAME` | значение `BUILD_SCHEME` | Базовое имя файлов артефактов: `{ARTIFACT_BASENAME}_v{APP_VERSION}_b{BUILD_NUMBER}` |
 | `HELPER_PATH` / `APPMETRICA_HELPER_PATH` | `fastlane/helper` | Путь к helper-бинарю AppMetrica для загрузки dSYM |
-| `APPMETRICA_KEY` | — | Ключ AppMetrica. Загрузка в AppMetrica включается только если заданы и ключ, и helper-бинарь по `HELPER_PATH` |
+| `APPMETRICA_KEY` | — | Ключ AppMetrica. Очередь dSYM повторяет загрузку, когда заданы и ключ, и helper-бинарь по `HELPER_PATH` |
 | `UPLOAD_DSYMS` | `true` (включено) | `false` отключает лейн `upload_dsyms` целиком |
 | `EXTERNAL_TESTFLIGHT_GROUPS` | — | Если задано, `upload_testflight` автоматически грузит для external testers в указанные группы (через запятую) |
 | `TAG_PREFIX` | — | Префикс git-тега в `tagging` (`{prefix}/v{VERSION}-build-{BUILD}`), полезно для монорепо с несколькими таргетами |
@@ -202,7 +202,22 @@ CI/CD (protected/masked variables), не хранятся в репозитор�
 
 | Lane | Что делает |
 |---|---|
-| `upload_dsyms firebase:true` | Загружает dSYM в AppMetrica (если заданы `APPMETRICA_KEY` и helper) и/или Firebase Crashlytics (`firebase:true`). Пропускается целиком при `UPLOAD_DSYMS=false` |
+| `upload_dsyms firebase:true` | Сохраняет dSYM в локальную очередь runner’а и повторяет загрузку в AppMetrica (если заданы `APPMETRICA_KEY` и helper); дополнительно может загрузить их в Firebase Crashlytics (`firebase:true`). Пропускается целиком при `UPLOAD_DSYMS=false` |
+
+Очередь AppMetrica хранится на постоянном диске iOS runner’а в
+`/Users/Shared/fastlane-dsym-spool`. Запись состоит из исходного `.dSYM.zip` и
+manifest с приложением, версией, номером сборки и идентификаторами pipeline/job.
+Каталог записи появляется атомарно, после сохранения обоих файлов. Дедупликация
+использует bundle ID, `CI_PIPELINE_ID` и SHA-256 архива. Каждый `upload_dsyms`
+обрабатывает только записи своего основного bundle ID, поскольку ключ AppMetrica
+привязан к приложению. После успешного ответа helper запись удаляется; при ошибке
+она остаётся для следующего запуска, а lane продолжает работу. В логе остаются
+число записей и суммарный размер архивов в очереди.
+
+Очередь не удаляет записи по сроку, поэтому при длительной недоступности
+AppMetrica она может расти и исчерпать свободное место на runner’е. Нужно следить
+за свободным диском и очищать записи вручную только после проверки, что их больше
+не требуется отправлять.
 
 ### 🧪 Тесты (`Fastfile_tests`)
 

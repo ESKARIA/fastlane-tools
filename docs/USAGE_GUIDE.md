@@ -209,7 +209,11 @@ EXTERNAL_TESTFLIGHT_GROUPS="External Public Beta" fastlane upload_external_testf
 ### 📦 Загрузка символов
 
 #### `upload_dsyms`
-Загружает dSYM файлы в AppMetrica и/или Firebase.
+Сохраняет dSYM в локальную очередь runner’а и загружает их в AppMetrica и/или Firebase.
+При недоступности AppMetrica загрузка считается отложенной: архив остаётся в
+`/Users/Shared/fastlane-dsym-spool`, а каждый следующий `upload_dsyms` повторяет
+отправку очереди для своего приложения. После успешной отправки архив удаляется.
+Очередь не имеет срока хранения; следите за свободным местом на runner’е.
 
 ```bash
 # Только AppMetrica
