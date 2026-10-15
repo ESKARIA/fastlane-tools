@@ -4,10 +4,8 @@ source 'https://rubygems.org'
 
 git_source(:github) { |repo_name| "https://github.com/#{repo_name}" }
 
-gem 'excon', '~> 1.5.0'
 gem 'fastlane'
 gem 'psych'
-gem 'rdoc', '~> 7.2'
 gem 'rubocop'
 gem 'rubyzip'
 
