@@ -77,6 +77,7 @@ def spool_and_upload_dsyms(spool_path)
                existing_manifest['sha256'] == sha256
           raise "Manifest очереди не соответствует ключу dedup: #{manifest_path}"
         end
+
         # The filename is keyed by app, pipeline and content hash, so an
         # existing manifest is the same archive from a retry of that pipeline.
         next
@@ -123,13 +124,11 @@ def spool_and_upload_dsyms(spool_path)
         Dir.mktmpdir('fastlane-dsym-upload-') do |extract_dir|
           sh("unzip -o -q #{queued_archive_path.shellescape} -d #{extract_dir.shellescape}")
           Dir.chdir(extract_dir) do
-            begin
-              sh("#{helper_path.shellescape} -k #{APPMETRICA_KEY.to_s.shellescape} -v", log: false)
-            rescue StandardError => upload_error
-              UI.important("⚠️  Не удалось загрузить dSYM #{manifest['original_archive_name']} в AppMetrica; запись оставлена в очереди (#{upload_error.class})")
-              upload_failed = true
-              failed_uploads += 1
-            end
+            sh("#{helper_path.shellescape} -k #{APPMETRICA_KEY.to_s.shellescape} -v", log: false)
+          rescue StandardError => e
+            UI.important("⚠️  Не удалось загрузить dSYM #{manifest['original_archive_name']} в AppMetrica; запись оставлена в очереди (#{e.class})")
+            upload_failed = true
+            failed_uploads += 1
           end
         end
         next if upload_failed

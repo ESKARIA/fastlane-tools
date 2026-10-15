@@ -2,13 +2,17 @@
 
 require 'spec_helper'
 
-def desc(*)
-  nil
-end unless Object.private_method_defined?(:desc)
+unless Object.private_method_defined?(:desc)
+  def desc(*)
+    nil
+  end
+end
 
-def lane(*)
-  nil
-end unless Object.private_method_defined?(:lane)
+unless Object.private_method_defined?(:lane)
+  def lane(*)
+    nil
+  end
+end
 
 load File.expand_path('../fastlane/Fastfile_dsyms', __dir__)
 
